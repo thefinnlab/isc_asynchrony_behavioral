@@ -1,0 +1,103 @@
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Letter Ticker Exp</title>
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.6.1/jquery.min.js"> </script>
+
+    <style>
+      div {
+        vertical-align: center;
+        background-color: #9913; 
+        text-align: left; 
+        width: 600px; 
+        padding: 50px 50px 50px 50px
+      }
+
+    </style>
+
+  </head>
+  <body>
+    <div id="transcript"></div>
+
+
+  </body>
+  <script>
+    var indexw, indexs, viewscript, sentence, words, sentcount;
+    transcript = "When I get the baton to run the anchor leg of the distance medley relay—that’s a race you run on a track—I’m five yards behind Vince Mutarelli. This race is over. You could have a hundred-yard lead on Vince Mutarelli, and over the course of a mile he would reel you in, he would pass you, and he would win. He is the best high school middle distance runner in the northeast United States. His nickname is La Machine, because he runs like a cyborg and he never gets tired. Everyone—there’s about 300 people in the stands around the track that day—everyone knows that he has no chance of being beaten. Except one guy. One guy thinks maybe he can be beaten, and that’s the guy who should know better. It’s the guy with the baton who’s five yards behind him. Why? Why did I think that? It’s weird, because I’m not even the best runner on my high school team. That’s a guy named Tom Novak, but he’s been injured. And so I’ve known for about a month that I’ll be running this anchor leg of the distance medley, medley relay, and it has changed me. You know, normally I’m sort of a lazy athlete. I just coast along on my genetic package. I’m a skinny guy with big lungs, and so, you know, I skip workouts, I don’t run on the weekend. But when I hear that I’m running against Vince Mutarelli, it turns me into, like, sports movie montage guy. I am running all the time, everyday of the week, and I’m throwing in extra workouts. Why? Why do I do that? It’s because Vince Mutarelli is from the Bronx, where my parents grew up, and where, where the badasses, where the tough guys live. I am from Westchester County, where the men wear golf slacks and the little dogs wear capes. I’m from the place that produces wimps. And this really raises the question of what we inherit. Can you have a trait that you never get to use because you don’t encounter an environment that triggers it? In other words, are the Bronx guys like Mutarelli tough because they live in the Bronx? Or are they tough because they inherit some sort of toughness—inherent toughness—from their tough Bronx parents that is then triggered by their tough Bronx neighborhoods? And conversely, why am I a wimp? Is it nature? Is it nurture? I need to know. So, we’re running. We’re running in this race. And the one thing you’ve got to know is my parents didn’t follow my athletic career all that closely, although a few weeks before, there was an exception. My mom drove me to another race in the Bronx, and that was kind of unusual. And I’d had an off day, and I finished sort of mid-pack. And as she’s driving me home afterwards she turned to me and she said, “You know I thought you were supposed to be good.” And that really… it hurt me. Although I could see that as soon as she said it, she regretted it. So then she turned to me and she said, “Okay, we’re taking a detour. I’m going to show you where I grew up, the apartment house where I grew up in the Bronx.” And I think why she did that is I’m, I’m 18 years old, I’m about to leave for college, I’m a senior in high school, and I think she wanted to let me know, she wanted to show me, that she had fought to get out of her neighborhood, and out of the working-class poverty she grew up with. And that you have to fight in this life, especially if you want to be good at something. So this apartment house she’s taking me to, she has these, like, beautiful childhood memories, of being a girl—it’s on a hill near Yankee Stadium—and she and her friends used to sleigh ride in winter down the hill all the way to the river. And in summer, her dad would take her and her friends up to the roof at night and he’d shoot off fireworks over the city. But that was before the expressways came, and just, just mutilated the neighborhood. So she knows it’s gone downhill, but she doesn’t know how much. She drives around a corner and she pulls up at the curb in front of this apartment house, this place that has all of her childhood memories, and we look, and it’s a pile of bricks in an empty lot. And it’s the only time I ever saw my mother cry. My mom and dad—she was a teacher and he was a government worker—they thought the best thing that they could do for me and my brothers is to give us, like, a perfectly safe and uneventful childhood. We grew up in this little suburb called Crestwood. Norman Rockwell literally painted a picture of Crestwood train station. And my parents got a cheap little print of it and put it in a little golden frame and hung it over the fireplace, and on Sunday nights we would all sit on the couch and look at it as we sipped our cocoa and watched the wonderful world of Disney on TV. So, my childhood was like a pasteurized glass of milk, and about as interesting. I’m about to leave home and I don’t know how to operate the stick shift on a car, or a checking account, or a condom. And, you know, you can learn those things, and maybe someday I will. But what’s harder to learn when you grow up sheltered is resilience. So I sat in the car and I watched my mom as she cried. And she gave herself only a minute, and then she stopped, and she drove us home. She made family—she made dinner—sorry—she made dinner for our family. And later that night she did something just as hard. She came into my bedroom, she sat down on the bed and she apologized for what she had said earlier in the day. So my plan for beating Vince Mutarelli is just stick close over three laps and then get on his shoulder for the fourth lap, somehow get to the back stretch, and then fight him down the home stretch. When you get to the last lap in a track race, the official rings a bell. So, when Mutarelli and I reached the bell lap, I am on his shoulder, and that is just shocking to the crowd. But everyone knows that, La Machine, he’s just toying with me, he could just pull away at any time. But he doesn’t. I stay with him around the curve, and now we’re we’re pounding it out down the back stretch, and the crowd is getting excited. I’m right next to him and he shoots me this look like, “Hey! Who are you?” and he pulls away to a five yard lead. And I think to myself, “Ugh, really? This is—really? After all this work, you just pull away. This is how I lose.” And then I see it. He chops his strides, tired. So I bring myself back even with him, and we go through the, the final curve, and then we hit the back stretch, the home stretch, stride for stride. And now the crowd is on its feet and people are screaming. And I even pull out to a little lead. And then he gets even, and he passes me. And somehow I will myself next to him, again. And he looks at me, again, like, “No, really, who are you?” We’re ten feet from the line, five feet, we lean. I win. And a few weeks later, he and I will match up again in another race just like this at a much bigger meet called the Penn Relays and he will bury me. But on this day, I win. Why? I think it’s because of something I got from my mom, it’s really the thing I value most, I think I inherited just a fraction of her toughness, of her Highbridge, her Bronx.";
+    words = transcript.split(" ");
+    sentences = transcript.split(".")
+    indexw = 0;
+    indexs = 0;
+    viewscript = "";
+
+
+    var wordsCounts = $.trim(transcript).split(".").map(getWordCount);
+    function getWordCount(sentence){
+        return sentence.split(' ').length;
+
+    }
+
+    console.log(wordsCounts[indexs]);
+
+    
+    $(document).keyup(function(k) {
+
+      if (k.which === 13 && indexs < wordsCounts.length) {
+        viewscript += sentences[indexs];
+        viewscript += ". ";
+        $("#transcript").html(viewscript);
+        indexs = indexs + 1;
+        indexw = indexw + wordsCounts[indexs];
+      }
+
+      if (k.which === 16){
+        console.log("sentence index is", indexs, "out of", sentences.length);
+        console.log("word index is", indexw, "out of", words.length);
+      }
+
+      if (k.which === 32 && indexw < words.length) {
+        viewscript += words[indexw];
+        viewscript += " ";
+        $("#transcript").html(viewscript);
+        indexw = indexw + 1;
+
+      } 
+        
+    });
+
+    
+
+
+/*
+    $(document).keyup(function(e) {
+
+      if (e.which === 32 && indexw < sentcount) {
+        viewscript += sentences[indexs];
+        viewscript += " ";
+        $("#transcript").html(viewscript);
+        indexs = indexs + 1;
+
+      }
+    });
+
+    // count how the number of words before the next period
+    // increase the index by that number of words
+    // display the words
+
+    /*
+    (function(e) {
+      if (e.button === 0 && index < sentcount) {
+        viewscript += words[index];
+        viewscript += " ";
+        $("#transcript").html(viewscript);
+        index = index + 1;
+      }
+      });
+*/
+
+
+
+
+    </script>
+</html>
