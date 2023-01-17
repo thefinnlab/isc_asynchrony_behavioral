@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Test Experiment</title>
+    <!-- FOR LOADING EXTENSIONS --> 
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" type="text/javascript"></script>
+    <script src="https://unpkg.com/jspsych@7.2.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.1"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-survey-text@1.1.1"></script>
+    <link href="https://unpkg.com/jspsych@7.2.3/css/jspsych.css" rel="stylesheet" type="text/css" />
+  </head>
+  <body>
+    
+  </body>
+  <script>
+    var jsPsych = initJsPsych({
+
+      // TLB NOTE - this allows us to see the collected data
+      on_finish: function() {
+        jsPsych.data.displayData();
+      }
+    });
+
+    var timeline = [];
+
+    var welcome = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: "Welcome to the experiment. Press the return or enter key to read the instructions.",
+      choices: ['Enter']
+    };
+    timeline.push(welcome);
+
+    var instructions = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <p style="width:600px;" >In this experiment, text will appear on the screen, and you will be asked to to predict the next word or the next few words. As shown in the image below, a sentence will appear with a "blank space" at the end. You can type your prediction for what is most likely in that blank space in the text box beneath, then push "Continue".</p>
+        <img src="file:///Users/hannahnicolson/Desktop/Screenshot%202022-10-14%20at%203.10.20%20AM.png" style="width:400px;"></img>
+        <p>Press the space key to begin.</p>
+      `,
+      choices: [' ', 'Spacebar'],
+      //post_trial_gap: 50
+    };
+    timeline.push(instructions);
+
+    // LOAD THE TRANSCRIPT USING JQUERY
+    
+    var stimulus;
+    jQuery.get('bronx.txt', function(data) {
+        // pass the transcript to the stimulus variable when ready
+        stimulus = data.split(" ");
+        console.log(stimulus)
+    });
+
+    // DEFINE FUNCTIONS FOR LOADING TRIAL DISPLAY
+    var counter = 0;
+    var n_items = 25;
+
+
+    function sliding_window_array(){
+      // This function shows the current stimulus (needed for the first trial)
+      // It also hides the next word
+      var text = stimulus.slice(counter, counter + n_items + 1);
+      var text = text.concat('_________');
+      var text = text.join(' ');
+
+      let container = $("#text_display");
+      container.html(text);
+    }
+
+    function check_array_finished(){
+      if(counter < stimulus.length){
+          counter++;
+          return true;
+        } else {
+          return false;
+        }
+    }
+    var trial = {
+      type: jsPsychSurveyText,
+      preamble: '<div id="text_display"></div>', 
+      questions: [
+        {prompt: '', placeholder: 'Type your word', required: true},
+      ],
+      on_load: sliding_window_array,
+    };
+
+    var procedure = {
+      timeline: [trial],
+      loop_function: check_array_finished // this double checks that we haven't finished the array
+    };
+    timeline.push(procedure);
+
+    jsPsych.run(timeline);
+
+    </script>
+</html>
+
+
