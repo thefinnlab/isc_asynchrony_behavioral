@@ -48,7 +48,6 @@
     jQuery.get('bronx.txt', function(data) {
         // pass the transcript to the stimulus variable when ready
         stimulus = data.split(" ");
-        console.log(stimulus)
     });
 
     // DEFINE FUNCTIONS FOR LOADING TRIAL DISPLAY
@@ -65,6 +64,17 @@
 
       let container = $("#text_display");
       container.html(text);
+
+      $('.jspsych-survey-text-preamble').css({
+          // "position": "absolute",
+          // "left": "50%",
+          "transform": "translateX(50%)",
+          // "transform": "translateY(40%)",
+          "width": "50%",
+          // "margin-bottom": "20px"
+          // "z-index": "3",
+          // "top":"250px"
+      });
     }
 
     function check_array_finished(){
@@ -83,6 +93,8 @@
       ],
       on_load: sliding_window_array,
     };
+
+
 
     var procedure = {
       timeline: [trial],
