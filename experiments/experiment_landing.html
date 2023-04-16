@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>FinnLab Experiment Welcome</title>
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests"> 
+
+    <!-- LOAD FINNLAB SPECIFIC THINGS --> 
+    <script src="https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/utils/javascript_utils.js" type="text/javascript"></script>
+     
+    <!-- JQUERY + JSPSYCH --> 
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" type="text/javascript"></script>
+    <script src="https://unpkg.com/jspsych@7.2.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.1"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-fullscreen@1.1.1"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-survey-html-form@1.0.0"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-call-function@1.1.1"></script>
+    <link href="https://unpkg.com/jspsych@7.2.3/css/jspsych.css" rel="stylesheet" type="text/css" />
+  </head>
+  <body>
+  </body>
+  <script>
+
+    var jsPsych = initJsPsych();
+    var parameter_path = jsPsych.data.getURLVariable('PARAMETER_PATH');
+    var tracker_filename = jsPsych.data.getURLVariable('TRACKER_NAME');
+
+    participant_tracker_url = 'https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/utils/participant_id_allocator_survey.php'
+    write_data_url = 'https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/utils/write_data.php'
+    tracker_filename = [tracker_filename, '.txt'].join('');
+    experiment_info_path = ['https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/experiments/', parameter_path].join('');
+
+    experiment_information = loadExperimentInformation(
+      tracker_url=participant_tracker_url, 
+      tracker_filename=tracker_filename, 
+      experiment_info_path=experiment_info_path,
+      write_data_url=write_data_url,
+    );
+
+    // welcome message
+    var welcome = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: "Welcome to the experiment. Press the return or enter key to get started.",
+      choices: ['Enter']
+    };
+
+    var consent_form = {
+      type: jsPsychSurveyHtmlForm,
+      preamble: consent.consent_naturalistic,
+      html: "<p><input type=checkbox id=consent_checkbox required/> <strong> I agree to take part in this study. </strong> </p>"
+    };
+
+    var progress_experiment = {
+      type: jsPsychCallFunction,
+      func: function(){
+        progressExperiment();
+      }
+    }
+
+    // BUILD THE TIMELINE AND RUN
+
+    timeline = [
+        welcome,
+        consent_form,
+        progress_experiment,
+    ];
+
+    jsPsych.run(timeline);
+
+    </script>
+</html>
