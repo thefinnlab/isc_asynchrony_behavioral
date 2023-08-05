@@ -7,9 +7,7 @@
     <!-- LOAD FINNLAB SPECIFIC THINGS --> 
     <script src="https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/utils/javascript_utils.js" type="text/javascript"></script>
 
-    <script src="https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/utils/wc-talk/mp4box.all.min.js"></script>
-
-    <!-- <script src="https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/utils/wc-talk/audio_renderer.js" type="module"></script> -->
+    <script src="https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/experiments/isc_asynchrony_behavior/experiments/next-word-prediction/audio_context.js" type="text/javascript"></script>
 
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
     <script src="https://unpkg.com/jspsych@7.2.3"></script>
@@ -24,32 +22,39 @@
   </body>
   <script type="module">
 
-    // // // Use FinnLab helper script to load the information
+    ///// LOAD EXPERIMENT PARAMETERS /////
+
+    // Use FinnLab helper script to load the information
     let experiment_information = getExperimentInformation();
     let current_experiment = experiment_information[0].current_experiment;
 
     console.log(experiment_information);
 
-    // // // Load experiment specific variables
+    // Load experiment specific variables
     // let practice_audio_fn = experiment_information[current_experiment].practice_audio;
     let practice_transcript_fn = experiment_information[current_experiment].practice_transcript;
-
-    let practice_audio_fn = "https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/experiments/isc_asynchrony_behavior/stimuli/audio/nwp_practice_trial_audio.mp4"
+    let practice_audio_fn = "https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/experiments/isc_asynchrony_behavior/stimuli/audio/nwp_practice_trial_audio.wav"
 
     // let stimulus_audio_fn = experiment_information[current_experiment].stimulus_audio;
     // stimulus_transcript_fn = experiment_information[current_experiment].stimulus_transcript;
 
-    let stimulus_audio_fn = "https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/experiments/isc_asynchrony_behavior/stimuli/audio/black_audio.mp4"
+    let stimulus_audio_fn = "https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/experiments/isc_asynchrony_behavior/stimuli/audio/black_audio.wav"
 
     let stimulus_transcript_fn = "https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/experiments/isc_asynchrony_behavior/stimuli/presentation_orders/pilot-version-04/black_transcript_preprocessed.json"
     
     console.log(practice_audio_fn);
+
     let modality = experiment_information[current_experiment].stimulus_modality;
 
-    // NEXT WORD PREDICTION FUNCTIONS
-    // var counter = 0;
-    var n_items = 1000000; // tlb note --> should load this from a file
+    ///////////////////////////////////////////
+    /////// GLOBAL EXPERIMENT FUNCTIONS ///////
+    ///////////////////////////////////////////
 
+    /*
+    Includes loading JsPsych
+    Functions for grabbing the text display box
+
+    */
     var jsPsych = initJsPsych({
       // TLB NOTE - this allows us to see the collected data
       on_interaction_data_update: function(){
@@ -71,6 +76,7 @@
     // Add URL vars and time start to the data
     addParticipantInformation(jsPsych);
 
+    var container = '<div id="text_container"></div>';
     var parent_element = '.jspsych-display-element'
     var display_width = 0.5;
 
@@ -111,13 +117,155 @@
       }
     }
 
-    ////////////////// NEXT-WORD PREDICTION FUNCTIONS ////////////////////
+    function clearTextContainer(){
+      display_text_stack = []
+
+
+      if($('#text_container').length){
+        $('#text_container').hide();
+        $('#text_container').html('');
+        $('#text_container').show();
+      }
+    }
+
+    ///////////////////////////////////////////
+    ///////// AUDIO CONTEXT FUNCTIONS /////////
+    ///////////////////////////////////////////
+
+
+    var audioCtx;
+    var sourceNode;
+    var gainNode;
+    var startTime;
+    var audioLoadOffset;
+    var audioLoadStart;
+    var started;
+
+    // var bufferLoader; 
+
+    function init_context(url, done) {
+      // initialize variable outside
+
+      //Do audio load
+      audioCtx = new AudioContext({ latencyHint: "playback" });
+      audioLoadStart = new Date();
+
+      var bufferLoader = new BufferLoader(
+        audioCtx,
+        [url], // list of string urls to load
+        function(bufferList){
+          createSource(bufferList, done);
+        }
+      );
+
+      bufferLoader.load();
+    }
+
+    function createSource(bufferList, callback) {
+      sourceNode = audioCtx.createBufferSource();
+      // gainNode = audioCtx.createGain();
+      // gainNode.gain.value = 1;
+
+      sourceNode.buffer = bufferList[0];
+
+      // Connect source to gain.
+      sourceNode.connect(audioCtx.destination);
+
+      // Connect gain to destination.
+      // gainNode.connect(audioCtx.destination);
+      current_time = 0;
+
+      audioCtx.suspend();
+      // sourceNode.start(0, current_time);
+      started = false;
+      callback();
+      // 
+    }
+
+    function playSource(play_time){
+      // Have to capture the current buffer because we reset the source node
+      var buffer = sourceNode.buffer;
+      sourceNode = audioCtx.createBufferSource();
+
+      // // Connect graph
+      sourceNode.buffer = buffer;
+      sourceNode.loop = false;
+      sourceNode.channelCount = 1; 
+
+      // Connect source to gain.
+      sourceNode.connect(audioCtx.destination);
+
+      console.log('Starting play at time: ' + play_time);
+      // Start playback, but make sure we stay in bound of the buffer.
+      
+      if (!started){
+        audioLoadOffset = (new Date() - audioLoadStart) / 1000;
+        console.log(audioLoadOffset);
+        started = true;
+      }
+
+      sourceNode.start(0, play_time);
+      audioCtx.resume();
+    }
+
+    function pauseSource(pause_time){
+      console.log("Pausing at time: " + pause_time);
+      sourceNode.stop(pause_time);
+      audioCtx.suspend();
+      // sourceNode.disconnect();
+      // audioCtx.suspend();
+    }
+
+
+    // function startNode(){
+    //   // if (!called){
+    //   audioCtx.resume();
+    // }
+    // function stopNode(){
+    //   audioCtx.suspend();
+    //   console.log('Context time : ' + audioCtx.getOutputTimestamp().contextTime);
+    // }
+    function clearAudioContext(){
+
+      audioCtx.close();
+      // sourceNode.stop();
+      // sourceNode.disconnect();
+      // gainNode.disconnect();
+
+      // sourceNode = null;
+      // gainNode = null;
+
+    }
+
+    // function createAudioNode(audio, audio_fn){
+    //   audioCtx = new AudioContext({ latencyHint: "playback" });
+
+    //   audio = new Audio(audio_fn);
+    //   audio.loop = false;
+    //   audio.currentTime = 0;
+      
+    //   var sourceNode = audioCtx.createMediaElementSource(audio);
+    //   var gainNode = audioCtx.createGain();
+    //   gainNode.value = 1;
+
+    //   sourceNode.channelCount = 1; 
+
+    //   // var sourceNode = audioCtx.createMediaElementSource(audio);
+    //   sourceNode.connect(gainNode).connect(audioCtx.destination);
+
+    //   return audio;
+    // }
+
+    ///// NEXT WORD PREDICTION FUNCTIONS /////
+
+    var n_items = 1000000; // tlb note --> should load this from a file
 
     var display_text_stack = [];
     var current_word; // make a variable for current word to access from other functions
     var current_string;
-    var container = '<div id="text_container"></div>';
     var blank_string = '________';
+
+    var current_time;
 
     function updateTextContainer(array, new_string, wait_time, callback_func=null){
 
@@ -144,19 +292,6 @@
       }, wait_time);
     }
 
-    function clearTextContainer(){
-      display_text_stack = []
-
-
-      if($('#text_container').length){
-        $('#text_container').hide();
-        $('#text_container').html('');
-        $('#text_container').show();
-      }
-    }
-
-    var current_time;
-
     function prepareNWPTrial(stimulus, audio, counter){
       /*
 
@@ -175,9 +310,8 @@
         );
       }
 
-      if (audio.paused){
-        audio.play(); // i think this should start the audio
-        startNode();
+      if (audioCtx.state == "suspended"){
+        playSource(current_time);
       }
 
       // Get the current string, join together with punctuation
@@ -191,12 +325,13 @@
       // current time = time at which the audio track is playing at
       // context time = time at which the audio track is being rendered at
       // offset = difference beteween the two
-      current_time = audioCtx.getOutputTimestamp().contextTime;
+
+      // current_time = audioCtx.getOutputTimestamp().contextTime;
       var offset = audioCtx.currentTime - audioCtx.getOutputTimestamp().contextTime;
 
-      console.log('Offset: ' + offset);
+      var display_wait_time = 1000*(audioLoadOffset + current_word.Onset - audioCtx.getOutputTimestamp().contextTime - offset); // - offset/2);
 
-      var display_wait_time = 1000*(current_word.Onset - current_time - offset/2);
+      current_time = current_word.Onset + audioLoadOffset - offset;
 
       // Hide the survey text form if it's not a response trial
       $('#jspsych-survey-text-form').hide();
@@ -204,15 +339,15 @@
       // if we're doing a NWP trial
       if (current_word.NWP_Candidate){
         console.log('Word onset: ', current_word.Onset)
+        pauseSource(current_time);
 
         updateTextContainer(
           array = display_text_stack.slice(), // copy the current array
           new_string = blank_string,
           wait_time = display_wait_time,
           callback_func = function(){
-              // audioRenderer.pause();
               // audio.pause(); // pause the audio
-              stopNode();
+              // stopNode();
 
               // Show the survey text response since it's a response trial
               $('#jspsych-survey-text-form').show().focus();
@@ -220,6 +355,7 @@
         );
       }
       else{
+        console.log("here");
 
         updateTextContainer(
           array = display_text_stack, 
@@ -283,7 +419,13 @@
 
         // Pause to give a second to see the right word, then update the array to keep track of the new word
         jsPsych.pauseExperiment();
-        
+
+        // // playSource(current_time + 1);
+        if (counter == stimulus.length){
+          console.log('CURRENT TIME IS: ' + current_time);
+          playSource(current_time);
+        }
+
         updateTextContainer(
           array = display_text_stack, 
           new_string = current_string,
@@ -294,8 +436,8 @@
             jsPsych.resumeExperiment();
 
             // if (counter == stimulus.length){
-            audio.play();
-            startNode();
+            // audio.play();
+            // startNode();
             // }
           }
         );
@@ -343,8 +485,6 @@
 
     function endExperiment(audio){
       //Remove text container and end audio
-      // audio.pause();
-      audioRenderer.pause();
 
       // we wait to update the text container with the last word, then remove and display the data
       jsPsych.pluginAPI.setTimeout(function(){
@@ -358,6 +498,7 @@
       var stimulus = null;
       var audio = null;
       var counter = 0;
+      // current_time = 0;
       
       $.ajax({
         url: stimulus_fn,
@@ -373,8 +514,12 @@
       // Set up JSPSYCH experiment timeline --> load audio and add a trial when finished
       var nwp_entry = {
         type: jsPsychCallFunction,
-        func: function(){
-            audio = createAudioNode(audio, audio_fn);
+        async: true,
+        func: function(done){
+
+            // I THINK THIS SHOULD MODIFY VARIABLES IN PLACE
+            init_context(audio_fn, done);
+            // audio = createAudioNode(audio, audio_fn);
         },
         on_finish: function(){
           // Pause to give a second to see the right word, then update the array to keep track of the new word
@@ -390,6 +535,7 @@
           else{
             console.log('Running text-audio experiment');
           }
+
           addNWPTrial(
             experiment_phase=experiment_phase,
             stimulus=stimulus, 
@@ -490,51 +636,6 @@
        );
     }
 
-    // var sourceNode = audioCtx.createBufferSource();
-    // var audio = new Audio();
-
-    var audioCtx;
-    var sourceNode;
-
-    function startNode(){
-      // if (!called){
-      audioCtx.resume();
-    }
-    function stopNode(){
-      audioCtx.suspend();
-      console.log('Context time : ' + audioCtx.getOutputTimestamp().contextTime);
-    }
-    function clearAudioContext(){
-
-      audioCtx.close();
-      // sourceNode.stop();
-      // sourceNode.disconnect();
-      // gainNode.disconnect();
-
-      // sourceNode = null;
-      // gainNode = null;
-
-    }
-
-    function createAudioNode(audio, audio_fn){
-      audioCtx = new AudioContext({ latencyHint: "playback" });
-
-      audio = new Audio(audio_fn);
-      audio.loop = false;
-      audio.currentTime = 0;
-      
-      var sourceNode = audioCtx.createMediaElementSource(audio);
-      var gainNode = audioCtx.createGain();
-      gainNode.value = 1;
-
-      sourceNode.channelCount = 1; 
-
-      // var sourceNode = audioCtx.createMediaElementSource(audio);
-      sourceNode.connect(gainNode).connect(audioCtx.destination);
-
-      return audio;
-    }
-
     function addPostPracticeInstructions(){
 
       let experiment_entry = getNWPEntryPoint(
@@ -575,7 +676,7 @@
         }
       };
 
-      jsPsych.addNodeToEndOfTimeline({timeline: [clear_text, clear_audio_context, post_practice_instructions]});
+      jsPsych.addNodeToEndOfTimeline({timeline: [clear_text, post_practice_instructions, clear_audio_context]});
     }
 
     var experiment_phase;
@@ -586,6 +687,13 @@
     function buildTimeline(){
 
       console.log(modality);
+
+      let experiment_entry = getNWPEntryPoint(
+        experiment_phase='experiment',
+        stimulus_fn=stimulus_transcript_fn, 
+        audio_fn=stimulus_audio_fn,
+        modality=modality,
+      );
 
       // Add callback function to postpractice instructions
       let practice_entry = getNWPEntryPoint(
@@ -603,7 +711,8 @@
         create_text_container,
         fullscreen,
         instructions,
-        practice_entry,
+        experiment_entry,
+        // practice_entry,
       ];
 
       jsPsych.run(timeline);
