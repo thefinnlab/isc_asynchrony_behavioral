@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Test Experiment</title>
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests"> 
+
+    <!-- LOAD FINNLAB SPECIFIC THINGS --> 
+    <script src="https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/utils/javascript_utils.js" type="text/javascript"></script>
+
+    <script src="https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/utils/wc-talk/mp4box.all.min.js"></script>
+
+    <!-- <script src="https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/utils/wc-talk/audio_renderer.js" type="module"></script> -->
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script src="https://unpkg.com/jspsych@7.2.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.1"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-fullscreen@1.1.1"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-survey-text@1.1.1"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-call-function@1.1.1"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-instructions@1.1.1"></script>
+    <link href="https://unpkg.com/jspsych@7.2.3/css/jspsych.css" rel="stylesheet" type="text/css" />
+  </head>
+  <body>
+  </body>
+  <script type="module">
+
+    // // // Use FinnLab helper script to load the information
+    let experiment_information = getExperimentInformation();
+    let current_experiment = experiment_information[0].current_experiment;
+
+    console.log(experiment_information);
+
+    // // // Load experiment specific variables
+    // let practice_audio_fn = experiment_information[current_experiment].practice_audio;
+    let practice_transcript_fn = experiment_information[current_experiment].practice_transcript;
+
+    let practice_audio_fn = "https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/experiments/isc_asynchrony_behavior/stimuli/audio/nwp_practice_trial_audio.mp4"
+
+    // let stimulus_audio_fn = experiment_information[current_experiment].stimulus_audio;
+    // stimulus_transcript_fn = experiment_information[current_experiment].stimulus_transcript;
+
+    let stimulus_audio_fn = "https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/experiments/isc_asynchrony_behavior/stimuli/audio/black_audio.mp4"
+
+    let stimulus_transcript_fn = "https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/experiments/isc_asynchrony_behavior/stimuli/presentation_orders/pilot-version-04/black_transcript_preprocessed.json"
+    
+    console.log(practice_audio_fn);
+    let modality = experiment_information[current_experiment].stimulus_modality;
+
+    // NEXT WORD PREDICTION FUNCTIONS
+    // var counter = 0;
+    var n_items = 1000000; // tlb note --> should load this from a file
+
+    var jsPsych = initJsPsych({
+      // TLB NOTE - this allows us to see the collected data
+      on_interaction_data_update: function(){
+        setTextContainerOffset();
+        setTextContainerPosition();
+      },
+      on_close: function(){ 
+        alert("The experiment isn't finished. Are you sure you want to leave the page?");
+      },
+      on_finish: function() {
+        saveNWPData();
+
+        jsPsych.pluginAPI.setTimeout(function(){
+          progressExperiment();
+        }, 5000);
+      }
+    });
+    
+    // Add URL vars and time start to the data
+    addParticipantInformation(jsPsych);
+
+    var parent_element = '.jspsych-display-element'
+    var display_width = 0.5;
+
+    function setTextContainerOffset(){
+        $('#text_container').offset({
+          "top": $(parent_element).offset().top + $(parent_element).height()*0.15,
+          "left": $(parent_element).offset().left + $(parent_element).width()*((1-display_width)/2),
+        });
+    }
+
+    function setTextContainerPosition(){
+      $('#text_container').css({
+        "margin": "0 auto",
+        "width": String(display_width*100) + "%",
+        "height": '15%',
+        "overflow": "scroll",
+        "overflow-y": "scroll",
+        'text-align': 'left',
+        'vertical-align': 'top',
+      });
+    }
+
+    function updateScroll(){
+      if($('#text_container').length){
+        var element = document.getElementById("text_container");
+        element.scrollTop = element.scrollHeight;
+      }
+    }
+
+    function muteAudio(audio){
+      audio.muted = true;
+      console.log('Muted!');
+    }
+
+    function hideText(){
+      if($('#text_container').length){
+        $('#text_container').remove();
+      }
+    }
+
+    ////////////////// NEXT-WORD PREDICTION FUNCTIONS ////////////////////
+
+    var display_text_stack = [];
+    var current_word; // make a variable for current word to access from other functions
+    var current_string;
+    var container = '<div id="text_container"></div>';
+    var blank_string = '________';
+
+    function updateTextContainer(array, new_string, wait_time, callback_func=null){
+
+      // If we're over the number of items, remove the first items
+      if (array.length > n_items){
+        array.shift();
+      }
+
+      // Add the current string to the array
+      array.push(new_string);
+
+      // Start a timeout to insert the word and end the trial
+      jsPsych.pluginAPI.setTimeout(function() {
+
+        if($('#text_container').length){
+          $('#text_container').html(array.join(''));
+          updateScroll();
+        }
+
+        // Do this upon timeout
+        if (callback_func){
+          callback_func();
+        }
+      }, wait_time);
+    }
+
+    function clearTextContainer(){
+      display_text_stack = []
+
+
+      if($('#text_container').length){
+        $('#text_container').hide();
+        $('#text_container').html('');
+        $('#text_container').show();
+      }
+    }
+
+    var current_time;
+
+    function prepareNWPTrial(stimulus, audio, counter){
+      /*
+
+      This function regulates the display a next-word prediction trial. Specifically, trial structure is as follows:
+          1. If audio is not playing, play the audio
+          2. Grab the next word
+                a. If a prediction trial, pause the audio and wait for a participant response
+                b. Otherwise display the word and continue playing the audio -> wait until the word is said to display the word
+      */
+
+      if (counter == 0){
+        updateTextContainer(
+          array = [], // copy the current array
+          new_string = 'Please wait - loading...',
+          wait_time = 0,
+        );
+      }
+
+      if (audio.paused){
+        audio.play(); // i think this should start the audio
+        startNode();
+      }
+
+      // Get the current string, join together with punctuation
+      current_word = stimulus[counter]
+      current_string = [current_word.Word_Written, current_word.Punctuation].join('');
+
+      // var current_time = audio.currentTime;
+      console.log("Current time: " + audioCtx.currentTime);
+      console.log("Context time: " + audioCtx.getOutputTimestamp().contextTime);
+
+      // current time = time at which the audio track is playing at
+      // context time = time at which the audio track is being rendered at
+      // offset = difference beteween the two
+      current_time = audioCtx.getOutputTimestamp().contextTime;
+      var offset = audioCtx.currentTime - audioCtx.getOutputTimestamp().contextTime;
+
+      console.log('Offset: ' + offset);
+
+      var display_wait_time = 1000*(current_word.Onset - current_time - offset/2);
+
+      // Hide the survey text form if it's not a response trial
+      $('#jspsych-survey-text-form').hide();
+
+      // if we're doing a NWP trial
+      if (current_word.NWP_Candidate){
+        console.log('Word onset: ', current_word.Onset)
+
+        updateTextContainer(
+          array = display_text_stack.slice(), // copy the current array
+          new_string = blank_string,
+          wait_time = display_wait_time,
+          callback_func = function(){
+              // audioRenderer.pause();
+              // audio.pause(); // pause the audio
+              stopNode();
+
+              // Show the survey text response since it's a response trial
+              $('#jspsych-survey-text-form').show().focus();
+          }
+        );
+      }
+      else{
+
+        updateTextContainer(
+          array = display_text_stack, 
+          new_string = current_string,
+          wait_time = display_wait_time, 
+          callback_func = function (){
+            jsPsych.finishTrial();          
+          }
+        );
+      }
+    }
+
+    function checkArrayFinished(experiment_phase, stimulus, audio, counter, callback_func=null){
+      /*
+
+      If the current trial was a next-word prediction trial, wait 1 second while showing the correct word in red. After the wait time has passed, remove the color from the word and progress the experiment.
+
+      In general, this function serves to make another next-word prediction trial and dynamically add the trial to the end of the experiment timeline.
+
+      */
+
+      // No clue why this needs to be here, but this needs to come first in the stack otherwise it endlessly recurses
+      // It has to do with the pause/resume experiment section of NWP candidate
+      counter++;
+
+      if (counter < stimulus.length){
+        addNWPTrial(experiment_phase, stimulus, audio, counter, callback_func=callback_func);
+      }
+      else if (callback_func){
+        callback_func();
+      }
+      else{
+        endExperiment(audio);
+      }
+
+      // Add the experiment phase and the current word to the data structure
+      jsPsych.data.get().addToLast({
+        experiment_phase: experiment_phase,
+        current_word: current_word.Word_Written,
+        transcript_index: counter,
+        critical_trial: current_word.NWP_Candidate
+      });
+
+      // This section must come second
+      if (current_word.NWP_Candidate){
+
+        // Save the data
+        saveNWPData();
+
+        // First update with a correct word string (don't need to wait)
+        updateTextContainer(
+          array = display_text_stack.slice(), // copy the current array
+          new_string = ['<span id="correct_word">', current_word.Word_Written, '</span>', current_word.Punctuation].join(''),
+          wait_time = 0,
+          callback_func = function () {
+            $('#correct_word').css({
+              'color': '#2d9bc0',
+            })
+          }
+        );
+
+        // Pause to give a second to see the right word, then update the array to keep track of the new word
+        jsPsych.pauseExperiment();
+        
+        updateTextContainer(
+          array = display_text_stack, 
+          new_string = current_string,
+          wait_time = 1000,
+          callback_func=function(){
+            // audioRenderer.play();
+
+            jsPsych.resumeExperiment();
+
+            // if (counter == stimulus.length){
+            audio.play();
+            startNode();
+            // }
+          }
+        );
+      }
+    }
+
+    function makeNWPTrial(experiment_phase, stimulus, audio, counter, callback_func=null){
+      /*
+
+      Helper function that creates next-word prediction trials. Called at the start of the experiment to make the first trial, and within checkArrayFinish to add trials if experiment hasn't completed.
+
+      */
+
+      var trial = {
+        type: jsPsychSurveyText,
+        questions: [
+          {prompt: '', placeholder: 'Type your word', required: true},
+        ],
+        on_load: function(){
+          prepareNWPTrial(
+            stimulus=stimulus, 
+            audio=audio, 
+            counter=counter
+          );
+        },
+        on_finish: function(){
+          checkArrayFinished(
+            experiment_phase=experiment_phase, 
+            stimulus=stimulus, 
+            audio=audio, 
+            counter=counter, 
+            callback_func=callback_func
+          );
+        }, // add to array if not finished
+      };
+
+      return trial
+    }
+
+    function addNWPTrial(experiment_phase, stimulus, audio, counter, callback_func=null){
+
+      var trial = makeNWPTrial(experiment_phase, stimulus, audio, counter, callback_func=callback_func);
+      jsPsych.addNodeToEndOfTimeline({timeline: [trial]});
+    }
+
+    function endExperiment(audio){
+      //Remove text container and end audio
+      // audio.pause();
+      audioRenderer.pause();
+
+      // we wait to update the text container with the last word, then remove and display the data
+      jsPsych.pluginAPI.setTimeout(function(){
+        hideText();
+        // jsPsych.data.displayData();
+      }, 1000);
+    }
+
+    function getNWPEntryPoint(experiment_phase, stimulus_fn, audio_fn, modality, callback_func=null){
+      // Local variables for processing NWP experiment
+      var stimulus = null;
+      var audio = null;
+      var counter = 0;
+      
+      $.ajax({
+        url: stimulus_fn,
+        dataType: 'json',
+        type: 'get',
+        cache: true,
+        async: false,
+        success: function (data) {
+            stimulus = data;//.words; // discard the transcript
+        }
+      });
+
+      // Set up JSPSYCH experiment timeline --> load audio and add a trial when finished
+      var nwp_entry = {
+        type: jsPsychCallFunction,
+        func: function(){
+            audio = createAudioNode(audio, audio_fn);
+        },
+        on_finish: function(){
+          // Pause to give a second to see the right word, then update the array to keep track of the new word
+
+          if (modality === 'text'){
+            muteAudio(audio);
+            console.log('Running text experiment');
+          }
+          else if (modality === 'audio'){
+            hideText();
+            console.log('Running audio experiment');
+          }
+          else{
+            console.log('Running text-audio experiment');
+          }
+          addNWPTrial(
+            experiment_phase=experiment_phase,
+            stimulus=stimulus, 
+            audio=audio, 
+            counter=counter, 
+            callback_func=callback_func
+          );
+        }
+      }
+
+      return nwp_entry
+    }
+
+    ////////////////// CREATE EXPERIMENT TIMELINE ////////////////////
+
+    var stimulus_audio = null;
+
+    var create_text_container = {
+      type: jsPsychCallFunction,
+      func: function(){
+        $(parent_element).append(container);
+        setTextContainerOffset();
+        setTextContainerPosition();
+        clearTextContainer();
+      }
+    }
+
+    // welcome message
+    var welcome = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: "Welcome to the experiment. Press the return or enter key to read the instructions.",
+      choices: ['Enter']
+    };
+
+    var fullscreen = {
+      type: jsPsychFullscreen,
+      fullscreen_mode: true
+    }
+
+    // INSTRUCTIONS FOR EACH TASK
+
+    let audio_instructions = ['Welcome to the experiment. Click next to advance the instructions.<br><br>',
+      'In this experiment, you will listen to a recording of someone telling a story. <b>Please make sure to turn your volume on and be in a quiet location</b>.<br><br>',
+      'On occasion, the story will stop and a blank space “_______” will appear. Please type the word that you believe is most likely coming next.<br><br>',
+      'After you submit your response, you will hear the actual word spoken in the story and the story will continue. Don’t worry if you were wrong — we’re just interested in your best guess.<br><br>',
+      'Please submit your response as quickly as possible — remember, we’re not concerned about accuracy, so go with your first instinct and take your best guess at predicting the next word.<br><br>',
+      'Click next to do a practice trial!<br><br>'];
+
+    let text_instructions = ['Welcome to the experiment. Click next to advance the instructions.<br><br>',
+      'In this experiment, you will read a story. The words of the story will be presented on the screen one by one. <b>Please make to be in a quiet location</b>.',
+      'On occasion, the story will stop and a blank space “_______” will appear. Please type the word that you believe is most likely coming next.<br><br>',
+      'After you submit your response, the actual word spoken in the story will appear in <span style="color: #2d9bc0">blue</span> and the story will continue. Don’t worry if you were wrong — we’re just interested in your best guess.<br><br>',
+      // 'Please watch the example below. Click next when you have completed watching the example.<br><br><img src="example_trial.gif" width=80%/><br><br>',
+      'Please submit your response as quickly as possible — remember, we’re not concerned about accuracy, so go with your first instinct and take your best guess at predicting the next word.<br><br>',
+      'Click next to do a practice trial!<br><br>'];
+
+    let audio_text_instructions = ['Welcome to the experiment. Click next to advance the instructions.<br><br>',
+      'In this experiment, you will listen to a recording of someone telling a story. The words of the story will be presented on the screen as they are spoken outloud so <b>please make sure to turn your volume on and be in a quiet location</b>.<br><br>',
+      'On occasion, the story will stop and a blank space “_______” will appear. Please type the word that you believe is most likely coming next.<br><br>',
+      'After you submit your response, the actual word spoken in the story will appear in <span style="color: #2d9bc0">blue</span> and the story will continue. Don’t worry if you were wrong — we’re just interested in your best guess.<br><br>',
+      // 'Please watch the example below. Click next when you have completed watching the example.<br><br><img src="example_trial.gif" width=80%/><br><br>',
+      'Please submit your response as quickly as possible — remember, we’re not concerned about accuracy, so go with your first instinct and take your best guess at predicting the next word.<br><br>',
+      'Click next to do a practice trial!<br><br>'];
+
+    // SET INSTRUCTIONS HERE 
+
+    var instructions_text;
+
+    if (modality === 'text'){
+      instructions_text = text_instructions;
+    }
+    else if (modality === 'audio'){
+      instructions_text = audio_instructions;
+    }
+    else{
+      instructions_text = audio_text_instructions
+    }
+
+    var instructions = {
+        type: jsPsychInstructions,
+        pages: instructions_text,
+        show_clickable_nav: true
+    }
+
+    function saveNWPData(){
+
+      saveExperimentData(
+        jsPsych = jsPsych, 
+        write_data_url = experiment_information[0].write_data_url, 
+        output_path = pathJoin(parts=[
+            experiment_information[0].output_path, 
+            experiment_information[current_experiment].experiment_name,
+            experiment_information[current_experiment].experiment_version,
+            experiment_information[current_experiment].stimulus_modality,
+            experiment_information[0].subject_id
+            ]), 
+        output_filename = [experiment_information[0].subject_id, '_next-word-prediction'].join(''),
+       );
+    }
+
+    // var sourceNode = audioCtx.createBufferSource();
+    // var audio = new Audio();
+
+    var audioCtx;
+    var sourceNode;
+
+    function startNode(){
+      // if (!called){
+      audioCtx.resume();
+    }
+    function stopNode(){
+      audioCtx.suspend();
+      console.log('Context time : ' + audioCtx.getOutputTimestamp().contextTime);
+    }
+    function clearAudioContext(){
+
+      audioCtx.close();
+      // sourceNode.stop();
+      // sourceNode.disconnect();
+      // gainNode.disconnect();
+
+      // sourceNode = null;
+      // gainNode = null;
+
+    }
+
+    function createAudioNode(audio, audio_fn){
+      audioCtx = new AudioContext({ latencyHint: "playback" });
+
+      audio = new Audio(audio_fn);
+      audio.loop = false;
+      audio.currentTime = 0;
+      
+      var sourceNode = audioCtx.createMediaElementSource(audio);
+      var gainNode = audioCtx.createGain();
+      gainNode.value = 1;
+
+      sourceNode.channelCount = 1; 
+
+      // var sourceNode = audioCtx.createMediaElementSource(audio);
+      sourceNode.connect(gainNode).connect(audioCtx.destination);
+
+      return audio;
+    }
+
+    function addPostPracticeInstructions(){
+
+      let experiment_entry = getNWPEntryPoint(
+        experiment_phase='experiment',
+        stimulus_fn=stimulus_transcript_fn, 
+        audio_fn=stimulus_audio_fn,
+        modality=modality,
+      );
+
+      var clear_text = {
+        type: jsPsychCallFunction,
+        func: function (){
+
+          jsPsych.pauseExperiment();
+          // we wait to update the text container with the last word, then remove and display the data
+          jsPsych.pluginAPI.setTimeout(function(){
+            clearTextContainer();
+            jsPsych.resumeExperiment();
+          }, 1000);
+        }
+      }
+
+      var clear_audio_context = {
+        type: jsPsychCallFunction,
+        func: function (){
+          // we clear the audio context once we are moving into a trial
+            clearAudioContext();
+        }
+      }
+
+      var post_practice_instructions = {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: `
+          <p style="width:800px;" >Great job! Now we will start the experiment. Press the spacebar to begin.</p>`,
+        choices: [' ', 'Spacebar'],
+        on_finish: function(){
+          jsPsych.addNodeToEndOfTimeline({timeline: [experiment_entry]});
+        }
+      };
+
+      jsPsych.addNodeToEndOfTimeline({timeline: [clear_text, clear_audio_context, post_practice_instructions]});
+    }
+
+    var experiment_phase;
+    var stimulus_fn, audio_fn, callback_func, array, new_string, wait_time, display_wait_time;
+    var write_data_url, parts, output_path, output_filename;
+
+    // MAIN FUNCTION FOR BUILDING OUR TIMELINE
+    function buildTimeline(){
+
+      console.log(modality);
+
+      // Add callback function to postpractice instructions
+      let practice_entry = getNWPEntryPoint(
+        experiment_phase='practice',
+        stimulus_fn=practice_transcript_fn, 
+        audio_fn=practice_audio_fn,
+        modality=modality, 
+        callback_func=function(){
+          addPostPracticeInstructions();
+        },
+      );
+
+      // create the timeline
+      var timeline = [
+        create_text_container,
+        fullscreen,
+        instructions,
+        practice_entry,
+      ];
+
+      jsPsych.run(timeline);
+    }
+
+    buildTimeline();
+    </script>
+</html>
+
+

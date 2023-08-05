@@ -1,0 +1,277 @@
+---
+title: "plot NWP results"
+output: html_notebook
+---
+
+```{r}
+library(dplyr)
+library(glue)
+library(ggplot2)
+library(lme4)
+library(emmeans)
+library(ggsignif)
+library(ggpubr)
+library(cocor)
+```
+
+Set experiment name parameters
+
+```{r}
+EXPERIMENT_NAME = 'next-word-prediction'
+EXPERIMENT_VERSION = 'pilot-version-04'
+TASK = 'black'
+```
+
+Set directories
+
+```{r}
+base_dir = '/Volumes/FinnLab/tommy/isc_asynchrony_behavioral/'
+results_dir = glue('{base_dir}derivatives/{EXPERIMENT_NAME}/{EXPERIMENT_VERSION}/{TASK}/')
+plots_dir = glue('{base_dir}plots/{EXPERIMENT_NAME}/{EXPERIMENT_VERSION}/{TASK}/')
+```
+
+Load accuracy csv
+
+```{r}
+
+accuracy_data <- read.csv(glue('{results_dir}/valid-results_accuracy.csv'))
+
+accuracy_data$modality <- as.factor(accuracy_data$modality)
+accuracy_data$subject <- as.factor(accuracy_data$subject)
+accuracy_data$transcript_index <- as.factor(accuracy_data$transcript_index)
+
+head(accuracy_data)
+# 
+contrasts(accuracy_data$modality) <- c(-1, 1)
+
+
+```
+
+Run LME
+
+```{r}
+
+accuracy_model <- lmer(accuracy ~ modality + (1|subject), data = accuracy_data)
+summary(accuracy_model)
+
+emmeans(accuracy_model, pairwise ~ modality)
+
+```
+
+Plot accuracy 
+
+```{r, font.size=1.25}
+
+avg_accuracy <- accuracy_data %>%
+  group_by(modality, subject) %>%
+  summarise(mean_accuracy=mean(accuracy)*100) #%>%
+
+
+# set order of paired boxplots as within then across
+avg_accuracy$modality <- factor(avg_accuracy$modality, levels =c('text', 'audio'), ordered = TRUE)
+
+ggplot(avg_accuracy, aes(x=modality, y=mean_accuracy)) +
+  geom_bar(stat="summary", color="black", alpha=1, width=0.5, fill="#99C3DB") +
+  # geom_boxplot(alpha=0.75, width=0.3, fill="#99C3DB", outlier.shape=NA) + 
+  stat_summary(geom = "errorbar", fun.data = mean_se, size=0.75, width=0.075) +
+  geom_point(position = position_jitter(width=0.1),
+             alpha = 0.25, shape = 16, fill="lightgray") +
+  theme(panel.border=element_blank(),
+        text=element_text(size=12, colour="black"),
+        strip.background=element_rect(colour="white", fill="white"),
+        plot.title = element_text(hjust = 0.5),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        aspect.ratio=1,
+        axis.line = element_line(colour = "black"),
+        legend.position="none")+
+  geom_signif(
+    comparisons = list(c("audio", "text")),
+    map_signif_level = TRUE, 
+    y_position=80, tip_length = 0, 
+  ) + 
+  ggtitle('Average accuracy by stimulus modality ') +
+  # expand_limits(y=c(0.5,5.8)) +
+  ylab('Accuracy (% correct)') +
+  xlab('Modality') +
+  scale_y_continuous(limits = c(0,100), expand = c(0, 0.05))
+  
+  # geom_hline(yintercept=0,  color = "black") +
+  # lightness(scale_fill_manual(values = c("#99C3DB", "#99C3DB", "#99C3DB","#99C3DB")),scalefac(1))+
+  # ylim(0, 100)
+
+if (!dir.exists(plots_dir)){
+  dir.create(plots_dir,  recursive = TRUE)
+}
+out_fn <- glue('{plots_dir}valid-response-accuracy.pdf')
+ggsave(out_fn, device='pdf')
+```
+Load human - model probability results
+
+```{r}
+
+prob_data <- read.csv(glue('{results_dir}/valid-results_human-model-top-prob.csv'))
+
+# accuracy_data$modality <- as.factor(accuracy_data$modality)
+# accuracy_data$subject <- as.factor(accuracy_data$subject)
+# accuracy_data$transcript_index <- as.factor(accuracy_data$transcript_index)
+
+head(prob_data)
+
+```
+```{r}
+
+audio_cond <- subset(prob_data, prob_data$modality=='audio')
+text_cond <- subset(prob_data, prob_data$modality=='text')
+
+r_audio_model <- cor.test(audio_cond$prob_human, audio_cond$prob_model, method='pearson')
+r_text_model <- cor.test(text_cond$prob_human, text_cond$prob_model,  method='pearson')
+r_model_model <- cor.test(audio_cond$prob_model, text_cond$prob_model,  method='pearson')
+
+# cocor.dep.groups.overlap(r_text_model$estimate, r_audio_model$estimate,  r_model_model$estimate, nrow(audio_cond))
+cocor.indep.groups(r_text_model$estimate, r_audio_model$estimate,  nrow(audio_cond), nrow(text_cond))
+
+# TWOpNOV(matrix(c(audio_cond$prob_human,audio_cond$prob_model), ncol=2), matrix(c(text_cond$prob_human, text_cond$prob_model), ncol=2))
+
+```
+
+
+```{r}
+
+ggplot(prob_data, aes(x=prob_human, y=prob_model, color=modality)) +
+  geom_point(aes(alpha=I(ifelse(modality == 'audio', 0, 0.75))), size=1)+
+  geom_smooth(method='lm', se=TRUE) + 
+  # facet_wrap(~modality, ncol=2) +
+  theme(panel.border=element_blank(),
+        text=element_text(size=12, colour="black"),
+        strip.background=element_rect(colour="white", fill="white"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(), 
+        aspect.ratio=7/8,
+        axis.line = element_line(colour = "black")) + 
+  scale_color_manual(values = c('audio' = '#99C3DB', 'text' = '#9F72B2')) +
+  ggtitle('Relationship of probabilities - top human predicted word' ) +
+  ylab('GPT2 probability') + 
+  xlab('Human probability') +
+  stat_cor()
+
+out_fn <- glue('{plots_dir}valid-response_human-word-prob-correlation-text.pdf')
+ggsave(out_fn, device='pdf')
+```
+Now plot KL Divergence results
+
+```{r}
+ggplot(prob_data, aes(y=modality, x=kl_divergence, fill=modality)) +
+  geom_density_ridges(quantile_lines = TRUE, quantiles=2, alpha=0.75,  calc_ecdf = TRUE) +
+  theme(panel.border=element_blank(),
+        strip.text=element_text(size=16, colour="black"),
+        strip.background=element_rect(colour="white", fill="white"),
+        plot.title = element_text(hjust = 0.5),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        aspect.ratio=6/7, 
+        axis.line = element_line(colour = "black"),
+        legend.position="none") +
+  scale_fill_manual(values = c('audio' = '#99C3DB', 'text' = '#9F72B2')) +
+  scale_x_continuous(expand = c(0, 0.05), limits=c(0, 4)) + 
+  scale_y_discrete(expand = expand_scale(mult = c(0.01, 2.5))) +
+  coord_cartesian(clip = "off")  # to avoid clipping of the very top of the top ridgeline
+```
+
+```{r}
+
+# set order of paired boxplots as within then across
+prob_data$modality <- factor(prob_data$modality, levels =c('text', 'audio'), ordered = TRUE)
+
+
+ggplot(prob_data, aes(x=modality, y=kl_divergence)) +
+  geom_boxplot(alpha=0.75, width=0.3, fill="gray", outlier.shape=NA)  +
+  # geom_point(position = position_jitter(width=0.1),
+  #            alpha = 0.25, shape = 16, fill="lightgray") +
+  geom_signif(
+    comparisons = list(c("audio", "text")),
+    map_signif_level = TRUE,
+    tip_length = 0,
+    y_position = 3.5,
+  ) +
+  theme(panel.border=element_blank(),
+        text=element_text(size=12, colour="black"),
+        strip.background=element_rect(colour="white", fill="white"),
+        plot.title = element_text(hjust = 0.5),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        aspect.ratio=1, 
+        axis.line = element_line(colour = "black"),
+        legend.position="none") + 
+  xlab('Modality') + 
+  ylab('KL divergence') + 
+  ggtitle('Entropy of model to human probability distributions') + 
+  scale_y_continuous(expand = expand_scale(mult = c(0.05, 0.15)))
+
+
+out_fn <- glue('{plots_dir}valid-response_human-word-kldivergence.pdf')
+ggsave(out_fn, device='pdf')
+
+```
+
+```{r}
+
+similarity_data <- read.csv(glue('{results_dir}/valid-results_responses-bert-similarity.csv'))
+
+similarity_data$modality <- as.factor(similarity_data$modality)
+similarity_data$transcript_index <- as.factor(similarity_data$transcript_index)
+
+head(similarity_data)
+
+```
+Try out an lme
+
+```{r}
+
+cosine_gt_model <- lmer(avg_cosine_gt ~ modality + (1|transcript_index), data=similarity_data)
+
+summary(cosine_gt_model)
+
+emmeans(cosine_gt_model, pairwise ~ modality)
+
+```
+
+
+```{r}
+
+ggplot(similarity_data, aes(x=modality, y=avg_cosine_responses)) +
+  geom_boxplot(alpha=0.75, width=0.3, fill="gray", outlier.shape=NA)  + 
+  # geom_bar(stat="summary", alpha=0.75, width=0.5, fill="gray") +
+  # # geom_boxplot(alpha=0.75, width=0.3, fill="#99C3DB", outlier.shape=NA) + 
+  # stat_summary(geom = "errorbar", fun.data = mean_se, size=0.75, width=0.075) +
+  geom_point(position = position_jitter(width=0.1),
+             alpha = 0.25, shape = 16, fill="lightgray") + 
+  theme(panel.border=element_blank(),
+        text=element_text(size=12, colour="black"),
+        strip.background=element_rect(colour="white", fill="white"),
+        plot.title = element_text(hjust = 0.5),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        aspect.ratio=1,
+        axis.line = element_line(colour = "black"),
+        legend.position="none")+
+  geom_signif(
+    comparisons = list(c("audio", "text")),
+    map_signif_level = TRUE,
+    tip_length = 0,
+    y_position = 1.05
+  ) +
+  ggtitle('Average similarity of responses to each other') +
+  ylab('Cosine similarity') +
+  xlab('Modality') 
+  # scale_y_continuous(limits = c(0,100), expand = c(0, 0.05))
+
+# out_fn <- glue('{plots_dir}valid-response_human-average-embedding-similarity.pdf')
+# ggsave(out_fn, device='pdf')
+
+```

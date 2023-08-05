@@ -21,18 +21,15 @@
   <script>
 
     var jsPsych = initJsPsych();
-    var parameter_path = jsPsych.data.getURLVariable('PARAMETER_PATH');
     var tracker_filename = jsPsych.data.getURLVariable('TRACKER_NAME');
 
     participant_tracker_url = 'https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/utils/participant_id_allocator_survey.php'
     write_data_url = 'https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/utils/write_data.php'
-    tracker_filename = [tracker_filename, '.txt'].join('');
-    experiment_info_path = ['https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/experiments/', parameter_path].join('');
-
+    tracker_filename = [tracker_filename, '.csv'].join('');
+    
     experiment_information = loadExperimentInformation(
       tracker_url=participant_tracker_url, 
       tracker_filename=tracker_filename, 
-      experiment_info_path=experiment_info_path,
       write_data_url=write_data_url,
     );
 
