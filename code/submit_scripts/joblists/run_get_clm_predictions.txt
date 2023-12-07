@@ -1,0 +1,1 @@
+source /optnfs/common/miniconda3/etc/profile.d/conda.sh; conda activate asynchrony;  srun python /dartfs/rc/lab/F/FinnLab/tommy/isc_asynchrony_behavior/code/modeling/run_get_clm_predictions.py -t black -m mistral -w 50 -n 1 5 10

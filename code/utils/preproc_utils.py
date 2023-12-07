@@ -1,3 +1,14 @@
+import os, sys
+import pandas as pd
+import numpy as np
+import math, random
+import json
+import re
+import subprocess
+import librosa
+from natsort import natsorted
+import glob
+
 import nltk
 from nltk import pos_tag
 from nltk.corpus import stopwords
@@ -5,187 +16,277 @@ from nltk.stem import WordNetLemmatizer
 from nltk import word_tokenize
 from collections import defaultdict
 
-import math, random
-import numpy as np
-import json
-import re
-
-import pandas as pd
-import wave, contextlib
 from praatio import textgrid as tgio
+from pydub import AudioSegment
+from pydub.playback import play
+
+# nltk.download('tagsets')
+# nltk.download('stopwords')
+# nltk.download('averaged_perceptron_tagger')
+# nltk.download('punkt')
+# nltk.download('wordnet')
+# nltk.download('omw-1.4')
+
+### FUNCTIONS FOR CUTTING AUDIO ###
+
+def get_cut_times(df, start_idx, end_idx):
+	
+	onset = df.iloc[start_idx]['Onset']
+	offset = df.iloc[end_idx]['Onset']
+	
+	duration = offset - onset
+	
+	return onset, offset, duration
+
+def cut_audio_segments(df_preproc, task, audio_fn, audio_out_dir):
+
+	# load the stimulus and fine the length in time
+	stim_length = librosa.get_duration(path=audio_fn)
+
+	df_segments = pd.DataFrame(columns=['filename', 'word_index', 'critical_word', 'checked', 'adjusted'])
+	prediction_idxs = np.where(df_preproc['NWP_Candidate'])[0]
+	out_fns = []
+
+	for i in range(len(prediction_idxs) + 1):
+
+		if i == 0: 
+			# get the index we want to cut before
+			curr_idx = prediction_idxs[i]
+			_, offset, _ = get_cut_times(df_preproc, 0, curr_idx)
+			onset = 0
+			duration = offset
+		elif i == len(prediction_idxs):
+			# there is no current index as we've reached the end of the file
+			# we calculate duration as the length from the previous index to the end of the file
+			prev_idx = prediction_idxs[i-1]
+			onset, _, _ = get_cut_times(df_preproc, prev_idx, prev_idx)
+			duration = stim_length - onset
+		else:
+			# get the previous index --> cut between previous and current index
+			curr_idx = prediction_idxs[i]
+			prev_idx = prediction_idxs[i-1]
+			onset, _, duration = get_cut_times(df_preproc, prev_idx, curr_idx)
+
+		out_fn = os.path.join(audio_out_dir, f'{task}_segment-{str(i+1).zfill(5)}.wav')
+		out_fns.append(out_fn)
+
+		cmd = f'ffmpeg -hide_banner -loglevel error -y -ss {onset} -t {duration} -i {audio_fn} {out_fn}'
+		subprocess.run(cmd, shell=True)
+
+		# if the segments file does not exist
+		df_segments.loc[len(df_segments)] = {
+			'filename': out_fn,
+			'word_index': curr_idx if i != len(prediction_idxs) else None,
+			'critical_word': df_preproc.loc[curr_idx]['Word_Written'] if i != len(prediction_idxs) else None,
+			'checked': 0,
+			'adjusted': 0
+		}
+	print (df_segments)
+	return out_fns, df_segments
 
 ### FUNCTIONS FOR EDITING GENTLE TRANSCRIPTS
 
 def update_dataframe_from_praat(df, textgrid):
-    
-    df = df.copy()
-    
-    for idx in range(len(df)):
-        
-        word = textgrid.getTier('word').entries[idx]
-        
-        df.loc[idx, 'Onset'] = word.start
-        df.loc[idx, 'Offset'] = word.end
-        df.loc[idx, 'Duration'] = word.end - word.start
-        
-    return df
+	
+	df = df.copy()
+	
+	for idx in range(len(df)):
+		
+		word = textgrid.getTier('word').entries[idx]
+		
+		df.loc[idx, 'Onset'] = word.start
+		df.loc[idx, 'Offset'] = word.end
+		df.loc[idx, 'Duration'] = word.end - word.start
+		
+	return df
 
 def dataframe_to_textgrid(df, audio_fn):
-    """
-    Take a filename and its associated transcription and fill in all the gaps
-    """
-    
-    with contextlib.closing(wave.open(audio_fn, 'r')) as f:
-        frames = f.getnframes()
-        rate = f.getframerate()
-        duration = frames / float(rate)
-    rearranged_words = []
-    file_ons = 0
+	"""
+	Take a filename and its associated transcription and fill in all the gaps
+	"""
 
-    rearranged_words = []
+	duration = librosa.get_duration(path=audio_fn)
+	
+	# with contextlib.closing(wave.open(audio_fn, 'r')) as f:
+	#     frames = f.getnframes()
+	#     rate = f.getframerate()
+	#     duration = frames / float(rate)
+	rearranged_words = []
+	file_ons = 0
 
-    for ix, word in df.iterrows():
+	rearranged_words = []
 
-        # if word['Case'] == 'success' or word['Case'] == 'assumed':
-        word_ons = np.round(word['Onset'], 3)
-        word_off = np.round(word['Offset'], 3)
-        target = word['Word_Written']
-        rearranged_words.append((word_ons, word_off, target))
-        # else:
-        #     # search forwards and backwards to find the previous and next word
-        #     # use the end and start times to get word times 
-        #     target = content['words'][ix]['Word_Written']
-        #     prev_end, next_start = align_missing_word(content, ix)
-        #     rearranged_words.append((prev_end, next_start, target))
+	for ix, word in df.iterrows():
 
-    # adjust for overlap in times
-    for ix, word_times in enumerate(rearranged_words):
-        if ix != 0:
-            prev_start, prev_end, prev_word = rearranged_words[ix-1]
-            curr_start, curr_end, curr_word = word_times
+		# if word['Case'] == 'success' or word['Case'] == 'assumed':
+		word_ons = np.round(word['Onset'], 3)
+		word_off = np.round(word['Offset'], 3)
 
-            # if the current start time is before the previous end --> adjust
-            if curr_start < prev_end:
-                rearranged_words[ix] = (prev_end, curr_end, curr_word)
-    
-    tg = tgio.Textgrid()
-    tg.addTier(tgio.IntervalTier('word', rearranged_words))
-    return tg
+		target = word['Word_Written']
+		rearranged_words.append((word_ons, word_off, target))
+		# else:
+		#     # search forwards and backwards to find the previous and next word
+		#     # use the end and start times to get word times 
+		#     target = content['words'][ix]['Word_Written']
+		#     prev_end, next_start = align_missing_word(content, ix)
+		#     rearranged_words.append((prev_end, next_start, target))
+
+	# adjust for overlap in times
+	for ix, word_times in enumerate(rearranged_words):
+		if ix != 0:
+			prev_start, prev_end, prev_word = rearranged_words[ix-1]
+			curr_start, curr_end, curr_word = word_times
+
+			# if the current start time is before the previous end --> adjust
+			# to be the previous end time
+			if curr_start < prev_end:
+				rearranged_words[ix] = (prev_end, curr_end, curr_word)
+				curr_start, curr_end, curr_word = rearranged_words[ix]
+
+			# if the current end time is after the current start time
+			# set to be the next start time
+			if curr_end < curr_start and (ix+1 != len(rearranged_words)):
+				next_start, next_end, next_word = rearranged_words[ix+1]
+				rearranged_words[ix] = (curr_start, next_start, curr_word)
+				curr_start, curr_end, curr_word = rearranged_words[ix]
+
+			# final catch is adding a tiny bit of padding to the end word to adjust
+			if curr_end == curr_start:
+				rearranged_words[ix] = (curr_start, curr_end+0.0001, curr_word)
+
+
+	tg = tgio.Textgrid()
+	tg.addTier(tgio.IntervalTier('word', rearranged_words))
+	return tg
 
 def gentle_to_textgrid(alignment_fn, path):
-    """
-    Take a filename and its associated transcription and fill in all the gaps
-    """
-    with contextlib.closing(wave.open(path, 'r')) as f:
-        frames = f.getnframes()
-        rate = f.getframerate()
-        duration = frames / float(rate)
-    rearranged_words = []
-    file_ons = 0
-    
-    # load the alignment file
-    with open(alignment_fn, encoding='utf-8') as f:
-        content = json.load(f)
-    all_ons = content['words'][0]['start']
-    
-    for ix, word in enumerate(content['words']):
-        # if the word was successfully aligned
-        if word['case'] == 'success' or word['case'] == 'assumed':
-            word_ons = np.round(word['start'], 3)
-            word_off = np.round(word['end'], 3)
-            target = word['alignedWord']
-            rearranged_words.append((word_ons, word_off, target))
-        else:
-            # search forwards and backwards to find the previous and next word
-            # use the end and start times to get word times 
-            target = content['words'][ix]['word']
-            prev_end, next_start = align_missing_word(content, ix)
-            
-            rearranged_words.append((prev_end, next_start, target))
-    
-    # adjust for overlap in times
-    for ix, word_times in enumerate(rearranged_words):
-        if ix != 0:
-            prev_start, prev_end, prev_word = rearranged_words[ix-1]
-            curr_start, curr_end, curr_word = word_times
+	"""
+	Take a filename and its associated transcription and fill in all the gaps
+	"""
+	with contextlib.closing(wave.open(path, 'r')) as f:
+		frames = f.getnframes()
+		rate = f.getframerate()
+		duration = frames / float(rate)
+	
+	rearranged_words = []
+	file_ons = 0
+	
+	# load the alignment file
+	with open(alignment_fn, encoding='utf-8') as f:
+		content = json.load(f)
+	all_ons = content['words'][0]['start']
+	
+	for ix, word in enumerate(content['words']):
+		# if the word was successfully aligned
+		if word['case'] == 'success' or word['case'] == 'assumed':
+			word_ons = np.round(word['start'], 3)
+			word_off = np.round(word['end'], 3)
+			target = word['alignedWord']
+			rearranged_words.append((word_ons, word_off, target))
+		else:
+			# search forwards and backwards to find the previous and next word
+			# use the end and start times to get word times 
+			target = content['words'][ix]['word']
+			prev_end, next_start = align_missing_word(content, ix)
+			
+			rearranged_words.append((prev_end, next_start, target))
+	
+	# adjust for overlap in times
+	for ix, word_times in enumerate(rearranged_words):
+		if ix != 0:
+			prev_start, prev_end, prev_word = rearranged_words[ix-1]
+			curr_start, curr_end, curr_word = word_times
 
-            # if the current start time is before the previous end --> adjust
-            if curr_start < prev_end:
-                rearranged_words[ix] = (prev_end, curr_end, curr_word)
-    
-    tg = tgio.Textgrid()
-    tg.addTier(tgio.IntervalTier('word', rearranged_words))
-    return content, tg
+			# if the current start time is before the previous end --> adjust
+			# to be the previous end time
+			if curr_start < prev_end:
+				rearranged_words[ix] = (prev_end, curr_end, curr_word)
+				curr_start, curr_end, curr_word = rearranged_words[ix]
+
+			# if the current end time is after the current start time
+			# set to be the next start time
+			if curr_end < curr_start and (ix+1 != len(rearranged_words)):
+				next_start, next_end, next_word = rearranged_words[ix+1]
+				rearranged_words[ix] = (curr_start, next_start, curr_word)
+				curr_start, curr_end, curr_word = rearranged_words[ix]
+
+			# final catch is adding a tiny bit of padding to the end word to adjust
+			if curr_end == curr_start:
+				rearranged_words[ix] = (curr_start, curr_end+0.0001, curr_word)
+	
+	tg = tgio.Textgrid()
+	tg.addTier(tgio.IntervalTier('word', rearranged_words))
+	return content, tg
 
 def gentle_fill_missing_words(alignment_fn):
-    '''
-    A simple way to fill missing aligned words
-    '''
-    
-    # load the alignment file
-    with open(alignment_fn, encoding='utf-8') as f:
-        content = json.load(f)
-        
-    for ix, word in enumerate(content['words']):
-        if word['case'] != 'success':
-            prev_end, next_start = align_missing_word(content, ix)
-            content['words'][ix].update({'start': prev_end, 'end': next_start, 'case': 'assumed'})
-            
-    return content
+	'''
+	A simple way to fill missing aligned words
+	'''
+	
+	# load the alignment file
+	with open(alignment_fn, encoding='utf-8') as f:
+		content = json.load(f)
+		
+	for ix, word in enumerate(content['words']):
+		if word['case'] != 'success':
+			prev_end, next_start = align_missing_word(content, ix)
+			content['words'][ix].update({'start': prev_end, 'end': next_start, 'case': 'assumed'})
+			
+	return content
 
 def align_missing_word(content, ix):
-    '''
-    Searches from a word in both directions and then distributes time evenly
-    '''
-    # keep track of how many are missing
-    forward_ix = ix
-    forward_missing = 0
-    
-    # search forward
-    while True:
-        # move one forward
-        forward_ix += 1
-        if content['words'][forward_ix]['case'] == 'success':
-            next_start = np.round(content['words'][forward_ix]['start'], 3)
-            break
-        else:
-            forward_missing += 1
-    
-    # keep track of how many are missing
-    back_ix = ix
-    back_missing = 0
-    
-    while True:
-        # move one backwards
-        back_ix -= 1
-        
-        if content['words'][back_ix]['case'] == 'success':
-            prev_end = np.round(content['words'][back_ix]['end'], 3)
-            break
-        else:
-            back_missing += 1
-    
-    # space evenly between the number of missing items
-    total_missing = back_missing + forward_missing + 1 # add one to include current item
-    x_vals = np.linspace(prev_end, next_start, total_missing + 2)[1:-1] # add 2 to pad the points on either side
-    
-    # if there is anything missing
-    # normalize indices to 0
-    missing_ixs = np.arange(ix-back_missing,ix+forward_missing+1)
-    
-    # index of the value in the interpolated array
-    arr_ix = np.argwhere(ix == missing_ixs)
-    
-    # then extract value from that array and round
-    next_start = x_vals[arr_ix].squeeze()
-    next_start = np.round(next_start, 3)
-    
-    # have to adjust prev end to be the interpolated value
-    if len(missing_ixs) > 1 and arr_ix:
-        prev_end = x_vals[np.argwhere(ix == missing_ixs)-1].squeeze()
-        prev_end = np.round(prev_end, 3)
-    
-    return prev_end, next_start
+	'''
+	Searches from a word in both directions and then distributes time evenly
+	'''
+	# keep track of how many are missing
+	forward_ix = ix
+	forward_missing = 0
+	
+	# search forward
+	while True:
+		# move one forward
+		forward_ix += 1
+		if content['words'][forward_ix]['case'] == 'success':
+			next_start = np.round(content['words'][forward_ix]['start'], 3)
+			break
+		else:
+			forward_missing += 1
+	
+	# keep track of how many are missing
+	back_ix = ix
+	back_missing = 0
+	
+	while True:
+		# move one backwards
+		back_ix -= 1
+		
+		if content['words'][back_ix]['case'] == 'success':
+			prev_end = np.round(content['words'][back_ix]['end'], 3)
+			break
+		else:
+			back_missing += 1
+	
+	# space evenly between the number of missing items
+	total_missing = back_missing + forward_missing + 1 # add one to include current item
+	x_vals = np.linspace(prev_end, next_start, total_missing + 2)[1:-1] # add 2 to pad the points on either side
+	
+	# if there is anything missing
+	# normalize indices to 0
+	missing_ixs = np.arange(ix-back_missing,ix+forward_missing+1)
+	
+	# index of the value in the interpolated array
+	arr_ix = np.argwhere(ix == missing_ixs)
+	
+	# then extract value from that array and round
+	next_start = x_vals[arr_ix].squeeze()
+	next_start = np.round(next_start, 3)
+	
+	# have to adjust prev end to be the interpolated value
+	if len(missing_ixs) > 1 and arr_ix:
+		prev_end = x_vals[np.argwhere(ix == missing_ixs)-1].squeeze()
+		prev_end = np.round(prev_end, 3)
+	
+	return prev_end, next_start
 
 
 ### FUNCTIONS FOR SELECTING CANDIDATES FOR PREDICTION ###
@@ -196,7 +297,12 @@ lemmatizer = WordNetLemmatizer()
 tags_explained = nltk.data.load('help/tagsets/upenn_tagset.pickle')
 STOP_WORDS = stopwords.words('english')
 
-STOP_UTTERANCES = ['yes', 'well', 'oh', 'mhm', 'um', 'boom']
+STOP_UTTERANCES = [
+	'yes', 'yeah', 'no', 'nope', 'well', 'like', 'eh', 'huh', 'mm', 'ick', 'ch',
+	'hm', 'oh', 'mhm', 'ah', 'um', 'uh', 'uh-huh', 'uh-oh', 'boom', 'wha',
+	'ugh', 'okay', 'hi', 'hey', 'hello', 'ya', 'us', 'really',
+	'said'
+]
 
 STOP_WORDS.extend(STOP_UTTERANCES)
 
@@ -251,7 +357,7 @@ def create_word_prediction_df(align_fn, fill_missing_times=False):
 		# as some words may be broken into multiple tokens, we need to lemmatize all tokens
 		# then make sure we don't have any stopwords as part of the tokens
 		lemmas = [lemmatizer.lemmatize(re.sub("[^a-zA-Z\s-]+", '', token.lower()), pos=tag) for token in tokens]
-		stop_word = all([lemma in STOP_WORDS for lemma in lemmas if lemma]) # evaluate if not empty string
+		stop_word = any([lemma in STOP_WORDS for lemma in lemmas if lemma]) # evaluate if not empty string
 		
 		# we'll start the word dictionary here, but only add the times if we have the aligned times
 		word_dict = {
@@ -301,10 +407,10 @@ def clean_hyphenated_words(df):
 		hyphenated_word = '-'.join(df_rows['Word_Written'])
 		
 		# establish some context for the word
-		precontext = ' '.join(df.iloc[idx-10:idx]['Word_Written'])
-		postcontext = ' '.join(df.iloc[idx+2:idx+10]['Word_Written'])
+		precontext = ' '.join(df.iloc[idx-10:idx]['Word_Written']).encode('latin-1', 'ignore')  
+		postcontext = ' '.join(df.iloc[idx+2:idx+10]['Word_Written']).encode('latin-1', 'ignore')  
 		print (f'\nContext: {precontext} ___ {postcontext}')
-		print (f'Word: {hyphenated_word}')
+		print (f'Word: {hyphenated_word.encode("latin-1", "ignore")}')
 
 		response = input()
 	
@@ -323,19 +429,19 @@ def clean_hyphenated_words(df):
 				'Duration': df_rows['Offset'].to_list()[-1] - df_rows['Onset'].to_list()[0]
 			}
 			
-			df.at[idx, :] = hyphenated_entry
+			df.loc[idx, :] = hyphenated_entry
 			df = df.drop(idx+1).reset_index(drop=True)
 
 			# we've dropped an index
 			hyphenated_idxs -= 1 
 			
-			print (f'Word updated to: {hyphenated_word}')
+			print (f'Word updated to: {hyphenated_word.encode("latin-1", "ignore")}')
 		else:
 			# otherwise add padding on each side to ensure it's not hyphenated
 			df.at[idx, 'Punctuation'] =  ' - '
 			
 			hyphenated_word = ' - '.join(df_rows['Word_Written'])
-			print (f'Words separated to: {hyphenated_word}')
+			print (f'Words separated to: {hyphenated_word.encode("latin-1", "ignore")}')
 	  
 	df = df.reset_index(drop=True)
 	
@@ -358,13 +464,13 @@ def clean_named_entities(df):
 		df_rows = df.iloc[idx]
 		ne_word = df_rows['Word_Written']
 
-		precontext = ' '.join(df.iloc[idx-10:idx]['Word_Written'])
-		postcontext = ' '.join(df.iloc[idx+1:idx+10]['Word_Written'])
+		precontext = ' '.join(df.iloc[idx-10:idx]['Word_Written']).encode('latin-1', 'ignore') 
+		postcontext = ' '.join(df.iloc[idx+1:idx+10]['Word_Written']).encode('latin-1', 'ignore') 
 
-		precontext = re.sub(u"(\u2018|\u2019)", "'", precontext)
-		postcontext = re.sub(u"(\u2018|\u2019)", "'", postcontext)
+		# precontext = re.sub(u"(\u2018|\u2019)", "'", precontext)
+		# postcontext = re.sub(u"(\u2018|\u2019)", "'", postcontext)
 		print (f'\nContext: {precontext} ___ {postcontext}')
-		print (f'Word: {ne_word}')
+		print (f'Word: {ne_word.encode("latin-1", "ignore")}')
 		
 		response = input()
 	
@@ -374,6 +480,149 @@ def clean_named_entities(df):
 	df = df.reset_index(drop=True)
 	return df
 
+
+### FUNCTIONS FOR STRATIFYING WORDS BASED ON A MODEL #####
+
+def load_model_results(model_dir, model_name, task, window_size, top_n):
+	'''
+	Loads model data from directory
+	'''
+
+	model_dir = os.path.join(model_dir, task, model_name, f'window-size-{window_size}')
+	results_fn = natsorted(glob.glob(os.path.join(model_dir, f'*top-{top_n}*')))[0]
+
+	# load the data, remove nans
+	model_results = pd.read_csv(results_fn)
+	model_results['glove_continuous_accuracy'] = model_results['glove_continuous_accuracy'].apply(np.nan_to_num)
+	model_results['word2vec_continuous_accuracy'] = model_results['word2vec_continuous_accuracy'].apply(np.nan_to_num)
+
+	return model_results
+
+def divide_nwp_dataframe(df, accuracy_type, percentile):
+
+	df_divide = df.copy()
+
+	# first find the lowest and highest percentile for entropy
+	low_entropy_idxs = df['entropy'] < np.nanpercentile(df['entropy'], percentile)
+	high_entropy_idxs = df['entropy'] >= np.nanpercentile(df['entropy'], 100-percentile)
+
+	## set names for entropy group
+	df_divide.loc[low_entropy_idxs, 'entropy_group'] = 'low'
+	df_divide.loc[high_entropy_idxs, 'entropy_group'] = 'high'
+
+	# repeat for continuous accuracy
+	low_accuracy_idxs = df[accuracy_type] < np.nanpercentile(df[accuracy_type], percentile)
+	high_accuracy_idxs = df[accuracy_type] >= np.nanpercentile(df[accuracy_type], 100-percentile)
+
+	## set names for accuracy group
+	df_divide.loc[low_accuracy_idxs, 'accuracy_group'] = 'low'
+	df_divide.loc[high_accuracy_idxs, 'accuracy_group'] = 'high'
+
+	return df_divide.dropna()
+
+def get_quadrant_distributions(df_divide, indices):
+	'''
+	Given a set of indices, returns the distributions of words
+	in entropy/accuracy quadrants
+	'''
+	
+	df_idx = df_divide.loc[indices]
+	
+	# get the items as a dictionary for passing out to aggregate
+	quadrant_dist = {f'{labels[0]}-entropy_{labels[1]}-accuracy': round(len(df)/len(df_idx), 2) 
+				 for labels, df in df_idx.groupby(['entropy_group', 'accuracy_group'])}
+
+	df_quadrants = pd.DataFrame.from_dict(quadrant_dist, orient='index').T
+	
+	return df_quadrants
+
+def select_prediction_words(df_divide, remove_perc, select_perc, min_spacing_thresh=3):
+	'''
+	
+	df_divide: candidate words divided into quartiles based on entropy and accuracy
+	
+	remove_perc: percentage of words to remove based on proximity to other words
+		helps ensure decent spacing between presented words
+		
+	select_perc: percentage of words to select for presentation    
+	
+	'''
+	
+	# calculate spacing between each word and the subsequent words
+	df_divide['spacing'] = np.hstack([np.nan, np.diff(df_divide.index)])
+	quadrant_distributions = get_quadrant_distributions(df_divide, df_divide.index).to_numpy()
+	
+	updated = []
+
+	for i, df in df_divide.groupby(['entropy_group', 'accuracy_group']):
+		# find how many words to remove in the quadrant based on the percent
+		n_words = round(remove_perc * len(df))
+		df = df.sort_values(by='spacing').iloc[n_words:]
+		updated.append(df.sort_index())
+
+	# ensure that quadrant distributions remain the same after removing words
+	updated = pd.concat(updated).sort_index()
+	updated_distributions = get_quadrant_distributions(updated, updated.index).to_numpy()
+
+	assert (np.allclose(quadrant_distributions, updated_distributions, atol=0.01))
+	
+	# make sure it is scaled to the original dataframe
+	select_perc = select_perc/(1-remove_perc)
+	min_spacing = 0
+	RANDOM_STATE = 0
+	
+	print (f'Selecting {select_perc*100:.2f}% of remaining items')
+	
+	# now we pseudo-randomly sample meeting the constraint that the word with minimum spacing
+	# must be greater or equal to the spacing threshold
+	while (min_spacing < min_spacing_thresh):
+		# now sample the words from each quadrant
+		sampled = []
+
+		print (f'Tried random state: {RANDOM_STATE}')
+
+		for i, df in updated.groupby(['entropy_group', 'accuracy_group']):
+
+			df_sampled = df.sample(frac=select_perc, random_state=RANDOM_STATE).sort_index()
+			sampled.append((len(df_sampled), df_sampled))
+
+		n_sampled, sampled = zip(*sampled)
+		sampled = pd.concat(sampled).sort_index()
+
+		min_spacing = np.diff(sampled.index).min()
+		
+		RANDOM_STATE += 1
+	
+	print (f'Min spacing of {min_spacing}')
+	print (f'{len(sampled)} total words')
+
+	return sampled
+
+def random_chunks(lst, n, shuffle=False):
+    """Created randomized n-sized chunks from lst."""
+    
+    tmp_lst = lst.copy()
+    n_total = len(lst)
+    
+    if shuffle:
+        random.shuffle(tmp_lst)
+    
+    all_chunks = []
+    
+    for i in range(0, len(tmp_lst), n):
+        all_chunks.append(tmp_lst[i:i + n])
+    
+    # distribute remaining items across orders
+    if len(all_chunks) != n_total//n:
+        remainder = all_chunks.pop()
+        
+        for i, item in enumerate(remainder):      
+            all_chunks[i%n].append(item)
+    
+    # lastly sort for ordered indices
+    all_chunks = [sorted(chunk) for chunk in all_chunks]
+    
+    return all_chunks
 
 ### FUNCTIONS FOR RANDOMIZATION OF ORDERS #####
 ### modified from https://stackoverflow.com/questions/93353/create-many-constrained-random-permutation-of-a-list
@@ -458,70 +707,107 @@ def create_balanced_orders(items, n_elements_per_subject, use_each_times, consec
 	return ret
 
 def consecutive(data, stepsize=1):
-	return np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
+	'''
+	Split data into sets where the spacing between consecutive numbers is larger 
+	than the stepsize. A given set will contain one or more items. 
+	
+	In the case that the set has more than one item, these items are separated
+	by less than the step size.
+	'''
+	return np.split(data, np.where(np.diff(data) > stepsize)[0]+1)
 
-def get_consecutive_list_idxs(orders, consecutive_length):
+def get_consecutive_list_idxs(orders, consecutive_spacing):
+	'''
+	Given a list of arrays, where each array contains numbers, find
+	lists that contain consecutive items within consecutive_spacing difference.
 	
-	# Find lists with consecutive items violating our constraint
-	idxs = np.where([np.any(np.asarray(list(map(len, consecutive(order)))) >= consecutive_length) for order in orders])[0]
+	Returns a list of indices corresponding to which orders have violations of 
+	the consecutive constraint
+	'''
 	
-	return idxs
+	consecutive_item_lists = []
+	
+	for order in orders:
+		consecutive_items = consecutive(order, consecutive_spacing)
+		contains_consecutive_items = any([len(item) for item in consecutive_items if len(item) > 1])
+		consecutive_item_lists.append(contains_consecutive_items)
+		
+	return np.where(consecutive_item_lists)[0]
 
-def sort_consecutive_constraint(orders, consecutive_length=3):
+def check_consecutive_spacing(arr, consecutive_spacing, item=None):
+	if item:
+		return all(abs(item - arr) > consecutive_spacing)
+	else:
+		return all(np.diff(arr) > consecutive_spacing)
+
+def get_swap_choices(all_lists, current_list_idx, swap_item, consecutive_spacing):
 	
-	# Get sets of all orders
-	all_order_idxs = np.arange(len(orders))
+	# get indices of all lists
+	all_list_idxs = np.arange(len(all_lists))
 	
+	# sample a random list that is not the current list
+	random_list_options = np.setdiff1d(all_list_idxs, current_list_idx)
+	
+	# then pull the current list out
+	current_list = np.asarray(all_lists[current_list_idx])
+	swap_choices = []    
+	
+	while not len(swap_choices):
+		random_list_idx = random.choice(random_list_options)
+		random_list = np.asarray(all_lists[random_list_idx])
+	
+		# Find choices of items not within our current list
+		swap_choices = np.setdiff1d(random_list, current_list)
+	
+	# then select an item to swap for
+	swap_choice = random.choice(swap_choices)
+	
+	return random_list, random_list_idx, swap_choice
+
+def sort_consecutive_constraint(orders, consecutive_spacing=2):
+	'''
+	Make sure all indices are separated by at least consecutive_spacing items
+	'''
+
 	# Find lists with consecutive items violating our constraint
-	consecutive_order_idxs = get_consecutive_list_idxs(orders, consecutive_length)
-	
+	consecutive_order_idxs = get_consecutive_list_idxs(orders, consecutive_spacing)
+
+	passes = 1
+
 	while len(consecutive_order_idxs):
-
+		
+		print (f'Starting pass #{passes}')
+		
+		# go through each list that contains a violation
 		for order_idx in consecutive_order_idxs:
+			
 			# Select the current list violating the constraint
 			current_list = np.asarray(orders[order_idx])
 
-			random_list_options = np.setdiff1d(all_order_idxs, order_idx)
-
 			# Find all sets of consecutive items in the current list --> find their lengths
-			consecutive_items = consecutive(current_list)
-			consecutive_lengths = np.asarray(list(map(len, consecutive_items)))
+			consecutive_items = consecutive(current_list, consecutive_spacing)
+			consecutive_spacings = np.asarray(list(map(len, consecutive_items)))
 
-			# Find sets of slices that violate the constraint
-			violations = np.where(consecutive_lengths >= consecutive_length)[0]
-
+			# Find sets of slices that violate the constraint --> this would be any list that has a length 
+			# greater than 1
+			violations = np.where(consecutive_spacings > 1)[0]
+			
 			for violation in violations:
 				# Select items that need to be swapped --> these will be swapped into a randomly selected list
-				swap_items = consecutive_items[violation][1::2]
+				swap_items = consecutive_items[violation][1::]
 
 				for item in swap_items:
 					swap_idx = np.where(current_list == item)[0]
 
-					# Select a random other list
-					random_list_idx = random.choice(random_list_options)
-					random_list = np.asarray(orders[random_list_idx])
-
-					# Find choices not within our current list
-					swap_choices = np.setdiff1d(random_list, current_list)
-
-					# Select a random choice
-					choice = random.choice(swap_choices)
-					
+					random_list, random_list_idx, choice = get_swap_choices(orders, order_idx, item, consecutive_spacing)
+		
 					# Make sure we didn't violate our constraint again with either list
 					while (
 						np.isin(choice,current_list) or 
-						np.isin(item,random_list)
+						np.isin(item,random_list) or
+						not check_consecutive_spacing(item=choice, arr=current_list, consecutive_spacing=consecutive_spacing)
 					):
-						
-						# Select a random other list
-						random_list_idx = random.choice(random_list_options)
-						random_list = np.asarray(orders[random_list_idx])
-
-						# Find choices not within our current list
-						swap_choices = np.setdiff1d(random_list, current_list)
-
-						# Select a random choice
-						choice = random.choice(swap_choices)
+						random_list, random_list_idx, choice = get_swap_choices(orders, order_idx, item, consecutive_spacing)
 					
 					# Find the index to swap to
 					choice_idx = np.where(random_list == choice)[0]
@@ -533,7 +819,10 @@ def sort_consecutive_constraint(orders, consecutive_length=3):
 					# Set them in the overall orders
 					orders[order_idx] = sorted(current_list)
 					orders[random_list_idx] = sorted(random_list)
-					
+
 		# Find lists with consecutive items violating our constraint
-		consecutive_order_idxs = get_consecutive_list_idxs(orders, consecutive_length)
+		consecutive_order_idxs = get_consecutive_list_idxs(orders, consecutive_spacing)
+		print (f'Number of lists w/ violation: {len(consecutive_order_idxs)}')
+		passes += 1
+
 	return orders

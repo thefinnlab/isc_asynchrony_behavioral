@@ -6,6 +6,18 @@ import re
 
 STOP_WORDS = stopwords.words('english')
 
+def strip_punctuation(text):
+
+    if isinstance(text, list):
+        full_text = ' '.join(text)
+    else:
+        full_text = text
+
+    full_text = re.sub("[^\w\s'-]+", '', full_text)
+    
+    return full_text
+
+
 def get_pos_tags(text, strip_punc=True):
     """
     Creates POS tags of words in a text corpus. Before tagging,
