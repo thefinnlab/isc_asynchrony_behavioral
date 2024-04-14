@@ -5,10 +5,12 @@ import math, random
 import json
 import re
 import subprocess
-import librosa
+# import librosa
 from natsort import natsorted
 import glob
+import ast
 
+import string
 import nltk
 from nltk import pos_tag
 from nltk.corpus import stopwords
@@ -17,8 +19,6 @@ from nltk import word_tokenize
 from collections import defaultdict
 
 from praatio import textgrid as tgio
-from pydub import AudioSegment
-from pydub.playback import play
 
 # nltk.download('tagsets')
 # nltk.download('stopwords')
@@ -81,7 +81,7 @@ def cut_audio_segments(df_preproc, task, audio_fn, audio_out_dir):
 			'checked': 0,
 			'adjusted': 0
 		}
-	print (df_segments)
+	
 	return out_fns, df_segments
 
 ### FUNCTIONS FOR EDITING GENTLE TRANSCRIPTS
@@ -298,11 +298,15 @@ tags_explained = nltk.data.load('help/tagsets/upenn_tagset.pickle')
 STOP_WORDS = stopwords.words('english')
 
 STOP_UTTERANCES = [
-	'yes', 'yeah', 'no', 'nope', 'well', 'like', 'eh', 'huh', 'mm', 'ick', 'ch',
-	'hm', 'oh', 'mhm', 'ah', 'um', 'uh', 'uh-huh', 'uh-oh', 'boom', 'wha',
-	'ugh', 'okay', 'hi', 'hey', 'hello', 'ya', 'us', 'really',
-	'said'
+	'yes', 'yeah', 'alright', 'no', 'nope', 'nah', 'well', 'like', 'eh', 'huh', 
+	'mm', 'ick', 'ch', 'hm', 'oh', 'mhm', 'ah', 'um', 'uh', 'uh-huh', 'uh-oh', 
+	'boom', 'bam', 'wha', 'ra', 'ba', 'bla', 'ugh', 'okay', 'hi', 'hey', 
+	'hello', 'ya', 'us', 'really','sh', 'said'
 ]
+
+# add alphanumeric characters
+ALPHANUM = set(string.ascii_lowercase+string.ascii_uppercase+string.digits)
+STOP_UTTERANCES += [e for e in string.printable if e in ALPHANUM]
 
 STOP_WORDS.extend(STOP_UTTERANCES)
 
@@ -358,6 +362,7 @@ def create_word_prediction_df(align_fn, fill_missing_times=False):
 		# then make sure we don't have any stopwords as part of the tokens
 		lemmas = [lemmatizer.lemmatize(re.sub("[^a-zA-Z\s-]+", '', token.lower()), pos=tag) for token in tokens]
 		stop_word = any([lemma in STOP_WORDS for lemma in lemmas if lemma]) # evaluate if not empty string
+		is_digit = any([token.isdigit() for token in tokens])
 		
 		# we'll start the word dictionary here, but only add the times if we have the aligned times
 		word_dict = {
@@ -368,6 +373,7 @@ def create_word_prediction_df(align_fn, fill_missing_times=False):
 			'Punctuation': transcript[current_word['endOffset']:words_list[i+1]['startOffset']]
 									  if i+1 < len(words_list) else transcript[current_word['endOffset']:], # punctuation following the word (use subsequent word)
 			'Stop_Word': stop_word, # true or false if a stopword
+			'Digit': is_digit,
 		}
 
 		# make sure that we've aligned the word --> could also check its a word in the vocabulary
@@ -493,12 +499,19 @@ def load_model_results(model_dir, model_name, task, window_size, top_n):
 
 	# load the data, remove nans
 	model_results = pd.read_csv(results_fn)
-	model_results['glove_continuous_accuracy'] = model_results['glove_continuous_accuracy'].apply(np.nan_to_num)
-	model_results['word2vec_continuous_accuracy'] = model_results['word2vec_continuous_accuracy'].apply(np.nan_to_num)
 
+	model_results.loc[1:, 'top_n_predictions'] = model_results.loc[1:, 'top_n_predictions'].apply(ast.literal_eval)
+	model_results['glove_avg_accuracy'] = model_results['glove_avg_accuracy'] #.apply(np.nan_to_num)
+	model_results['word2vec_avg_accuracy'] = model_results['word2vec_avg_accuracy'] #.apply(np.nan_to_num)
+	model_results['fasttext_avg_accuracy'] = model_results['fasttext_avg_accuracy'] #.apply(np.nan_to_num)
+
+	model_results['glove_max_accuracy'] = model_results['glove_max_accuracy'] #.apply(np.nan_to_num)
+	model_results['word2vec_max_accuracy'] = model_results['word2vec_max_accuracy'] #.apply(np.nan_to_num)
+	model_results['fasttext_max_accuracy'] = model_results['fasttext_max_accuracy'] #.apply(np.nan_to_num)
+	
 	return model_results
 
-def divide_nwp_dataframe(df, accuracy_type, percentile):
+def divide_nwp_dataframe(df, accuracy_type, percentile, drop=True):
 
 	df_divide = df.copy()
 
@@ -518,7 +531,12 @@ def divide_nwp_dataframe(df, accuracy_type, percentile):
 	df_divide.loc[low_accuracy_idxs, 'accuracy_group'] = 'low'
 	df_divide.loc[high_accuracy_idxs, 'accuracy_group'] = 'high'
 
-	return df_divide.dropna()
+	# TLB --> i think this was commented out to try to 
+	# plot word2vec results
+	if drop:
+		return df_divide.dropna()
+	else:
+		return df_divide
 
 def get_quadrant_distributions(df_divide, indices):
 	'''
@@ -563,6 +581,9 @@ def select_prediction_words(df_divide, remove_perc, select_perc, min_spacing_thr
 	# ensure that quadrant distributions remain the same after removing words
 	updated = pd.concat(updated).sort_index()
 	updated_distributions = get_quadrant_distributions(updated, updated.index).to_numpy()
+
+	print (quadrant_distributions)
+	print (updated_distributions)
 
 	assert (np.allclose(quadrant_distributions, updated_distributions, atol=0.01))
 	
@@ -764,7 +785,7 @@ def get_swap_choices(all_lists, current_list_idx, swap_item, consecutive_spacing
 	
 	return random_list, random_list_idx, swap_choice
 
-def sort_consecutive_constraint(orders, consecutive_spacing=2):
+def sort_consecutive_constraint(orders, consecutive_spacing=2, pass_threshold=None):
 	'''
 	Make sure all indices are separated by at least consecutive_spacing items
 	'''
@@ -825,4 +846,10 @@ def sort_consecutive_constraint(orders, consecutive_spacing=2):
 		print (f'Number of lists w/ violation: {len(consecutive_order_idxs)}')
 		passes += 1
 
-	return orders
+		if pass_threshold and (passes > pass_threshold):
+			break
+
+	passed_constraint = not any(consecutive_order_idxs)
+
+	return passed_constraint, orders
+

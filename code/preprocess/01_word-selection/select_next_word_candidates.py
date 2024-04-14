@@ -62,7 +62,10 @@ if __name__ == '__main__':
 		example_indices = df_preproc['Word_Written'].isin(['fox', 'lazy'])
 		df_preproc['NWP_Candidate'] = example_indices
 	else:
-		df_preproc['NWP_Candidate'] = pd.Series(df_preproc['Named_Entity'] == False) & pd.Series(df_preproc['Stop_Word'] == False) & pd.Series(df_preproc['Case'] == 'success')
+		df_preproc['NWP_Candidate'] = pd.Series(df_preproc['Named_Entity'] == False) & \
+			pd.Series(df_preproc['Stop_Word'] == False) & \
+			pd.Series(df_preproc['Digit'] == False) & \
+			pd.Series(df_preproc['Case'] == 'success') 
 
 	#save to file
 	df_preproc.to_csv(f'{df_preproc_fn}.csv', index=False)

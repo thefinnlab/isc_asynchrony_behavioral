@@ -1,13 +1,12 @@
-from pydub import AudioSegment
-from pydub.playback import play
 import os, sys
+import glob
 import numpy as np
 import pandas as pd
 import subprocess
 from praatio import textgrid as tgio
 import argparse
 
-sys.path.append('../utils/')
+sys.path.append('../../utils/')
 
 from config import *
 from preproc_utils import cut_audio_segments
@@ -17,7 +16,13 @@ def create_participant_df(df_preproc, df_segments):
 	df_segments.drop(['checked', 'adjusted'], axis=1, inplace=True)
 
 	# columns that we will will sample from the preprocessed per stimulus
-	sample_columns = ['Word_Written', 'Punctuation', 'Onset', 'Offset', 'Duration']
+	if 'entropy_group' in df_preproc.columns:
+		sample_columns = ['Word_Written', 'Punctuation', 'Onset', 'Offset', 'Duration', 'entropy_group', 'accuracy_group']
+	else:
+		sample_columns = ['Word_Written', 'Punctuation', 'Onset', 'Offset', 'Duration']
+
+	# for the practice trials we use the exception because we're hacky like that
+	catch_columns = ['Word_Written', 'Punctuation', 'Onset', 'Offset', 'Duration']
 	split_preprocessed = np.split(df_preproc, df_segments['word_index'])[:-1]
 
 	for i, df in enumerate(split_preprocessed):
@@ -26,8 +31,14 @@ def create_participant_df(df_preproc, df_segments):
 		# normalize to the start of the trial
 		if i == 0:
 			df[['Norm_Onset', 'Norm_Offset']] = df[['Onset', 'Offset']]
+			df_segments.loc[i, ['entropy_group', 'accuracy_group']] = None
 		else:
 			df[['Norm_Onset', 'Norm_Offset']] = df[['Onset', 'Offset']] - df['Onset'].iloc[0]
+
+			try:
+				df_segments.loc[i-1, ['entropy_group', 'accuracy_group']] = df.loc[0, ['entropy_group', 'accuracy_group']]
+			except:
+				df_segments.loc[i-1, ['entropy_group', 'accuracy_group']] = None
 
 		# turn to a json to for handling in javascript
 		df_json = df.to_json(orient='records')
@@ -38,16 +49,20 @@ def create_participant_df(df_preproc, df_segments):
 if __name__ == '__main__':
 	
 	parser = argparse.ArgumentParser()
-	parser.add_argument('-n', '--experiment_name', type=str)
+	parser.add_argument('-n', '--experiment_version', type=str)
 	parser.add_argument('-t', '--task', type=str)
 	parser.add_argument('-s', '--subject', type=str, default=None)
 	p = parser.parse_args()
 	
 	# set directories
 	stim_dir = os.path.join(BASE_DIR, 'stimuli')
-	presentation_orders_dir = os.path.join(stim_dir, 'presentation_orders', p.experiment_name, p.task)
-	audio_fn = os.path.join(stim_dir, 'audio', f'{p.task}_audio.wav')
-	audio_out_dir = os.path.join(stim_dir, 'cut_audio', p.experiment_name, p.task, p.subject)
+	presentation_orders_dir = os.path.join(stim_dir, 'presentation_orders', p.experiment_version, p.task)
+
+	audio_fn = glob.glob(os.path.join(stim_dir, 'audio', f'{p.task}*.wav'))
+	assert (len(audio_fn) == 1) 
+
+	audio_fn = audio_fn[0]
+	audio_out_dir = os.path.join(stim_dir, 'cut_audio', p.experiment_version, p.task, p.subject)
 
 	if not os.path.exists(os.path.join(presentation_orders_dir, 'jspsych')):
 		try:

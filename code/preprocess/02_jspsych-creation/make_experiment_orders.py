@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import glob
 import json
+import argparse
 
 CLOSING_URL = "https://app.prolific.co/submissions/complete?cc=C1LRSG9N"
 EXPERIMENT_NAME = "next-word-prediction"
@@ -18,13 +19,15 @@ MODALITY_LIST = [
 
 if __name__ == '__main__':
 
-	EXPERIMENT_VERSION = sys.argv[1] 
-	task = sys.argv[2] #'test'
+	parser = argparse.ArgumentParser()
+	parser.add_argument('-n', '--experiment_version', type=str)
+	parser.add_argument('-t', '--task', type=str)
+	p = parser.parse_args()
 
 	# set directories
 	base_dir = '/dartfs/rc/lab/F/FinnLab/tommy/isc_asynchrony_behavior/'
 	experiment_dir = '/dartfs/rc/lab/F/FinnLab/tommy/jspsych_experiments/utils/experiment_meta/'
-	orders_dir = os.path.join(base_dir, 'stimuli', 'presentation_orders', EXPERIMENT_VERSION)
+	orders_dir = os.path.join(base_dir, 'stimuli', 'presentation_orders', p.experiment_version)
 
 	global_parameters = {
 		'output_path': "/dartfs/rc/lab/F/FinnLab/tommy/jspsych_experiments/data/",
@@ -35,7 +38,8 @@ if __name__ == '__main__':
 
 	experiment_parameters = {
 		"experiment_name": EXPERIMENT_NAME,
-		"experiment_version": EXPERIMENT_VERSION,
+		"experiment_version": p.experiment_version,
+		"task_name": p.task,
 		"experiment_url": os.path.join(URL_BASE, "experiments/next-word-prediction/next-word-prediction.html")
 	}
 	
@@ -45,17 +49,14 @@ if __name__ == '__main__':
 	fns = []
 
 	sub_counter = 1
-		
-	# for task in tasks:
-	task_parameter_files = sorted(glob.glob(os.path.join(orders_dir, task, 'jspsych', '*.json')))
-	# task_parameter_files = sorted(os.listdir(os.path.join(orders_dir, task)))
+	task_parameter_files = sorted(glob.glob(os.path.join(orders_dir, p.task, 'jspsych', '*.json')))
 	
 	for fn in task_parameter_files:
 
 		fn = os.path.basename(fn)
 
 		for modality in MODALITY_LIST:
-			experiment_info_dir = os.path.join(base_dir, 'experiments', EXPERIMENT_NAME, 'experiment_orders', EXPERIMENT_VERSION, modality)
+			experiment_info_dir = os.path.join(base_dir, 'experiments', EXPERIMENT_NAME, 'experiment_orders', p.experiment_version, p.task, modality)
 
 			if not os.path.exists(experiment_info_dir):
 				os.makedirs(experiment_info_dir)
@@ -66,9 +67,9 @@ if __name__ == '__main__':
 				continue
 			
 			sub_parameters.update({
-				"stimulus_info": os.path.join(URL_BASE, 'stimuli/presentation_orders/', EXPERIMENT_VERSION, task, 'jspsych', fn),
+				"stimulus_info": os.path.join(URL_BASE, 'stimuli/presentation_orders/', p.experiment_version, p.task, 'jspsych', fn),
 				"stimulus_modality": modality,
-				"practice_info": os.path.join(URL_BASE, 'stimuli/presentation_orders/', EXPERIMENT_VERSION, "nwp_practice_trial/jspsych/practice_task-nwp_practice_trial.json"),
+				"practice_info": os.path.join(URL_BASE, 'stimuli/presentation_orders/', p.experiment_version, "nwp_practice_trial/jspsych/practice_task-nwp_practice_trial.json"),
 			})
 			
 			out_json = [global_parameters, sub_parameters]
@@ -84,4 +85,4 @@ if __name__ == '__main__':
 	df = pd.DataFrame(fns, columns=['subject_fns'])
 	df['used'] = pd.Series(dtype='str')
 
-	df.to_csv(os.path.join(experiment_dir, EXPERIMENT_NAME, f'{EXPERIMENT_VERSION}.csv'), index=False)
+	df.to_csv(os.path.join(experiment_dir, EXPERIMENT_NAME, f'{p.experiment_version}-{p.task}.csv'), index=False)

@@ -29,6 +29,8 @@ if __name__ == '__main__':
 
 	# remove practice trial and example trial from the list of tasks
 	task_names = [task for task in task_names if task not in ['nwp_practice_trial', 'example_trial']] 
+
+	task_names = ['wheretheressmoke', 'odetostepfather', 'life']
 	
 	model_names = sorted(CLM_MODELS_DICT.keys())
 	window_sizes = [25, 50, 100]
@@ -38,11 +40,14 @@ if __name__ == '__main__':
 	script_fn = os.path.join(os.getcwd(), 'run_get_clm_predictions.py')
 	job_string = f'{DSQ_MODULES} srun python {script_fn}'
 	job_num = 0
-	
-	for i, (task, model, window) in enumerate(product(task_names, model_names, window_sizes)):
 
-		if i not in rerun_jobs:
-			continue
+	# FAILED         3     37,51,68 
+	# failed_jobs = list(range(224, 324))
+
+	for i, (task, model, window) in enumerate(product(task_names, model_names, window_sizes)):
+		
+		# if i not in failed_jobs:
+		# 	continue
 
 		out_dir = os.path.join(DERIVATIVES_DIR, 'model-predictions', task, model, f'window-size-{window}')
 		out_fn = os.path.join(out_dir, f'task-{task}_model-{model}_window-size-{window}_top-{top_ns[0]}.csv')

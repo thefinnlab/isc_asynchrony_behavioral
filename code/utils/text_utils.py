@@ -13,7 +13,7 @@ def strip_punctuation(text):
     else:
         full_text = text
 
-    full_text = re.sub("[^\w\s'-]+", '', full_text)
+    full_text = re.sub("[^\w\s]+", '', full_text)
     
     return full_text
 

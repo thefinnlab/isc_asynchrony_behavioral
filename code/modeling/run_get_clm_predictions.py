@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import argparse
 import torch
+from torch.nn import functional as F
 
 sys.path.append('../utils/')
 
@@ -47,9 +48,13 @@ if __name__ == '__main__':
 	print (f'Window Size: {p.window_size}')
 
 	out_dir = os.path.join(DERIVATIVES_DIR, 'model-predictions', p.task, p.model_name, f'window-size-{p.window_size}')
+	logits_dir = os.path.join(out_dir, 'logits')
 
 	if not os.path.exists(out_dir):
 		os.makedirs(out_dir)
+
+	if not os.path.exists(logits_dir):
+		os.makedirs(logits_dir)
 
 	# load the preprocessed file --> this has next-word-candidates selected
 	stim_preprocessed_fn = os.path.join(STIM_DIR, 'preprocessed', p.task, f'{p.task}_transcript-preprocessed.csv')
@@ -57,9 +62,7 @@ if __name__ == '__main__':
 
 	# # load a word-level model --> we use glove here
 	# # first function downloads the model if needed, second function loads it as gensim format
-	word_models = {model_name: nlp.load_gensim_model(model_name=model_name, cache_dir=CACHE_DIR) for model_name in nlp.WORD_MODELS.keys()}
-	# word_model_path = nlp.download_gensim_model(model_name=p.word_model_name, cache_dir=CACHE_DIR)
-	# word_model = nlp.load_gensim_model(fn=word_model_path)
+	word_models = {model_name: nlp.load_word_model(model_name=model_name, cache_dir=CACHE_DIR) for model_name in nlp.WORD_MODELS.keys()}
 
 	# load the causal language model
 	print (f'Loading {p.model_name}', flush=True)
@@ -84,11 +87,16 @@ if __name__ == '__main__':
 		inputs, ground_truth_word = preproc_to_input(df_preproc, segment)
 		
 		# run the inputs through the model and get the predictions
-		# this returns the top word, the top probability, and the predictive distribution
-		probs = nlp.get_clm_predictions([inputs], model, tokenizer)
+		# this returns the predictive distribution and saves out the logits
 
+		# if p.model_name == 'gpt2-xl' and p.window_size == 100:
+		# 	logits_fn = os.path.join(logits_dir, f'{p.task}_window-size-{p.window_size}_logits-{str(i).zfill(5)}.pt')
+		# else:
+		# 	logits_fn = None
+
+		probs = nlp.get_clm_predictions([inputs], model, tokenizer) #, out_fn=logits_fn)
+		
 		# now given the outputs of the model, run our stats of interest
-
 		for n in p.top_n:
 			segment_stats = nlp.get_model_statistics(ground_truth_word, probs, tokenizer, prev_probs=prev_probs, word_models=word_models, top_n=n)
 			df_stack[str(n)].append(segment_stats)
