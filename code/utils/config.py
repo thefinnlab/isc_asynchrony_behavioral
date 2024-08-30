@@ -23,8 +23,11 @@ SCRATCH_DIR = '/dartfs-hpc/scratch/f003rjw'
 # DSQ_DIR = os.path.join(SUBMIT_DIR, 'dsq')
 # LOGS_DIR = os.path.join(BASE_DIR, 'derivatives', 'logs')
 
-## nilearn data
-os.environ['NILEARN_DATA'] = "/dartfs/rc/lab/F/FinnLab/tommy/atlases/nilearn_data/"
+## SET ATLAS DIRECTORIES
+os.environ['NILEARN_DATA'] = os.path.join(ATLAS_DIR, 'nilearn_data')
+os.environ['NEUROMAPS_DATA'] =  os.path.join(ATLAS_DIR, 'neuromaps_data')
+
+# SET MODELS DIRECTORIES
 os.environ['GENSIM_DATA_DIR'] = CACHE_DIR
 os.environ['TRANSFORMERS_CACHE'] = CACHE_DIR
 os.environ['TORCH_HOME'] = CACHE_DIR
@@ -33,8 +36,10 @@ os.environ['TORCH_HOME'] = CACHE_DIR
 DSQ_MODULES	 = [
     'module load cuda/11.2',
     'module load openmpi',
+    'module load workbench/1.50',
     'source /optnfs/common/miniconda3/etc/profile.d/conda.sh',
-    'conda activate asynchrony'
+    'conda activate dark_matter'
+    # 'conda activate asynchrony'
 ]
 
 DSQ_MODULES = ''.join([f'{module}; ' for module in DSQ_MODULES])
@@ -47,11 +52,12 @@ login(token=HF_TOKEN)
 
 ##### PLOTTING FUNCTIONS #####
 
-PLOT_SEPARATE_VIEWS = False
+PLOT_SEPARATE_VIEWS = True
 VIEWS = ['lateral', 'medial']
 SURF_TYPE = 'fsaverage'
 ADD_DEPTH = True
 COLORBAR = True
+TITLE = False
 EXT = 'png'
 
 ### DATASET INFO

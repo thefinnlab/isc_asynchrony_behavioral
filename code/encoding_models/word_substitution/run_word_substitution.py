@@ -12,8 +12,7 @@ sys.path.append('../../utils/')
 
 from config import *
 import dataset_utils as utils
-import nlp_utils as nlp
-import encoding_utils as encoding
+from tommy_utils import nlp, encoding
 
 import torch
 
@@ -79,6 +78,7 @@ if __name__ == '__main__':
 	parser.add_argument('-d', '--dataset', type=str)
 	parser.add_argument('-t', '--task', type=str)
 	parser.add_argument('-m', '--model_name', type=str)
+	parser.add_argument('-window', '--window_size', type=int, default=25)
 	parser.add_argument('-o', '--overwrite', type=int, default=0)
 	p = parser.parse_args()
 
@@ -133,7 +133,7 @@ if __name__ == '__main__':
 
 	## now read the behavior results
 	## MAKE ADJUSTMENTS TO MODEL FEATURES FROM BEHAVIOR ########
-	behavior_results_fn = os.path.join(BASE_DIR, f'derivatives/results/behavioral/task-{p.task}_compiled-behavior.csv')
+	behavior_results_fn = os.path.join(BASE_DIR, f'derivatives/results/behavioral/task-{p.task}_group-analyzed-behavior_human-model-lemmatized.csv')
 	behavior_results = pd.read_csv(behavior_results_fn)
 
 	# compare the model within human/audio
@@ -149,7 +149,7 @@ if __name__ == '__main__':
 
 		df_condition.loc[df_condition_words['word_index'], 'word'] = df_condition_words['top_pred'].tolist()
 
-		times, features = encoding.create_transformer_features(df_condition, tokenizer, model, add_punctuation=False)
+		times, features = encoding.create_transformer_features(df_condition, tokenizer, model, window_size=p.window_size, add_punctuation=False)
 
 		if cond != p.model_name:
 			cond = f'human-{cond}'

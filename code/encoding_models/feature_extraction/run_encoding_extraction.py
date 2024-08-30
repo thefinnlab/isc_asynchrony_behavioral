@@ -23,13 +23,18 @@ if __name__ == '__main__':
 	parser.add_argument('-d', '--dataset', type=str)
 	parser.add_argument('-t', '--task', type=str)
 	parser.add_argument('-m', '--model_name', type=str)
+	parser.add_argument('-window', '--window_size', type=int, default=25)
 	parser.add_argument('-o', '--overwrite', type=int, default=0)
 	p = parser.parse_args()
 
 	print (f'Running feature extraction: task - {p.task} model - {p.model_name}', flush=True)
 
-	output_dir = os.path.join(BASE_DIR, 'derivatives', 'regressors', p.dataset, p.task, p.model_name)
-	gentle_dir = os.path.join(DATASETS_DIR, p.dataset, 'stimuli', 'gentle', p.task)
+	output_dir = os.path.join(BASE_DIR, 'derivatives/regressors', p.dataset, p.task, p.model_name)
+
+	if p.task in ['wheretheressmoke', 'howtodraw', 'odetostepfather']:
+		gentle_dir = os.path.join(BASE_DIR, 'stimuli/gentle', p.task)
+	else:
+		gentle_dir = os.path.join(DATASETS_DIR, p.dataset, 'stimuli/gentle', p.task)
 
 	utils.attempt_makedirs(output_dir)
 
@@ -37,13 +42,9 @@ if __name__ == '__main__':
 	audio_fn = os.path.join(gentle_dir, 'a.wav')
 	transcript_fn = os.path.join(gentle_dir, 'align.json')
 
-	## calculate the amount of time to interpolate to as 
-	# stimulus_time - trim_amount / tr
-	stim_time = round(librosa.get_duration(path=audio_fn))
-
 	# get the length of the stimulus spaced out by the frequency of the TRs
 	task_idx = utils.DATASETS[p.dataset]['tasks'].index(p.task)
-	n_trs = utils.DATASETS[p.dataset][task_idx]
+	n_trs = utils.DATASETS[p.dataset]['n_trs'][task_idx]
 	tr_times = np.arange(0, n_trs*TR, TR)
 
 	# load the gentle transcript
@@ -74,7 +75,7 @@ if __name__ == '__main__':
 			print (f'No transcript for {p.dataset} {p.task}')
 			sys.exit(0)
 	else:
-		print (f'Error')
+		print (f'Error -- model not listed in tommy_utils.encoding')
 		sys.exit(0)
 
 	####################################
@@ -98,14 +99,14 @@ if __name__ == '__main__':
 
 		# load the masked language model
 		mlm_tokenizer, mlm_model = nlp.load_mlm_model(model_name=p.model_name, cache_dir=CACHE_DIR)
-		times, features = encoding.create_transformer_features(df_transcript, mlm_tokenizer, mlm_model, add_punctuation=False)
+		times, features = encoding.create_transformer_features(df_transcript, mlm_tokenizer, mlm_model, window_size=p.window_size, add_punctuation=False)
 
 	# causal language model extraction
 	elif p.model_name in nlp.CLM_MODELS_DICT.keys():
 
 		# load clm model
 		clm_tokenizer, clm_model = nlp.load_clm_model(model_name=p.model_name, cache_dir=CACHE_DIR)
-		times, features = encoding.create_transformer_features(df_transcript, clm_tokenizer, clm_model, add_punctuation=False)
+		times, features = encoding.create_transformer_features(df_transcript, clm_tokenizer, clm_model, window_size=p.window_size, add_punctuation=False)
 	
 	# cnn features (potentially expand to trasformers)
 	elif p.model_name in encoding.VISION_MODELS_DICT or p.model_name in nlp.MULTIMODAL_MODELS_DICT:

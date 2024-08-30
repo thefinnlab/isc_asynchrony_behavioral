@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --output /dartfs/rc/lab/F/FinnLab/tommy/isc_asynchrony_behavior/derivatives/logs/huth-moth/dsq_word_substitution/dsq_word_substitution-%A_%1a-%N.txt
-#SBATCH --array 0-1
+#SBATCH --array 0-5
 #SBATCH --job-name dsq-huth-moth_word_substitution_joblist
 #SBATCH --partition=standard --time=240 --nodes=1 --ntasks-per-node=1 --ntasks=1 --cpus-per-task=4 --mem-per-cpu=32G
 

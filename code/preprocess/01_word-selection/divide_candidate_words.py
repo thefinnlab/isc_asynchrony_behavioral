@@ -21,8 +21,8 @@ TOP_N = 5
 
 # FOR FILTERING AND SELECTING WORDS FROM QUADRANTS
 REMOVE_PERC = 0.5
-SELECT_PERC = 0.45
-MIN_SPACING_THRESH = 2
+SELECT_PERC = 0.39 # 0.39 for howtodraw, 0.45 for odetostepfather
+MIN_SPACING_THRESH = 3
 
 if __name__ == '__main__':
 
@@ -33,8 +33,8 @@ if __name__ == '__main__':
 	p = parser.parse_args()
 
 	# set the directories we need
-	models_dir = os.path.join(DERIVATIVES_DIR, 'model-predictions')
-	preproc_dir = os.path.join(STIM_DIR, 'preprocessed', p.task)
+	models_dir = os.path.join(BASE_DIR, 'derivatives/model-predictions')
+	preproc_dir = os.path.join(BASE_DIR, 'stimuli/preprocessed', p.task)
 
 	# load our preprocessed file --> get the indices of the prediction words
 	df_preproc = pd.read_csv(os.path.join(preproc_dir, f'{p.task}_transcript-preprocessed.csv'))

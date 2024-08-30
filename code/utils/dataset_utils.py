@@ -32,8 +32,8 @@ DATASETS = {
 			252, 402, 343, 507, 215, 325,
 			389, 334, 365, 395, 444, 300
 		]
-	}
-	'deniz-readinglistening':
+	},
+	'deniz-readinglistening': {
 		'tasks':  [
 			'alternateithicatom', 'avatar', 'legacy', 'odetostepfather', 'souls',
 			'howtodraw', 'myfirstdaywiththeyankees', 'naked', 'undertheinfluence', 'life', 'wheretheressmoke'
@@ -41,7 +41,8 @@ DATASETS = {
 		'n_trs':  [
 			354, 378, 410, 414, 360, 
 			365, 368, 433, 314, 440, 300
-		]
+		]		
+	}
 }
 
 

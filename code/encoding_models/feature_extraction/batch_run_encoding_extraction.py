@@ -2,20 +2,20 @@ import sys, os
 import glob
 import argparse
 import subprocess
+from itertools import product
 
 sys.path.append('../../utils/')
 
-import dataset_utils as utils
-import encoding_utils as encoding
 from config import *
+import dataset_utils as utils
 
 PARTITION = 'standard'
 TIME = 240
 N_NODES = 1
 N_TASKS_PER_NODE = 1
 N_TASKS = 1
-CPUS_PER_TASK = 4
-MEM_PER_CPU = '32G'
+CPUS_PER_TASK = 8
+MEM_PER_CPU = '16G'
 
 if __name__ == "__main__":
 
@@ -29,6 +29,8 @@ if __name__ == "__main__":
 	# get tasks from gentle dir
 	TASKS = glob.glob(os.path.join(DATASETS_DIR,  p.dataset, 'stimuli', 'gentle', '*'))
 	TASKS = sorted([os.path.basename(task) for task in TASKS])
+
+	TASKS = ['wheretheressmoke', 'odetostepfather', 'howtodraw']
 	print (f'Preparing the following tasks: {TASKS}')
 
 	regressors_dir = os.path.join(BASE_DIR, 'derivatives', 'regressors', p.dataset)
@@ -46,20 +48,23 @@ if __name__ == "__main__":
 	job_string = f'{DSQ_MODULES} srun python {script_fn}'
 	job_num = 0
 	
-	for task in TASKS:
-		for model_name in MODEL_NAMES:
+	for task, model_name in product(TASKS, MODEL_NAMES):
 
-			model_exists = any(glob.glob(os.path.join(regressors_dir, task, f'{model_name}', '*')))
+		print (f'Creating extraction for {task}, {model_name}')
+		# if 'gpt' not in model_name:
+		# 	continue
 
-			# only run dsq for features that haven't been extracted yet
-			# only case where not entering loop is when file exists and overwrite is false
-			if p.overwrite or not model_exists:
-				cmd = ''.join([
-					f'{job_string} -d {p.dataset} -t {task} -m {model_name} -o {p.overwrite}']
-				)
-				
-				all_cmds.append(cmd)
-				job_num += 1
+		model_exists = any(glob.glob(os.path.join(regressors_dir, task, f'{model_name}', '*')))
+
+		# only run dsq for features that haven't been extracted yet
+		# only case where not entering loop is when file exists and overwrite is false
+		if p.overwrite or not model_exists:
+			cmd = ''.join([
+				f'{job_string} -d {p.dataset} -t {task} -m {model_name} -window 25 -o {p.overwrite}']
+			)
+			
+			all_cmds.append(cmd)
+			job_num += 1
 
 	if not all_cmds:
 		print (f'No model needing extraction - overwrite if you want to redo extraction', flush=True)

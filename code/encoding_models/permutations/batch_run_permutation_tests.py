@@ -3,23 +3,21 @@ import glob
 import argparse
 import subprocess
 import argparse
+from itertools import product
 
 sys.path.append('../../utils/')
 
-import dataset_utils as utils
 from config import *
+import dataset_utils as utils
 
-PARTITION='preemptable'
-TIME = '5:00:00'
+PARTITION='standard'
+TIME = '10:00:00'
 N_NODES = 1
 N_TASKS_PER_NODE = 1
 N_TASKS = 1
 CPUS_PER_TASK = 8
 MEM_PER_CPU = '16G'
 GPU_INFO = ''
-
-# PARTITION = 'v100_12'
-# GPU_INFO = '--gres=gpu:1'
 
 if __name__ == "__main__":
 
@@ -28,7 +26,13 @@ if __name__ == "__main__":
 	parser.add_argument('-o', '--overwrite', type=int, default=0)
 	p = parser.parse_args()
 
-	dataset_dir = os.path.join(DATASETS_DIR, p.dataset, 'derivatives/dark-matter-preproc-smooth')
+	if p.dataset == 'deniz-readinglistening':
+		dataset_dir = os.path.join(DATASETS_DIR, p.dataset, 'derivatives/dark-matter-preproc')
+		sessions = ['-ses listening', '-ses reading']
+	else:
+		dataset_dir = os.path.join(DATASETS_DIR, p.dataset, 'derivatives/dark-matter-preproc-smooth')
+		sessions = ['']
+
 	results_dir = os.path.join(BASE_DIR, 'derivatives/results', p.dataset)
 
 	dsq_dir = os.path.join(SUBMIT_DIR, p.dataset, 'dsq')
@@ -49,9 +53,11 @@ if __name__ == "__main__":
 	### PREPARE THE DATA FOR SCRIPT ####
 	####################################
 
-	MODEL_NAMES = ['spectral', 'phoneme', 'word2vec', 'gpt2-xl'] #'gpt2-xl']
+	# all our models will have this
+	MAIN_MODEL = 'gpt2-xl'
 
-	test_tasks = ['wheretheressmoke']
+	# tasks to run permutation on
+	test_tasks = ['wheretheressmoke', 'howtodraw', 'odetostepfather']
 	test_tasks = ' '.join(test_tasks)
 
 	# now prep for the script
@@ -61,18 +67,16 @@ if __name__ == "__main__":
 	job_num = 0
 
 	iteration = 1
-	main_model = MODEL_NAMES[-1]
 
-	for sub in sub_list:
+	for sub, ses in product(sub_list, sessions):
 
-		features = ' '.join(MODEL_NAMES)
-		files_exist = any(glob.glob(os.path.join(results_dir, sub, main_model, '*permutations*')))
+		files_exist = any(glob.glob(os.path.join(results_dir, sub, MAIN_MODEL, '*permutations*')))
 
 		# only run dsq for regressions that haven't been run yet
 		if p.overwrite or not files_exist:
 
 			cmd = ''.join([
-				f'{job_string} -d {p.dataset} -test {test_tasks} -s {sub} -m {main_model} -i {str(iteration).zfill(5)} -f {features} -o {p.overwrite}']
+				f'{job_string} -d {p.dataset} -s {sub} -test {test_tasks} {ses} -m {MAIN_MODEL} -i {str(iteration).zfill(5)} -o {p.overwrite}']
 			)
 
 			all_cmds.append(cmd)

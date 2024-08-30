@@ -5,7 +5,7 @@ import math, random
 import json
 import re
 import subprocess
-# import librosa
+import librosa
 from natsort import natsorted
 import glob
 import ast
@@ -301,7 +301,7 @@ STOP_UTTERANCES = [
 	'yes', 'yeah', 'alright', 'no', 'nope', 'nah', 'well', 'like', 'eh', 'huh', 
 	'mm', 'ick', 'ch', 'hm', 'oh', 'mhm', 'ah', 'um', 'uh', 'uh-huh', 'uh-oh', 
 	'boom', 'bam', 'wha', 'ra', 'ba', 'bla', 'ugh', 'okay', 'hi', 'hey', 
-	'hello', 'ya', 'us', 'really','sh', 'said'
+	'hello', 'ya', 'us', 'really','sh', 'said', 'know',
 ]
 
 # add alphanumeric characters
@@ -309,6 +309,10 @@ ALPHANUM = set(string.ascii_lowercase+string.ascii_uppercase+string.digits)
 STOP_UTTERANCES += [e for e in string.printable if e in ALPHANUM]
 
 STOP_WORDS.extend(STOP_UTTERANCES)
+
+NAMED_ENTITIES = [
+	'Red-Headed', 'German', 'Sean', 'Googled' #custom removal from odetostepfather
+]
 
 # POS tag mapping, format: {Treebank tag (1st letter only): Wordnet}
 tagset_mapping = defaultdict(
@@ -463,6 +467,11 @@ def clean_named_entities(df):
 	# fix instructions?
 	named_entities = pd.Series(df['POS'] == 'NNP') & pd.Series(df['Stop_Word'] == False)
 	named_entity_idxs = np.where(named_entities)[0]
+
+	# add custom indices
+	custom_entity_idxs = np.where(df['Word_Written'].isin(NAMED_ENTITIES))[0]
+	named_entity_idxs = np.unique(np.concatenate([named_entity_idxs, custom_entity_idxs]))
+
 	df['Named_Entity'] = False
 
 	for idx in named_entity_idxs:

@@ -8,6 +8,7 @@ import subprocess
 sys.path.append('../../utils/')
 
 from config import *
+import dataset_utils as utils
 from preproc_utils import (
 	get_quadrant_distributions, 
 	get_consecutive_list_idxs, 
@@ -39,9 +40,10 @@ if __name__ == "__main__":
 	# set directories
 	preproc_dir = os.path.join(BASE_DIR, 'stimuli', 'preprocessed')
 	task_out_dir = os.path.join(BASE_DIR, 'stimuli', 'presentation_orders', p.experiment_name, p.task, 'preproc')
+	submit_dir = os.path.join(SUBMIT_DIR, 'behavioral')
 
-	if not os.path.exists(task_out_dir):
-		os.makedirs(task_out_dir)
+	utils.attempt_makedirs(task_out_dir)
+	utils.attempt_makedirs(submit_dir)
 
 	# IF WE'RE ON A PRACTICE TRIAL
 	if p.task == 'nwp_practice_trial':
@@ -137,15 +139,24 @@ if __name__ == "__main__":
 		cmd = ''.join([f'{job_string} -n {p.experiment_name} -t {p.task} -s {subject}'])
 		all_cmds.append(cmd)
 
-	joblist_fn = os.path.join(JOBLIST_DIR, f'{p.experiment_name}_task-{p.task}_cut_participant_audio.txt')
+	### make dsq dirs
+	logs_dir = os.path.join(LOGS_DIR, 'behavioral')
+	dsq_dir = os.path.join(submit_dir, 'dsq')
+	jobslist_dir = os.path.join(submit_dir, 'joblists')
+
+	utils.attempt_makedirs(logs_dir)
+	utils.attempt_makedirs(jobslist_dir)
+	utils.attempt_makedirs(dsq_dir)
+
+	joblist_fn = os.path.join(jobslist_dir, f'{p.experiment_name}_task-{p.task}_cut_participant_audio.txt')
 
 	with open(joblist_fn, 'w') as f:
 		for cmd in all_cmds:
 			f.write(f"{cmd}\n")
 	
 	dsq_base_string = f'dsq_run_cut_participant_audio'
-	dsq_batch_fn = os.path.join(DSQ_DIR, dsq_base_string)
-	dsq_out_dir = os.path.join(LOGS_DIR, dsq_base_string)
+	dsq_batch_fn = os.path.join(dsq_dir, dsq_base_string)
+	dsq_out_dir = os.path.join(logs_dir, dsq_base_string)
 	array_fmt_width = len(str(i))
 
 	if not os.path.exists(dsq_out_dir):

@@ -61,6 +61,9 @@ if __name__ == '__main__':
 	elif task == 'example_trial':
 		example_indices = df_preproc['Word_Written'].isin(['fox', 'lazy'])
 		df_preproc['NWP_Candidate'] = example_indices
+	elif task == 'myfirstdaywiththeyankees':
+		exclude_indices = df_preproc['Word_Written'].isin(['know'])
+		df_preproc.loc[exclude_indices, 'NWP_Candidate'] = False
 	else:
 		df_preproc['NWP_Candidate'] = pd.Series(df_preproc['Named_Entity'] == False) & \
 			pd.Series(df_preproc['Stop_Word'] == False) & \
