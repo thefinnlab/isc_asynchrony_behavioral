@@ -9,6 +9,7 @@ import librosa
 from natsort import natsorted
 import glob
 import ast
+from scipy import stats
 
 import string
 import nltk
@@ -19,6 +20,10 @@ from nltk import word_tokenize
 from collections import defaultdict
 
 from praatio import textgrid as tgio
+
+import pliers
+from pliers.stimuli import TextStim
+from pliers.extractors import PredefinedDictionaryExtractor, merge_results
 
 # nltk.download('tagsets')
 # nltk.download('stopwords')
@@ -433,13 +438,14 @@ def clean_hyphenated_words(df):
 				'POS_Definition': df_rows['POS_Definition'].to_list()[-1],
 				'Punctuation': df_rows['Punctuation'].to_list()[-1] ,
 				'Stop_Word': hyphenated_word.lower() in STOP_WORDS,
+				'Digit': any(df_rows['Digit'].to_list()),
 				'Word_Vocab': hyphenated_word,
 				'Onset': df_rows['Onset'].to_list()[0],
 				'Offset': df_rows['Offset'].to_list()[-1],
 				'Duration': df_rows['Offset'].to_list()[-1] - df_rows['Onset'].to_list()[0]
 			}
-			
-			df.loc[idx, :] = hyphenated_entry
+
+			df.loc[idx, :] = pd.Series(hyphenated_entry)
 			df = df.drop(idx+1).reset_index(drop=True)
 
 			# we've dropped an index
@@ -495,6 +501,101 @@ def clean_named_entities(df):
 	df = df.reset_index(drop=True)
 	return df
 
+
+############# Frequency stats #############
+
+def get_word_frequency(df_preproc, columns=['stim_name', 'order', 'feature', 'value']):
+
+	extractor = PredefinedDictionaryExtractor(['subtlexusfrequency/Lg10WF'],  missing=np.nan)
+	word_list = df_preproc['Word_Written']
+	
+	### Get frequency info
+	stims = [TextStim(text=word.lower(), order=i) for i, word in enumerate(word_list)]
+	df_results = extractor.transform(stims)
+	df_results = merge_results(df_results, extractor_names='column', format='long')
+
+	# trim down to the columns to keep
+	df_results = df_results[columns]
+	df_results['stim_name'] = df_results['stim_name'].str.extract(r'\[(.*?)\]')
+	
+	# now add that info to the main dataframe
+	idxs = df_results['order']
+	df_preproc.loc[idxs, 'Lg10WF'] = df_results['value'].tolist()
+
+	return df_preproc
+
+
+def match_df_distributions(source_df, target_df, source_col, target_col, alpha=0.05, n_iter=10):
+	"""
+	Match the distribution of source_data to target_dist without replacement.
+	
+	Args:
+	source_df: DataFrame containing source data
+	target_df: DataFrame containing target data
+	source_col: Column name in source_df to use for matching
+	target_col: Column name in target_df to use for matching
+	alpha: Significance level for the t-test
+	n_samples: Minimum number of samples required
+	n_iter: Number of iterations to perform distribution fitting
+	
+	Returns:
+	matched_df: DataFrame containing matched samples and all original columns from source_df
+	t_statistic: Final t-statistic
+	p_value: Final p-value
+	"""
+	
+	source_data = source_df[source_col].to_numpy()
+	target_data = target_df[target_col].to_numpy()
+	
+	# Fit the target data to a normal distribution
+	mu, std = stats.norm.fit(target_data)
+	target_dist = stats.norm(loc=mu, scale=std)
+	
+	best_indices = []
+	best_stat = np.inf
+	
+	for i in range(n_iter):
+		np.random.seed(i)
+		
+		source_indices = np.arange(len(source_data))
+		
+		np.random.shuffle(source_indices)
+		
+		matched_indices = []
+		
+		while len(source_indices) > 0:
+			next_index = source_indices[0]
+			next_sample = source_data[next_index]
+			
+			# Calculate acceptance probability
+			target_pdf = target_dist.pdf(next_sample)
+			max_source_pdf = np.max(target_dist.pdf(source_data[source_indices]))
+			accept_prob = min(1, target_pdf / max_source_pdf)
+			
+			if np.random.random() < accept_prob:
+				matched_indices.append(next_index)
+			
+			source_indices = source_indices[1:]
+		
+		matched_samples = source_data[matched_indices]
+		t_stat, p_val = stats.ttest_ind(matched_samples, target_data)
+		
+		# minimize the tstat while increasing the number of items
+		if (p_val > alpha) and (abs(t_stat) < abs(best_stat)) and (len(matched_indices) > len(best_indices)):
+			best_indices = matched_indices.copy()
+			best_stat = t_stat
+			print(f'Updating distribution -- retained {(len(best_indices)/len(source_data)) * 100:.2f}% of samples')
+	
+		print(f'Completed iter {str(i+1).zfill(3)}')
+	
+	# Final t-test
+	best_samples = source_data[best_indices]
+	t_stat, p_val = stats.ttest_ind(best_samples, target_data)
+	
+	# Create the output dataframe
+	matched_df = source_df.iloc[best_indices].copy().sort_index()
+	
+	return matched_df, t_stat, p_val
 
 ### FUNCTIONS FOR STRATIFYING WORDS BASED ON A MODEL #####
 
@@ -629,30 +730,30 @@ def select_prediction_words(df_divide, remove_perc, select_perc, min_spacing_thr
 	return sampled
 
 def random_chunks(lst, n, shuffle=False):
-    """Created randomized n-sized chunks from lst."""
-    
-    tmp_lst = lst.copy()
-    n_total = len(lst)
-    
-    if shuffle:
-        random.shuffle(tmp_lst)
-    
-    all_chunks = []
-    
-    for i in range(0, len(tmp_lst), n):
-        all_chunks.append(tmp_lst[i:i + n])
-    
-    # distribute remaining items across orders
-    if len(all_chunks) != n_total//n:
-        remainder = all_chunks.pop()
-        
-        for i, item in enumerate(remainder):      
-            all_chunks[i%n].append(item)
-    
-    # lastly sort for ordered indices
-    all_chunks = [sorted(chunk) for chunk in all_chunks]
-    
-    return all_chunks
+	"""Created randomized n-sized chunks from lst."""
+	
+	tmp_lst = lst.copy()
+	n_total = len(lst)
+	
+	if shuffle:
+		random.shuffle(tmp_lst)
+	
+	all_chunks = []
+	
+	for i in range(0, len(tmp_lst), n):
+		all_chunks.append(tmp_lst[i:i + n])
+	
+	# distribute remaining items across orders
+	if len(all_chunks) != n_total//n:
+		remainder = all_chunks.pop()
+		
+		for i, item in enumerate(remainder):      
+			all_chunks[i%n].append(item)
+	
+	# lastly sort for ordered indices
+	all_chunks = [sorted(chunk) for chunk in all_chunks]
+	
+	return all_chunks
 
 ### FUNCTIONS FOR RANDOMIZATION OF ORDERS #####
 ### modified from https://stackoverflow.com/questions/93353/create-many-constrained-random-permutation-of-a-list

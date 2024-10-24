@@ -1,0 +1,27 @@
+_target_: src.models.joint_clm_prosody.ProsodyCausalLM
+
+optimizer:
+  _target_: torch.optim.AdamW
+  _partial_: true
+  lr: 0.001
+  weight_decay: 0.0
+  
+scheduler:
+  _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+  _partial_: true
+  mode: min
+  factor: 0.1
+  patience: 2
+
+model_name: gpt2
+num_labels: 1
+loss_mode: 'joint'
+use_prosody_embeddings: True
+tie_prosody_embeddings: True
+pretrained: True
+
+# freeze_lm: false # freeze the language model
+# use_mlp: false
+
+output_activation:
+  _target_: torch.nn.Identity

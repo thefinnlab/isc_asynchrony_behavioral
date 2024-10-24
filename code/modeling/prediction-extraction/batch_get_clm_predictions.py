@@ -6,7 +6,7 @@ import argparse
 from itertools import product
 import subprocess
 
-sys.path.append('../utils/')
+sys.path.append('../../utils/')
 
 from config import *
 import dataset_utils as utils
@@ -22,7 +22,7 @@ MEM_PER_CPU = '8G'
 
 if __name__ == '__main__':
 
-	OVERWRITE = False
+	OVERWRITE = True
 
 	# grab the tasks
 	task_dirs = sorted(glob.glob(os.path.join(BASE_DIR, 'stimuli/preprocessed', '*')))
@@ -31,7 +31,7 @@ if __name__ == '__main__':
 	# remove practice trial and example trial from the list of tasks
 	task_names = [task for task in task_names if task not in ['nwp_practice_trial', 'example_trial']] 
 
-	task_names = ['howtodraw', 'odetostepfather', 'wheretheressmoke']
+	task_names = ['black'] #'howtodraw', 'odetostepfather', 'wheretheressmoke'] #'black'] #['demon'] #, 'keats']
 
 	# get all MLM models except BERT
 	MLM_MODELS = list(nlp.MLM_MODELS_DICT.keys())[1:]
@@ -40,8 +40,8 @@ if __name__ == '__main__':
 	# model_names = ['gpt2-xl']
 
 	# model_names = sorted(CLM_MODELS_DICT.keys())
-	window_sizes = [25, 50, 100]
-	top_ns = [1, 5, 10]
+	window_sizes = [25, 100]
+	top_ns = [1] #, 5, 10]
 
 	all_cmds = []
 	script_fn = os.path.join(os.getcwd(), 'run_get_clm_predictions.py')
@@ -49,11 +49,14 @@ if __name__ == '__main__':
 	job_num = 0
 
 	# FAILED         3     37,51,68 
-	# failed_jobs = list(range(224, 324))
-
 	for i, (task, model, window) in enumerate(product(task_names, model_names, window_sizes)):
 		
 		# if i not in failed_jobs:
+		# 	continue
+
+		# if task == 'wheretheressmoke' and model == 'gpt-neo-x':
+		# 	pass
+		# else:
 		# 	continue
 
 		out_dir = os.path.join(BASE_DIR, 'derivatives/model-predictions', task, model, f'window-size-{window}')

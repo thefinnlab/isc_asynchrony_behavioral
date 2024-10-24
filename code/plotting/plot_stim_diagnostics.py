@@ -12,7 +12,9 @@ from scipy.spatial.distance import cdist
 sys.path.append('../utils/')
 
 from config import *
-from nlp_utils import CLM_MODELS_DICT
+from tommy_utils.nlp import CLM_MODELS_DICT
+
+STIM_DIR = os.path.join(BASE_DIR, 'stimuli')
 
 def load_model_data(model_dir, model_name, task, window_size, top_n):
 	'''
@@ -24,8 +26,9 @@ def load_model_data(model_dir, model_name, task, window_size, top_n):
 	
 	# load the data, remove nans
 	model_results = pd.read_csv(results_fn)
-	model_results['glove_continuous_accuracy'] = model_results['glove_continuous_accuracy'].apply(np.nan_to_num)
-	model_results['word2vec_continuous_accuracy'] = model_results['word2vec_continuous_accuracy'].apply(np.nan_to_num)
+	model_results['glove_avg_accuracy'] = np.nan_to_num(model_results['glove_avg_accuracy']) #.apply(np.nan_to_num)
+	model_results['word2vec_avg_accuracy'] = np.nan_to_num(model_results['word2vec_avg_accuracy']) #.apply(np.nan_to_num)
+	model_results['fasttext_avg_accuracy'] = np.nan_to_num(model_results['fasttext_avg_accuracy']) #.apply(np.nan_to_num)
 	
 	return model_results
 	
@@ -122,7 +125,7 @@ def plot_model_similarity(all_results, groupvar, result_type, metric, filtervar=
 		# TLB --> SHOULD ENSURE ZTRANSFORM BEFORE AVERAGE
 		df = df.groupby('model_pair').agg({metric: 'mean'})
 		
-		similarity_matrix = np.reshape(df[metric], (n_models,n_models))
+		similarity_matrix = np.reshape(df[metric].to_numpy(), (n_models,n_models))
 		
 		sns.heatmap(similarity_matrix, annot=True, square=True, xticklabels=model_names, 
 						 yticklabels=model_names, vmin=vmin, vmax=vmax, center=center,
@@ -212,8 +215,8 @@ def plot_quadrant_distributions(model_results, accuracy_type, percentile):
 
 if __name__ == "__main__":
 
-	models_dir = os.path.join(DERIVATIVES_DIR, 'model-predictions')
-	plots_dir = os.path.join(DERIVATIVES_DIR, 'plots', 'model-diagnostics')
+	models_dir = os.path.join(BASE_DIR, 'derivatives/model-predictions/')
+	plots_dir = os.path.join(BASE_DIR, 'derivatives/plots/model-diagnostics/')
 
 	if not os.path.exists(plots_dir):
 		os.makedirs(plots_dir)
@@ -224,7 +227,7 @@ if __name__ == "__main__":
 	# set sizes of correct/context window to plot
 	top_ns = [1,5,10]
 	window_sizes = [25,50,100]
-	accuracy_types = ['binary_accuracy', 'glove_continuous_accuracy', 'word2vec_continuous_accuracy']
+	accuracy_types = ['binary_accuracy', 'glove_avg_accuracy', 'word2vec_avg_accuracy', 'fasttext_avg_accuracy']
 
 	# get names of stimuli
 	tasks = [os.path.basename(d) for d in sorted(glob.glob(os.path.join(STIM_DIR, 'preprocessed', '*')))]
@@ -234,11 +237,12 @@ if __name__ == "__main__":
 	# Compare all models against each other
 
 	df_scores = pd.DataFrame(columns=['model_name', 'task', 'top_n', 'window_size', 
-		'avg_binary_accuracy', 'avg_glove_accuracy', 'avg_word2vec_accuracy'])
+		'avg_binary_accuracy', 'avg_glove_accuracy', 'avg_word2vec_accuracy', 'avg_fasttext_accuracy'])
 
 	all_results = []
 
 	for model_name, task, window_size, top_n in product(model_names, tasks, window_sizes, top_ns):
+		print (f'Loading {model_name}, {task}, {window_size}, {top_n}')
 
 		# load indices of next word candidates for the current task
 		candidate_idxs = get_stim_candidate_idxs(task)
@@ -254,8 +258,9 @@ if __name__ == "__main__":
 			'window_size': window_size,
 			'top_n': top_n,
 			'avg_binary_accuracy': np.nanmean(model_results['binary_accuracy']),
-			'avg_glove_accuracy': np.nanmean(model_results['glove_continuous_accuracy']),
-			'avg_word2vec_accuracy': np.nanmean(model_results['word2vec_continuous_accuracy'])
+			'avg_glove_accuracy': np.nanmean(model_results['glove_avg_accuracy']),
+			'avg_word2vec_accuracy': np.nanmean(model_results['word2vec_avg_accuracy']),
+			'avg_fasttext_accuracy': np.nanmean(model_results['fasttext_avg_accuracy'])
 		}
 
 		# also aggregate results from all models
@@ -294,8 +299,9 @@ if __name__ == "__main__":
 	## start by running accuracy metrics
 	result_metrics = [
 		('binary_accuracy', 'dice'),
-		('glove_continuous_accuracy', 'correlation'),
-		('word2vec_continuous_accuracy', 'correlation'),
+		('glove_avg_accuracy', 'correlation'),
+		('word2vec_avg_accuracy', 'correlation'),
+		('fasttext_avg_accuracy', 'correlation'),
 	]
 
 	for (result_type, metric), window_size in product(result_metrics, window_sizes):
@@ -409,7 +415,7 @@ if __name__ == "__main__":
 			model_results.loc[:, 'binary_accuracy'] = model_results['binary_accuracy'].astype(bool)
 			model_results = model_results.iloc[candidate_idxs]
 
-			fig, axes, df_quadrants = plot_quadrant_distributions(model_results.dropna(), 'word2vec_continuous_accuracy', 45)
+			fig, axes, df_quadrants = plot_quadrant_distributions(model_results.dropna(), 'fasttext_avg_accuracy', 45)
 
 			plt.suptitle(f'{model_name} - task {task}')
 			out_fn = os.path.join(out_dir, f'{model_name}-{task}_quadrant-distributions.jpg')

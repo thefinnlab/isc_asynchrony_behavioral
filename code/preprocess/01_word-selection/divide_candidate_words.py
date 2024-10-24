@@ -21,7 +21,7 @@ TOP_N = 5
 
 # FOR FILTERING AND SELECTING WORDS FROM QUADRANTS
 REMOVE_PERC = 0.5
-SELECT_PERC = 0.39 # 0.39 for howtodraw, 0.45 for odetostepfather
+SELECT_PERC = 0.45 # 0.39 for howtodraw, 0.45 for odetostepfather, #0.45 demon
 MIN_SPACING_THRESH = 3
 
 if __name__ == '__main__':

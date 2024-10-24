@@ -1,0 +1,116 @@
+---
+title: "continuous_accuracy"
+output: html_document
+date: "2024-10-09"
+---
+
+```{r}
+# remove all variables
+rm(list=ls()) 
+
+library(lmerTest)
+library(emmeans)
+library(glue)
+library(ggeffects)
+library(ggplot2)
+library(ggsignif)
+library(ggpattern)
+library(viridis)
+library(forcats)
+library(dplyr)
+library(stringr)
+library(tools)
+library(combinat)
+library(ggpubr)
+library(report)
+library(rcompanion)
+```
+## Functions
+
+```{r}
+# Function to convert specified columns to factors
+convert_columns_to_factors <- function(df, columns_to_convert) {
+  # Check if all specified columns exist in the dataframe
+  if (!all(columns_to_convert %in% names(df))) {
+    missing_cols <- columns_to_convert[!columns_to_convert %in% names(df)]
+    stop(paste("The following columns do not exist in the dataframe:", 
+               paste(missing_cols, collapse = ", ")))
+  }
+  
+  # Convert each specified column to factor
+  for (col in columns_to_convert) {
+    df[[col]] <- factor(df[[col]])
+  }
+  
+  return(df)
+}
+
+```
+
+
+## Set up directories
+
+Set up directories - since we're doing this locally (and mounting the server), 
+we're going to use a different base_dir
+
+```{r}
+
+base_dir<-'/Volumes/FinnLab/tommy/isc_asynchrony_behavior/derivatives/'
+results_dir<-glue('{base_dir}results/behavioral/')
+plots_dir <- glue('{base_dir}plots/final/')
+
+```
+
+## Load data compiled across all tasks
+
+We first compiled data across all tasks
+
+```{r}
+
+# Load the results file
+results_fn<-glue('{results_dir}all-task_group-analyzed-behavior_human-lemmatized.csv')
+df_results <- read.csv(results_fn)
+
+# Set the variable types
+factor_columns <- c('modality', 'ground_truth', 'word_index', 'top_pred', 'task')
+df_results <- convert_columns_to_factors(df_results, factor_columns)
+```
+## Binary Accuracy
+
+```{r}
+table <- xtabs(~ accuracy + modality, data = df_results)
+chisq.test(table)   #MAYBE DO FISHER IDK YOUR LIFE
+
+# # Pairwise comparisons with Bonferroni adjustment
+# pairwiseNominalIndependence(table, data = df_results,
+#                             method = "chisq",            # MAYBE DO FISHER IDK YOUR LIFE
+#                             p.adjust.method = "bonferroni")
+
+```
+## Continuous Accuracy
+
+Predict continuous accuracy from 
+
+```{r}
+
+unique(df_results$modality)
+
+audio_greater_text <- c(1,-1)
+contrasts(df_results$modality) <- cbind(audio_greater_text)
+
+# nested effects --> control for effect of task & word_index within task
+bert_model <- lmer('fasttext_top_word_accuracy ~ modality + (1|task/word_index)', data=df_results, REML=TRUE)
+report (bert_model)
+
+```
+
+Plot 
+
+```{r}
+
+df_averaged <- df_results %>% 
+  group_by(task, word_index, modality) %>% 
+  aggregate(bert_top_word_accuracy~modality+ word_index+ task,FUN=mean) 
+
+
+```

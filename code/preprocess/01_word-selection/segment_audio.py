@@ -30,8 +30,8 @@ if __name__ == '__main__':
 		os.makedirs(audio_out_dir)
 
 	# load preprocessed transcript and find indices that are to be predicted
-	df_preproc_fn = os.path.join(preproc_dir, task, f'{task}_transcript-preprocessed.csv')
-	df_preproc = pd.read_csv(df_preproc_fn)
+	df_preproc_fn = os.path.join(preproc_dir, task, f'{task}_transcript-preprocessed')
+	df_preproc = pd.read_csv(f'{df_preproc_fn}.csv')
 
 	## Segments are defined as follows
 	##  - Start = where a previous segment left of --> will contain the prior segment's predicted word
@@ -47,7 +47,10 @@ if __name__ == '__main__':
 	if os.path.exists(praat_fn):
 		tg = tgio.openTextgrid(praat_fn, False)
 		df_preproc = update_dataframe_from_praat(df_preproc, tg)
-		print ('Using existing textgrid', flush=True)
+		print ('Updating from existing textgrid', flush=True)
+
+		df_preproc.to_csv(f'{df_preproc_fn}.csv')
+		df_preproc.to_json(f'{df_preproc_fn}.json', orient='records')
 	else:
 		tg = dataframe_to_textgrid(df_preproc, audio_fn)
 		tg.save(praat_fn, 'long_textgrid', True)

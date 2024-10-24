@@ -45,6 +45,11 @@ DATASETS = {
 	}
 }
 
+# These two functions let us instantiate and convert nested dictionaries easily
+def make_nested_dictionary():
+	factory = lambda: defaultdict(factory)
+	defdict = factory()
+	return defdict
 
 def all_combinations(x):
 	return itertools.chain.from_iterable(

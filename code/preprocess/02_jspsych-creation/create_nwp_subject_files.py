@@ -23,6 +23,7 @@ N_TASKS_PER_NODE = 1
 N_TASKS = 1
 CPUS_PER_TASK = 4
 MEM_PER_CPU = '4G'
+PARTITION = 'standard'
 
 # CREATING PARTICIPANT ORDERS FOR PRESENTATION
 N_ORDERS = 3
@@ -165,5 +166,5 @@ if __name__ == "__main__":
 	# subprocess.run('module load dSQ', shell=True)
 	subprocess.run(f"dsq --job-file {joblist_fn} --batch-file {dsq_batch_fn}.sh "
 		f"--status-dir {dsq_out_dir} --output={dsq_out_dir}/{dsq_base_string}-%A_%{array_fmt_width}a-%N.out "
-		f"--time={TIME} --nodes={N_NODES} --ntasks-per-node={N_TASKS_PER_NODE} --ntasks={N_TASKS} "
+		f"--time={TIME} --nodes={N_NODES} --partition={PARTITION} --ntasks-per-node={N_TASKS_PER_NODE} --ntasks={N_TASKS} "
 		f"--cpus-per-task={CPUS_PER_TASK} --mem-per-cpu={MEM_PER_CPU}", shell=True)

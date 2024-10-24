@@ -6,7 +6,7 @@ import argparse
 import torch
 from torch.nn import functional as F
 
-sys.path.append('../utils/')
+sys.path.append('../../utils/')
 
 from config import *
 import dataset_utils as utils
@@ -49,7 +49,7 @@ if __name__ == '__main__':
 	print (f'Window Size: {p.window_size}')
 
 	out_dir = os.path.join(BASE_DIR, 'derivatives/model-predictions', p.task, p.model_name, f'window-size-{p.window_size}')
-	logits_dir = os.path.join(out_dir, 'logits')
+	logits_dir = os.path.join(SCRATCH_DIR, 'derivatives/model-predictions', p.task, p.model_name, f'window-size-{p.window_size}', 'logits')
 
 	utils.attempt_makedirs(out_dir)
 	utils.attempt_makedirs(logits_dir)
@@ -90,13 +90,11 @@ if __name__ == '__main__':
 		ground_truth_word = df_preproc.loc[ground_truth_index, 'word']
 		
 		# also keep track of the current ground truth word
-		# inputs, ground_truth_word = preproc_to_input(df_preproc, segment)
-		inputs = nlp.transcript_to_input(df_preproc, segment, add_punctuation=True)
-		
+		inputs = nlp.transcript_to_input(df_preproc, segment, add_punctuation=True)		
 
 		# run the inputs through the model, get predictive distribution, and save out the logits
 		# if the next word is a prediction word save logits
-		if df_preproc.loc[ground_truth_index, 'NWP_Candidate'] and p.model_name == 'gpt2-xl':
+		if df_preproc.loc[ground_truth_index, 'NWP_Candidate']: # and p.model_name == 'gpt2-xl':
 			logits_fn = os.path.join(logits_dir, f'{p.task}_window-size-{p.window_size}_logits-{str(ground_truth_index).zfill(5)}.pt')
 		else:
 			logits_fn = None

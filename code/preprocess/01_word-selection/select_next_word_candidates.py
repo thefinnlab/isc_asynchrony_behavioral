@@ -10,12 +10,12 @@ from praatio import textgrid as tgio
 sys.path.append('../../utils/')
 
 from config import *
-from preproc_utils import create_word_prediction_df, clean_hyphenated_words, clean_named_entities, dataframe_to_textgrid
+from preproc_utils import create_word_prediction_df, clean_hyphenated_words, clean_named_entities, dataframe_to_textgrid, get_word_frequency
 
 if __name__ == '__main__':
 
 	task = sys.argv[1] #'black' # replace this string with those above
-	overwrite = True
+	overwrite = False
 
 	# set directories
 	stim_dir = os.path.join(BASE_DIR, 'stimuli')
@@ -42,6 +42,9 @@ if __name__ == '__main__':
 		df_task_raw.to_csv(df_task_raw_fn, index=False)
 	else:
 		print (f'File exists - exiting')
+		df_preproc = pd.read_csv(f'{df_preproc_fn}.csv')
+		df_preproc.to_json(f'{df_preproc_fn}.json', orient='records')
+
 		shutil.copyfile(f'{df_preproc_fn}.csv', os.path.join(backup_dir, f'{os.path.basename(df_preproc_fn)}.csv'))
 		shutil.copyfile(f'{df_preproc_fn}.json', os.path.join(backup_dir, f'{os.path.basename(df_preproc_fn)}.json'))
 		sys.exit(0)
@@ -69,6 +72,9 @@ if __name__ == '__main__':
 			pd.Series(df_preproc['Stop_Word'] == False) & \
 			pd.Series(df_preproc['Digit'] == False) & \
 			pd.Series(df_preproc['Case'] == 'success') 
+
+	### Add in word frequency information
+	df_preproc = get_word_frequency(df_preproc)
 
 	#save to file
 	df_preproc.to_csv(f'{df_preproc_fn}.csv', index=False)
