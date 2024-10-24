@@ -1,4 +1,11 @@
-ee http://help.github.com/ignore-files/ for more about ignoring files.
+code/wavelet_prosody_toolkit/
+code/modeling/quantifying-redundancy/
+code/modeling/joint-clm-prosody/data/
+code/modeling/joint-clm-prosody/logs/
+code/modeling/prosody_files.zip
+
+derivatives/
+stimuli/
 
 # compiled output
 /dist
