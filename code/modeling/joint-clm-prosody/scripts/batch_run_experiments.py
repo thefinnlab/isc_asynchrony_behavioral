@@ -31,36 +31,44 @@ if __name__ == "__main__":
 	# p = parser.parse_args()
 
 	experiments = {
-
+	
 		# no prosody embeddings
-		'finetune-gpt2_clm-loss_no-prosody-embed': [
+		'scratch-gpt2_clm-loss_no-prosody-embed': [
 			f"model.loss_mode=clm",
-			f"model.pretrained=True",
+			f"model.pretrained=False",
 			f"model.use_prosody_embeddings=False"
 		],
 
-		# add prosody embeddings
-		'finetune-gpt2_clm-loss': [
-			f"model.loss_mode=clm",
-			f"model.pretrained=True",
-			f"model.use_prosody_embeddings=True"
-		],
 
-		# joint loss without prosody embeddings
-		'finetune-gpt2_shifted-joint-gamma-loss_no-prosody-embed_wprosody-0.3': [
-			f"model.loss_mode=joint",
-			f"model.pretrained=True",
-			f"model.use_prosody_embeddings=False",
-			f"model.loss_kwargs.w_prosody=0.3"
-		], 
+		# # no prosody embeddings
+		# 'finetune-gpt2_clm-loss_no-prosody-embed': [
+		# 	f"model.loss_mode=clm",
+		# 	f"model.pretrained=True",
+		# 	f"model.use_prosody_embeddings=False"
+		# ],
 
-		# joint loss with prosody embeddings
-		'finetune-gpt2_shifted-joint-gamma-loss_wprosody-0.3': [
-			f"model.loss_mode=joint",
-			f"model.pretrained=True",
-			f"model.use_prosody_embeddings=True",
-			f"model.loss_kwargs.w_prosody=0.3"
-		], 
+		# # add prosody embeddings
+		# 'finetune-gpt2_clm-loss': [
+		# 	f"model.loss_mode=clm",
+		# 	f"model.pretrained=True",
+		# 	f"model.use_prosody_embeddings=True"
+		# ],
+
+		# # joint loss without prosody embeddings
+		# 'finetune-gpt2_shifted-joint-gamma-loss_no-prosody-embed_wprosody-0.3': [
+		# 	f"model.loss_mode=joint",
+		# 	f"model.pretrained=True",
+		# 	f"model.use_prosody_embeddings=False",
+		# 	f"model.loss_kwargs.w_prosody=0.3"
+		# ], 
+
+		# # joint loss with prosody embeddings
+		# 'finetune-gpt2_shifted-joint-gamma-loss_wprosody-0.3': [
+		# 	f"model.loss_mode=joint",
+		# 	f"model.pretrained=True",
+		# 	f"model.use_prosody_embeddings=True",
+		# 	f"model.loss_kwargs.w_prosody=0.3"
+		# ], 
 	}
 
 	# make directories

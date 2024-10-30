@@ -40,7 +40,7 @@ if __name__ == '__main__':
 	# model_names = ['gpt2-xl']
 
 	# model_names = sorted(CLM_MODELS_DICT.keys())
-	window_sizes = [25, 100]
+	window_sizes = [25,  100]
 	top_ns = [1] #, 5, 10]
 
 	all_cmds = []

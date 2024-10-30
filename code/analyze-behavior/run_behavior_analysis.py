@@ -1,25 +1,30 @@
 import os, sys
+import argparse
+import pandas as pd
+
+from matplotlib import pyplot as plt
+import seaborn as sns
 
 sys.path.append('../utils/')
 
 from config import *
-
-from tommy_utils import nlp
-from preproc_utils import load_model_results, divide_nwp_dataframe
-import analysis_utils as utils
+from dataset_utils import attempt_makedirs
+import plotting_utils as utils
 
 if __name__ == "__main__":
-    
 
-	parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser()
 
-	# type of analysis we're running --> linked to the name of the regressors
-	parser.add_argument('-task_list', '--task_list', type=str, nargs='+')
-	parser.add_argument('-word_model', '--word_model', type=str, default='fasttext')
-	# parser.add_argument('-m', '--model_name', type=str)
-	# parser.add_argument('-window', '--window_size', type=int, default=25)
-	parser.add_argument('-o', '--overwrite', type=int, default=0)
-	p = parser.parse_args()
+    # type of analysis we're running --> linked to the name of the regressors
+    parser.add_argument('-task_list', '--task_list', type=str, nargs='+')
+    parser.add_argument('-word_model', '--word_model', type=str, default='fasttext')
+    parser.add_argument('-o', '--overwrite', type=int, default=0)
+    p = parser.parse_args()
+
+    results_dir = os.path.join(BASE_DIR, 'derivatives/results/behavioral/')
+    plots_dir = os.path.join(BASE_DIR, 'derivatives/plots/final/behavioral/')
+
+    attempt_makedirs(plots_dir)
 
     ###################################
     ###### Subject-wise analysis ######
@@ -43,15 +48,21 @@ if __name__ == "__main__":
     #########################################
 
     # average within accuracy by subject within task and modality
-    df_subject_accuracy = df_subject_results.groupby(['task', 'modality', 'subject'])['accuracy'].mean().reset_index(drop=True)
+    df_subject_accuracy = df_subject_results.groupby(['task', 'modality', 'subject'])['accuracy'].mean().reset_index()
 
     cmap = utils.create_spoken_written_cmap(continuous=False)
-    ax = utils.plot_bar_results(df_results, x='task', y='accuracy', hue='modality', cmap=cmap)
+    ax = utils.plot_bar_results(df_subject_accuracy, x='task', y='accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=(4,5))
 
     plt.xlabel('Task')
-    plt.ylabel('Accuracy')
+    plt.ylabel('Accuracy (Percent Correct)')
     plt.title(f'All task - Subject-wise accuracy')
     plt.ylim(0, 0.75)
+    plt.tight_layout()
+
+    plt.gca().get_legend().remove()
+
+    plt.savefig(os.path.join(plots_dir, "all-task_subject-prediction_accuracy.pdf"), bbox_inches='tight', dpi=600)
+    plt.close('all')
 
     ###################################
     ### Load results from task list ###
@@ -66,6 +77,10 @@ if __name__ == "__main__":
 
     # concatenate into one dataframe --> write to file for posterity 
     df_results = pd.concat(df_results).reset_index(drop=True)
+
+    # Calculate here for now, but move to analysis scripts
+    df_results['weighted_accuracy'] = (df_results[f'{p.word_model}_top_word_accuracy'] * df_results['top_prob'])
+
     df_results.to_csv(os.path.join(results_dir, 'all-task_group-analyzed-behavior_human-lemmatized.csv'), index=False)
 
     ###################################
@@ -74,12 +89,17 @@ if __name__ == "__main__":
 
     # no points for binary since it's 0 or 1
     cmap = utils.create_spoken_written_cmap(continuous=False)
-    ax = utils.plot_bar_results(df_results, x='task', y='binary_accuracy', hue='modality', cmap=cmap, add_points=False)
+    ax = utils.plot_bar_results(df_results, x='task', y='accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=(4,5), add_points=False)
     
     plt.xlabel('Task')
-    plt.ylabel('Accuracy')
+    plt.ylabel('Accuracy (Percent Correct)')
     plt.title(f'All task - Binary accuracy')
-    plt.ylim(0, 0.4)
+    plt.ylim(0, 0.75)
+    plt.gca().get_legend().remove()
+    plt.tight_layout()
+
+    plt.savefig(os.path.join(plots_dir, "all-task_human-behavior_binary-accuracy.pdf"), bbox_inches='tight', dpi=600)
+    plt.close('all')
 
     #######################################
     ##### Plot 3: Continuous accuracy #####
@@ -87,34 +107,78 @@ if __name__ == "__main__":
 
     # plot top word accuracy for humans
     cmap = utils.create_spoken_written_cmap(continuous=False)
-    ax = utils.plot_bar_results(df_results, x='task', y=f'{p.word_model}_top_word_accuracy', hue='modality')
+    ax = utils.plot_bar_results(df_results, x='task', y=f'{p.word_model}_top_word_accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=(4,5))
 
     plt.xlabel('Task')
     plt.ylabel('Cosine similarity')
     plt.title(f'All task - Continuous accuracy')
-    plt.ylim(0, 1)
+    plt.gca().get_legend().remove()
+    plt.tight_layout()
+
+    plt.savefig(os.path.join(plots_dir, "all-task_human-behavior_continuous-accuracy.pdf"), bbox_inches='tight', dpi=600)
+    plt.close('all')
+
+    #######################################
+    ###### Plot 4: Weighted accuracy ######
+    #######################################
+
+    plot top word accuracy for humans
+    cmap = utils.create_spoken_written_cmap(continuous=False)
+    ax = utils.plot_bar_results(df_results, x='task', y=f'weighted_accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=(4,5))
+
+    plt.xlabel('Task')
+    plt.ylabel('Cosine similarity')
+    plt.title(f'All task - Weighted accuracy')
+    plt.gca().get_legend().remove()
+    plt.tight_layout()
+
+    plt.savefig(os.path.join(plots_dir, "all-task_human-behavior_weighted-accuracy.pdf"), bbox_inches='tight', dpi=600)
+    plt.close('all')
 
     ###################################
-    ########## Plot 4: Entropy ########
+    ######### Plot 5: Entropy #########
     ###################################
 
     # plot entropy of human distributions
     cmap = utils.create_spoken_written_cmap(continuous=False)
-    ax = utils.plot_bar_results(df_results, x='task', y='entropy', hue='modality')
+    ax = utils.plot_bar_results(df_results, x='task', y='entropy', hue='modality', order=p.task_list, cmap=cmap, figsize=(4,5))
 
     plt.xlabel('Task')
     plt.ylabel('Entropy')
     plt.title(f'All task - Distribution entropy')
+    plt.gca().get_legend().remove()
+    plt.ylim([0, 4.5])
+    plt.tight_layout()
+
+    plt.savefig(os.path.join(plots_dir, "all-task_human-behavior_distribution-entropy.pdf"), bbox_inches='tight', dpi=600)
+    plt.close('all')
 
     ##########################################
-    ########## Plot 5: Predictability ########
+    ##### Plot 6: Normalized entropy #########
+    ##########################################
+
+    # plot entropy of human distributions
+    cmap = utils.create_spoken_written_cmap(continuous=False)
+    ax = utils.plot_bar_results(df_results, x='task', y='normalized_entropy', hue='modality', order=p.task_list, cmap=cmap, figsize=(4,5))
+
+    plt.xlabel('Task')
+    plt.ylabel('Entropy')
+    plt.title(f'All task - Normalized entropy')
+    plt.gca().get_legend().remove()
+    plt.tight_layout()
+
+    plt.savefig(os.path.join(plots_dir, "all-task_human-behavior_normalized-entropy.pdf"), bbox_inches='tight', dpi=600)
+    plt.close('all')
+
+    ##########################################
+    ########## Plot 7: Predictability ########
     ##########################################
 
     # predictability is the percentage of participants predicting the correct word
     # create colors of the plot based on how different the scores were between modalities 
     df_predictability = pd.pivot(df_results, index=['task', 'word_index'], columns='modality', values='predictability')
     colors = df_predictability['audio'] - df_predictability['text']
-    colors = linear_norm(colors.to_numpy(), -1, 1)
+    colors = utils.linear_norm(colors.to_numpy(), -1, 1)
 
     df_predictability['colors'] = colors
 
@@ -137,4 +201,7 @@ if __name__ == "__main__":
     plt.ylabel('Written predictability')
     plt.xlabel('Spoken predictability') 
     plt.title(f'All task - human predictability relationship')
+    plt.tight_layout()
     sns.despine()
+
+    plt.savefig(os.path.join(plots_dir, "all-task_human-behavior_predictability.pdf"), bbox_inches='tight', dpi=600)

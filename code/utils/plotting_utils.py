@@ -1,400 +1,289 @@
-from matplotlib import pyplot as plt
-from matplotlib import cm, colors
-import seaborn as sns
-import nibabel as nib
-from nilearn import plotting, image, glm
-
+import os, sys
 import numpy as np
+import pandas as pd
+
+from scipy import stats
+from scipy.stats import pearsonr, spearmanr, kendalltau
+
+import seaborn as sns
+from matplotlib import pyplot as plt
+import matplotlib.colors as clr
 from matplotlib import cm
 from matplotlib.colors import TwoSlopeNorm
-from matplotlib import ticker
-# import umap
 
-def draw_umap(data, colors, n_neighbors=15, min_dist=0.1, random_state=42, n_components=2, metric='euclidean', title='', s=10, cmap='jet'):
-	fit = umap.UMAP(
-		n_neighbors=n_neighbors,
-		min_dist=min_dist,
-		n_components=n_components,
-		metric=metric,
-		random_state=random_state
-	)
-	u = fit.fit_transform(data);
-	
-	fig = plt.figure()
-	if n_components == 1:
-		ax = fig.add_subplot(111)
-		ax = ax.scatter(u[:,0], range(len(u)), c=colors, s=s, cmap=cmap)
-	if n_components == 2:
-		ax = fig.add_subplot(111)
-		ax = ax.scatter(u[:,0], u[:,1], c=colors, s=s, cmap=cmap) #, edgecolors=(0.5,0.5,0.5))
-	if n_components == 3:
-#         ax = plt.Axes3D(fig)
-		ax = fig.add_subplot(111, projection='3d')
-		ax = ax.scatter(u[:,0], u[:,1], u[:,2], c=colors, s=s, cmap=cmap)
-	plt.title(title, fontsize=18)
-	
-	return fig, ax
+from preproc_utils import load_model_results, divide_nwp_dataframe
 
-def plot_colorbar(vmax, values, direction='horizontal', cmap='RdBu_r', out_fn=None):
-	
-	fig = plt.figure()
-	
-	divnorm = TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax)
-	psm = plt.pcolormesh([-cbar_betas, cbar_betas], norm=divnorm, cmap=cmap)
-	plt.clf()
-	
-	# xloc, yloc, size x, size y
-	if direction == 'horizontal':
-		cbar_ax = fig.add_axes([0.5, 0, 0.6, 0.05])
-	elif direction == 'vertical':
-		cbar_ax = fig.add_axes([0.5, 0, 0.05, 0.6])
-	
-	fig.colorbar(psm, cax=cbar_ax, orientation=direction, ticks=ticker.MaxNLocator(nbins=5))
-	
-	if out_fn:
-		plt.savefig(out_fn, bbox_inches='tight', transparent=True)
+def linear_norm(x, min, max):
+    return (x - min) / (max - min)
 
-# for "pairs" of any length
-def chunkwise(t, size=2):
-	it = iter(t)
-	return zip(*[it]*size)
+def get_ordered_accuracy(df_human_models, word_model_name='fasttext'):
+    
+    # Get order of models by binary accuracy
+    ordered_accuracy = df_human_models.loc[:,['modality', f'{word_model_name}_avg_accuracy']] \
+        .groupby(['modality']) \
+        .mean() \
+        .sort_values(by=f'{word_model_name}_avg_accuracy').index[::-1]
 
-def scatter_boxplot(df, x, y, group=None, palette='RdBu_r'):
-	if not palette:
-		palette = sns.cubehelix_palette(start=0.5, rot=-.5, dark=0.5, light=0.9)[::-1]
-		
-	fig, ax = plt.subplots()
-
-	sns.boxplot(x=x, y=y, hue=group, data=df, saturation=1, showfliers=False,
-			width=0.75, linewidth=2, palette=palette, boxprops={'alpha': 0.6}, ax=ax, zorder=10)
-
-	sns.stripplot(x=x, y=y, hue=group, data=df,
-					marker='o', color='0.9', alpha=0.4, edgecolor='0.1', linewidth=0.15, dodge=True, palette=palette, ax=ax)
-	
-	if group is not None:
-		ax.get_legend().remove()
-		
-		for ax1, ax2 in chunkwise(ax.collections, size=2):
-			for (x0, y0), (x1, y1) in zip(ax1.get_offsets(), ax2.get_offsets()):
-				ax.plot([x0, x1], [y0, y1], color='black', alpha=0.075, linewidth=0.5)
-	
-		handles, labels = ax.get_legend_handles_labels()
-		ax.legend(handles[:2], labels[:2])
-	# Hide the right and top spines
-	ax.spines['right'].set_visible(False)
-	ax.spines['top'].set_visible(False)
-	
-	return ax
-
-def kde_boxplot(df, x, y, direction='horizontal', palette=None, alpha=0.5, cut=2):
-	if not palette:
-		palette = sns.cubehelix_palette(start=0.5, rot=-.5, dark=0.5, light=0.9)[::-1]
-		
-	ax = sns.violinplot(y=y, x=x, data=df,
-					palette=palette, dodge=False,
-					scale="width", inner=None, cut=cut)
-	
-	xlim = ax.get_xlim()
-	ylim = ax.get_ylim()
-	
-	for violin in ax.collections:
-		violin.set_alpha(alpha)
-		bbox = violin.get_paths()[0].get_extents()
-		x0, y0, width, height = bbox.bounds
-		
-		if direction == 'horizontal':
-			violin.set_clip_path(plt.Rectangle((x0, y0), width, height/2, transform=ax.transData))
-			dot_offset = np.asarray([0, 0.15])
-		elif direction == 'vertical':
-			violin.set_clip_path(plt.Rectangle((x0, y0), width/2, height, transform=ax.transData))
-			dot_offset = np.asarray([0.15, 0])
-
-	# plot box plots
-	sns.boxplot(y=y, x=x, data=df, saturation=1, showfliers=False,
-			width=0.3, linewidth=1.5, boxprops={'zorder': 3, 'facecolor': 'none'}, ax=ax)
-	
-	old_len_collections = len(ax.collections)
-	sns.stripplot(y=y, x=x, data=df, marker='o', color='0.9', edgecolor='0.1', alpha=0.25, linewidth=0.5, ax=ax)
-	for dots in ax.collections[old_len_collections:]:
-		dots.set_offsets(dots.get_offsets() + dot_offset)
-		
-	# Hide the right and top spines
-	ax.spines['right'].set_visible(False)
-	ax.spines['top'].set_visible(False)
-	
-	return ax
-
-def plot_brain_volume(ds, vmax, title, cmap, out_fn=None):
-	# zcoodinates for plotting
-	coords = [range(-50,0,5), range(0,50,5)]
-	
-	# determine the display threshold based on the minimum of the masked betas
-	vmin = np.nanmin(abs(ds.get_fdata()))
-
-	# if the threshold is nan set it to the vmax (no values will be shown anyways)
-	if np.isnan(vmin):
-		vmin = vmax
-
-	# create the colorbar for the image
-	norm = colors.Normalize(vmin=-vmax, vmax=vmax)
-	threshold_cmap = threshold_cbar(cmap, norm, vmin)
-
-	fig, axes = plt.subplots(2,1)
-
-	for ax, coords in zip(axes, coords):
-		ax = plotting.plot_stat_map(ds, threshold=vmin, cut_coords=coords, display_mode='z', draw_cross=False, axes=ax, colorbar=False, cmap=threshold_cmap)
-
-	plt.suptitle(title)
-	fig.subplots_adjust(right=0.8)
-	cbar_ax = fig.add_axes([0.9, 0.15, 0.05, 0.7], visible=False)
-	fig = plt.colorbar(cm.ScalarMappable(norm=norm, cmap=threshold_cmap), ax=cbar_ax)
-	
-	#save and clean up all opened figures
-	if out_fn:
-		plt.savefig(out_fn, bbox_inches='tight')                       
-		plt.close('all')
-
-def mask_nifti(img, mask):
-	'''
-	Threshold a beta-value image by a thresholded stat mask.
-	'''
-	
-	if nib.nifti1.Nifti1Image == type(mask):
-		mask = mask.get_fdata()
-	# Now grab mean image to threshold
-	masked_img = img.get_fdata()
-	
-	masked_img[mask == 0] = np.nan
-	
-	return image.new_img_like(img, masked_img)
-
-def threshold_tstats(tstats, alpha = .05, height_control = 'fdr', cluster_threshold = 0):
-	
-	# AFNI 2nd-level analyses include t-values and means, and we want to isolate the t-values for correction
-	# Apply multiple comparisons corrections (FDR, q < .05) with cluster threshold for clean visualization
-	thresholded_map, threshold = glm.threshold_stats_img(tstats, 
-														 alpha=alpha, 
-														 height_control=height_control,
-														 cluster_threshold=cluster_threshold)
-	print(f'The {height_control} = {alpha} threshold is %.3g' % threshold)
-	
-	return thresholded_map
-
-def threshold_cbar(cmap, norm, threshold):
-	'''
-	Create a thresholded colorbar
-	'''
-	cmap = plt.get_cmap('RdBu_r')
-	cmaplist = [cmap(i) for i in range(cmap.N)]
-	# set colors to grey for absolute values < threshold
-	istart = int(norm(-threshold, clip=True) * (cmap.N - 1))
-	istop = int(norm(threshold, clip=True) * (cmap.N - 1))
-	
-	for i in range(istart, istop):
-		cmaplist[i] = (0.5, 0.5, 0.5, 1.)
-		
-	thresholded_cmap = colors.LinearSegmentedColormap.from_list(
-		'Custom cmap', cmaplist, cmap.N)
-	
-	return thresholded_cmap
-
-def plot_brain_values(ds, title, vmax, surf_mesh='fsaverage5', views=['lateral','medial'], out_fn=None, cmap='RdBu_r', colorbar=True):
-	
-	fig = plt.figure()
-	fig = plotting.plot_img_on_surf(ds,
-								surf_mesh=surf_mesh,
-								views=views,
-								inflate=True,
-								threshold=0,
-								vmax=vmax, 
-								title=title,
-								cmap=cmap, 
-								symmetric_cbar=True,
-								colorbar=colorbar)
-	
-	#save and clean up all opened figures
-	if out_fn:
-		plt.savefig(out_fn, bbox_inches='tight', transparent=True, dpi=300)                       
-		plt.close('all')
-	
-def plot_correlation_matrices(out_fn, title, n_values, matrices, labels, idxs, vmax):
-	
-	fig = plt.figure()
-	
-	for i in range(n_values):
-		plt.subplot(1, n_values, i+1)
-		
-		sns.heatmap(matrices[idxs][i], square=True, cbar_kws={"shrink": .25}, cmap='RdBu_r', vmax=vmax, vmin=-vmax)
-
-		plt.title(f'{labels[idxs[i]]}')
-		
-	plt.suptitle(title, y=0.75)
-	plt.tight_layout()
-
-	plt.savefig(out_fn, bbox_inches='tight')
-	plt.close('all')
-
-##### FOR COMBINING ACROSS TASKS #####
-
-import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import ImageGrid
-
-def combine_images(columns, images, row_names=None, column_names=None, title=None, legend=None, fig_size=(16, 4), pad=5, out_fn=None):
-		
-		rows = len(images) // columns
-		if len(images) % columns:
-				rows += 1
-		fig = plt.figure(1, figsize=fig_size, constrained_layout=True)
-		grid = ImageGrid(fig, 111,  # similar to subplot(111)
-								 nrows_ncols=(rows, columns),  # creates 2x2 grid of axes
-								 axes_pad=0.1,  # pad between axes in inch.
-								 )
-		
-		for ax, im in zip(grid, images):
-		# Iterating over the grid returns the Axes.
-				im = plt.imread(im)
-				ax.imshow(im)
-				ax.get_xaxis().set_ticks([])
-				ax.get_yaxis().set_ticks([])
-				plt.setp(ax.spines.values(), visible=False) 
-		
-		if row_names:
-				for ax, row in zip(np.array(grid.axes_row)[:,0], row_names): # np.array(grid.axes_row)[:,0]
-#             ax.set_title(row)
-						ax.annotate(row, xy=(0, 0.5), xytext=(-ax.yaxis.labelpad - pad, 0),
-												xycoords=ax.yaxis.label, textcoords='offset points',
-												ha='right', va='center', fontsize=fig_size[0])
-		if column_names:
-				for ax, col in zip(np.array(grid.axes_row)[0], column_names): # np.array(grid.axes_row)[0]
-						ax.annotate(col, xy=(0.5, 1), xytext=(0, pad),
-												xycoords='axes fraction', textcoords='offset points',
-												ha='center', va='baseline', fontsize=fig_size[0])
-		
-		fig.tight_layout()
-
-		if legend:
-				fig.text(x=0.95, y=0.4, 
-								 s=legend, 
-								 fontsize=fig_size[0], 
-								 bbox=dict(facecolor='none', edgecolor='black', pad=5.0))
-		
-		if title:
-			if row_names == None:
-				row_names = [None]
-			fig.suptitle(title, x=0.5, y=0.5 + 0.1375 * len(row_names), fontsize=fig_size[0]+6)
-
-		if out_fn:
-				plt.savefig(out_fn, bbox_inches='tight')
-				plt.close('all')
-				
-		return fig
+    return ordered_accuracy
 
 
-############################################
-############ SURFPLOT PLOTTING #############
-############################################
-import sys
+def plot_comparison_identity(ds_a, ds_b, lim):
+    # plt.switch_backend('agg')
 
-sys.path.append('/dartfs/rc/lab/F/FinnLab/tommy/dark_matter/code/utils/surfplot/')
+    fig, ax = plt.subplots(1, 1, figsize=(3, 3), dpi=200)
 
-from surfplot import Plot
-from neuromaps.transforms import mni152_to_fslr, mni152_to_fsaverage, mni152_to_civet
-from neuromaps.datasets import fetch_fslr, fetch_fsaverage, fetch_civet
-from collections import defaultdict
-from matplotlib.colors import ListedColormap
+    ax.plot(lim, lim, 'k--')
+    ax.scatter(ds_a, ds_b, s=10, linewidth=0, alpha=0.3)
+    ax.set_xlim(lim)
+    ax.set_ylim(lim)
 
-def make_layers_dict(data, cmap, alpha=0.75, label=None, color_range=None, cbar=True):
+    return fig
 
-	d = defaultdict()
-	d['data'] = data
-	d['cmap'] = cmap
-	d['alpha'] = alpha
-	d['label'] = label
-	d['color_range'] = color_range
-	d['cbar'] = cbar
-	
-	return d
+def create_spoken_written_cmap(continuous=True):
 
-def sigmoid(x):
-	return 1 / (1 + np.exp(-x))
+    if continuous:
+        spoken_written_cmap = clr.LinearSegmentedColormap.from_list('spoken-written', ['#005208', '#72D16B', '#808080', '#E4B266', '#623800'], N=256)
+        spoken_written_cmap = spoken_written_cmap.reversed()
+    else:
+        spoken_written_cmap = sns.color_palette('BuPu', n_colors=9)
+        spoken_written_cmap.insert(0, '#82C564')
+        spoken_written_cmap.insert(1, '#F7CD84')
+    return spoken_written_cmap
 
-def create_depth_map(surf_type='fslr'):
+###############################
+####### Bar plot utility ######
+###############################
 
-	if surf_type == 'fsaverage':
-		surfaces = fetch_fsaverage()
-	elif surf_type == 'fslr':
-		surfaces = fetch_fslr()
-	elif surf_type == 'civet':
-		surfaces = fetch_civet()
+def plot_bar_results(df, x, y, hue, cmap, alpha=0.75, figsize=(6,5), order=None, add_points=True):
 
-	# create the cmap for the depth map
-	cmap = plt.get_cmap('Greys_r')
-	cmap = cmap(np.arange(0,256))
-	cmap = ListedColormap(cmap)
+    if figsize:
+        sns.set(style='white', rc={'figure.figsize': figsize})
 
-	left = sigmoid(nib.load(surfaces['sulc'][0]).agg_data()) 
-	right = sigmoid(nib.load(surfaces['sulc'][1]).agg_data())
-	
-	depth = make_layers_dict(data={'left': left, 'right': right},
-		cmap=cmap, alpha=1, color_range=(0, 1), cbar=False)
+    ax = sns.barplot(data=df, x=x, y=y, hue=hue, palette=cmap, alpha=alpha, order=order) 
 
-	return depth
+    if add_points:
+        ax = sns.stripplot(data=df, x=x, y=y,  hue=hue,  palette=cmap, size=4,
+            edgecolor='black', linewidth=0.25, dodge=True, alpha=0.3, ax=ax)
+    
+    sns.despine()
+    return ax
 
-def vol_to_surf(ds, surf_type='fslr', map_type='inflated', method='linear'):
-	
-	if surf_type == 'fsaverage':
-		surfaces = fetch_fsaverage()
-		data_lh, data_rh = mni152_to_fsaverage(ds, method=method)
-	elif surf_type == 'fslr':
-		surfaces = fetch_fslr()
-		data_lh, data_rh = mni152_to_fslr(ds, method=method)
-	elif surf_type == 'civet':
-		surfaces = fetch_civet()
-		data_lh, data_rh = mni152_to_civet(ds, method=method)
-		
-	surfs = surfaces[map_type]
-	data = {'left': data_lh, 'right': data_rh}
-	
-	return surfs, data
+###############################
+#### Quadrant plot utility ####
+###############################
 
-def plot_surf_data(surfs, layers_info, surf_type='fslr', views=['lateral', 'medial'], zoom=1.35, brightness=0.8, scale=(10,10), 
-	surf_alpha=1, add_depth=False, embed_nb=False, colorbar=True, cbar_loc=None, title=None, out_fn=None):
-	
-	if len(views) == 1:
-		zoom=2.35
-		scale=(10, 5)
+def load_model_quadrant_info(
+    preproc_dir,
+    models_dir,
+    task,
+    model_name='gpt2-xl',
+    window_size=25,
+    top_n=5,
+    accuracy_type='fasttext_avg_accuracy',
+    accuracy_percentile=45,
+):
+    """
+    Load and preprocess model results for analysis.
+    
+    Parameters:
+    - models_dir: str, directory containing model results
+    - task: str, name of the task being analyzed
+    - model_name: str, name of the model to load (default: 'gpt2-xl')
+    - window_size: int, context window size (default: 25)
+    - top_n: int, number of top predictions to consider (default: 5)
+    - preproc_dir: str, directory containing preprocessed data (default: 'stimuli/preprocessed')
+    
+    Returns:
+    - DataFrame containing processed model results for analysis
+    """
+    # Load preprocessed data to get prediction word indices
+    df_preproc = pd.read_csv(os.path.join(preproc_dir, task, f'{task}_transcript-preprocessed.csv'))
+    nwp_idxs = np.where(df_preproc['NWP_Candidate'])[0]
+    
+    # Load selected model data -- which words were selected for the experiment
+    df_selected = pd.read_csv(os.path.join(preproc_dir, task, f'{task}_transcript-selected.csv'))
+    selected_idxs = np.where(df_selected['NWP_Candidate'])[0]
 
-	p = Plot(*surfs, views=views, zoom=zoom, embed_nb=embed_nb, brightness=brightness, surf_alpha=surf_alpha)
+    # Load raw model results
+    results = load_model_results(models_dir, model_name=model_name, task=task, window_size=window_size, top_n=top_n)
+    results.loc[:, 'binary_accuracy'] = results['binary_accuracy'].astype(bool)
 
-	# if we want to add depth insert into the start of the list
-	if add_depth:
-		depth = create_depth_map(surf_type=surf_type)
-		layers_info.insert(0, depth)
-	
-	for layer in layers_info:
-		p.add_layer(data=layer['data'], 
-					cmap=layer['cmap'], 
-					cbar_label=layer['label'], 
-					alpha=layer['alpha'], 
-					color_range=layer['color_range'],
-					cbar=layer['cbar']
-					 )
-	
-	if cbar_loc == 'right':
-		kws = {'location': 'right', 'label_direction': 45, 'decimals': 1,
-				 'fontsize': 8, 'n_ticks': 2, 'shrink': .15, 'aspect': 8,
-				 'draw_border': False}
-	else:
-		kws = {'aspect': 10}
-	
-	fig = p.build(cbar_kws=kws, scale=scale, colorbar=colorbar)
+    # Now divide into quadrants
+    # get xmedian and ymedian --> needs to happen before otherwise plot is off
+    x_median = np.nanmedian(results[accuracy_type])
+    y_median = np.nanmedian(results['entropy'])
+    
+    xmin, xmax = results[accuracy_type].max(), results[accuracy_type].min()
+    ymin, ymax = results['entropy'].max(), results['entropy'].min()
+    
+    # divide the data into quadrants based on percentile
+    # we use a form of continuous accuracy and entropy
+    df_divide = divide_nwp_dataframe(results, accuracy_type=accuracy_type, percentile=accuracy_percentile, drop=False)
 
-	if title:
-		plt.title(title)
+    if selected_idxs is not None:
+        df_divide = df_divide.loc[selected_idxs]
 
-	#save and clean up all opened figures
-	if out_fn:
-		fig.savefig(out_fn, bbox_inches='tight', transparent=True, dpi=300)
-		plt.close('all')
-	
-	return fig, p
+    # Filter to words of interest
+    return df_divide
+
+def calculate_weights(df_human_models, accuracy_type, modalities=['audio', 'text']):
+    """
+    Calculate raw weights for different modality comparisons.
+    
+    Parameters:
+    - df_human_models: DataFrame with human and model performance data
+    - accuracy_type: str, type of accuracy to use
+    - modalities: list of str, modalities to compare
+    
+    Returns:
+    - DataFrame containing raw weights for different comparisons
+    """
+    # Extract audio and text data
+    audio, text = [
+        df_human_models[df_human_models['modality'] == modality][accuracy_type].to_numpy()
+        for modality in modalities
+    ]
+    
+    # Get word indices for the DataFrame index
+    word_indices = df_human_models[df_human_models['modality'] == modalities[0]].index
+    
+    # Calculate model average
+    models_only = df_human_models[~df_human_models['modality'].isin(modalities)]
+
+    if 'task' in models_only.columns:
+        models_array = pd.pivot(models_only, index=['task', 'word_index'], columns='modality', values=accuracy_type).to_numpy()
+    else:
+        models_array = pd.pivot(models_only, index=['word_index'], columns='modality', values=accuracy_type).to_numpy()
+    
+    avg_model = np.nanmean(models_array, axis=1)
+    
+    # Calculate raw contrasts
+    audio_v_model = audio - avg_model
+    text_v_model = text - avg_model
+    
+    # Create DataFrame with all weight types
+    df_weights = pd.DataFrame({
+        'audio>model': audio_v_model,
+        'text>model': text_v_model,
+        'human>model': (audio_v_model + text_v_model)/2,
+        'audio>text': audio - text
+    }, index=word_indices)
+    
+    return df_weights
+
+
+def create_joint_density_plot(
+    df_human_models,
+    model_results,
+    word_model_name,
+    accuracy_percentile=45,
+    weight_type='human>model',
+    cmap_name='BuPu',
+    bw_adjust=0.65,
+):
+    """
+    Creates a joint density plot comparing model accuracy and entropy, weighted by human performance.
+    
+    Parameters:
+    - df_human_models: DataFrame containing human and model performance data
+    - model_results: DataFrame containing model predictions and metrics
+    - word_model_name: str, name of the word model being analyzed
+    - accuracy_percentile: int, percentile for accuracy threshold (default: 45)
+    - weight_type: str, type of weighting to use (default: 'human>model')
+    - cmap_name: str, name of colormap to use (default: 'BuPu')
+    
+    Returns:
+    - g: seaborn.JointGrid object containing the plot
+    """
+    
+    # Calculate human vs model contrasts
+    accuracy_type = f'{word_model_name}_avg_accuracy'
+    
+   # Calculate weights DataFrame
+    df_weights = calculate_weights(df_human_models, accuracy_type)
+    
+    # Get statistics for the selected weight type
+    weights = df_weights[weight_type].to_numpy()
+    weights = linear_norm(weights, -1, 1)
+
+    # Set up plot
+    sns.set_theme(style="white")
+    cmap = cm.get_cmap(cmap_name)
+
+    # Create joint plot
+    g = sns.JointGrid(data=model_results, x=accuracy_type, y="entropy", space=0)
+
+    # # Create custom norm for colormap centered at mean
+    # norm = TwoSlopeNorm(vmin=0, vcenter=0.5, vmax=1)
+
+    # # Get the density range from the KDE computation first
+    # from scipy.stats import gaussian_kde
+
+    # # Compute 2D KDE manually to get density range
+    # x = model_results[accuracy_type].to_numpy()
+    # y = model_results['entropy'].to_numpy()
+    # xy_coords = np.vstack([x, y])  # where x and y are your data points
+    # kde = gaussian_kde(xy_coords, weights=weights)
+    # density = kde(xy_coords)
+
+    # # Create a custom normalization centered on the midpoint
+    # density_min, density_midpoint, density_max = density.min(), density.mean(), density.max()
+    # norm = TwoSlopeNorm(vmin=density_min, vcenter=density_midpoint, vmax=density_max)
+
+    # # Create evenly spaced ticks
+    # ticks = np.linspace(density_min, density_max, 6)  # 6 ticks for good distribution
+
+    # print (weights.min(), weights.max(), weights.mean())
+
+    # Add scatter and density plots
+    g.plot_joint(sns.scatterplot, color="k", alpha=0.75, s=30)
+
+    g.plot_joint(
+        sns.kdeplot,
+        weights=weights,
+        bw_adjust=bw_adjust,
+        fill=True,
+        thresh=bw_adjust*weights.mean(),
+        # hue_norm=norm,
+        levels=100,
+        cmap=cmap,
+        alpha=0.5,
+        cbar=True,
+        # cbar_kws={
+        #     # 'norm': norm,
+        #     'ticks': ticks,
+        #     'format': '%.4f'  # Format to 4 decimal places
+        # }
+    )
+
+    g.plot_marginals(sns.kdeplot, color=cmap(0.5), fill=True, bw_adjust=bw_adjust)
+    
+    # Add median lines
+    x_median = np.nanmedian(model_results[accuracy_type])
+    y_median = np.nanmedian(model_results['entropy'])
+    xmin, xmax = model_results[accuracy_type].min(), model_results[accuracy_type].max()
+    ymin, ymax = model_results['entropy'].min(), model_results['entropy'].max()
+    
+    xmax *= 1.05
+    xmin -= 0.25 * xmax
+
+    ymax *= 1.05
+    ymin -= 0.25 * ymin
+    
+    g.fig.axes[0].set_ylim(0, ymax)
+    g.fig.axes[0].set_xlim(0, xmax)
+    g.fig.axes[0].vlines(x=x_median, ymin=ymin, ymax=ymax, linestyles='dashed', color='.33')
+    g.fig.axes[0].hlines(y=y_median, xmin=xmin, xmax=xmax, linestyles='dashed', color='.33')
+    
+    # Adjust layout
+    plt.subplots_adjust(left=0.1, right=0.8, top=0.9, bottom=0.1)
+    pos_joint_ax = g.ax_joint.get_position()
+    pos_marg_x_ax = g.ax_marg_x.get_position()
+    g.ax_joint.set_position([pos_joint_ax.x0, pos_joint_ax.y0, pos_marg_x_ax.width, pos_joint_ax.height])
+    g.fig.axes[-1].set_position([.83, pos_joint_ax.y0, .07, pos_joint_ax.height])
+    
+    # # Set labels
+    # plt.xlabel('Continuous Accuracy')
+    # plt.ylabel('GPT2-XL Entropy')
+    
+    return g
