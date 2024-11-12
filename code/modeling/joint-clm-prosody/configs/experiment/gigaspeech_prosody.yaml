@@ -1,0 +1,74 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: gigaspeech_prominence.yaml
+  - override /model: joint_clm_prosody.yaml
+  - override /callbacks: prominence_regression.yaml
+  - override /logger: wandb.yaml
+  - override /trainer: gpu.yaml
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["gpt2", "prominence", "regression", "absolute", "mle"]
+
+# seed: 12345
+seed: 42
+
+logger:
+  wandb:
+    project: gigaspeech-prosody
+    # entity: prosody
+    tags: ["gpt2", "prominence", "both"]
+    name: "run-${now:%Y-%m-%d_%H-%M-%S}-joint-prominence-clm-gpt2"
+    group: "gpt2" # Add this line to override the 'group' parameter
+    log_model: False # Add this line to override the 'log_model' parameter
+
+trainer:
+  min_epochs: 1
+  max_epochs: 15
+  gradient_clip_val: 1
+  accumulate_grad_batches: 4
+
+model:
+  model_name: gpt2
+  num_labels: 1
+  optimizer:
+    lr: 0.000025 #5e-5
+    weight_decay: 0.1
+  scheduler:
+    patience: 2
+  freeze_kwargs:
+    freeze_lm: False
+    unfreeze_after: -1
+  loss_kwargs:
+      w_prosody: 1
+      w_clm: 1
+  # lora_config: 
+  #   r: 16
+  #   lora_alpha: 32
+  #   lora_dropout: 0.05
+  #   bias: "none"
+  #   task_type: "CAUSAL_LM"
+  #   base_model_name_or_path: gpt2
+  #   modules_to_save: ["wte", "lm_head"]
+
+  # use_mlp: false 
+  # freeze_lm: false
+  # train_last_k_layers: 3
+
+callbacks:
+  early_stopping:
+    patience: 3
+
+data:
+  model_name: gpt2
+  num_workers: 8
+  batch_size: 64
+  dataset_name: gigaspeech
+  data_dir: ${paths.data_dir}/gigaspeech/prosody
+  score_last_token: true # only score the first token of a word in loss
+  debug: false

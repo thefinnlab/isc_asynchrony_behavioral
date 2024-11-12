@@ -31,16 +31,16 @@ if __name__ == '__main__':
 	# remove practice trial and example trial from the list of tasks
 	task_names = [task for task in task_names if task not in ['nwp_practice_trial', 'example_trial']] 
 
-	task_names = ['black'] #'howtodraw', 'odetostepfather', 'wheretheressmoke'] #'black'] #['demon'] #, 'keats']
+	task_names = ['howtodraw'] #'howtodraw', 'odetostepfather', 'wheretheressmoke'] #'black'] #['demon'] #, 'keats']
 
 	# get all MLM models except BERT
 	MLM_MODELS = list(nlp.MLM_MODELS_DICT.keys())[1:]
 	CLM_MODELS = list(nlp.CLM_MODELS_DICT.keys()) 
 	model_names = CLM_MODELS + MLM_MODELS
-	# model_names = ['gpt2-xl']
+	model_names = ['gpt2']
 
 	# model_names = sorted(CLM_MODELS_DICT.keys())
-	window_sizes = [25,  100]
+	window_sizes = [25] #,  100]
 	top_ns = [1] #, 5, 10]
 
 	all_cmds = []
@@ -48,7 +48,8 @@ if __name__ == '__main__':
 	job_string = f'{DSQ_MODULES} srun python {script_fn}'
 	job_num = 0
 
-	# FAILED         3     37,51,68 
+	# failed_jobs = [3, 5, 11]
+
 	for i, (task, model, window) in enumerate(product(task_names, model_names, window_sizes)):
 		
 		# if i not in failed_jobs:

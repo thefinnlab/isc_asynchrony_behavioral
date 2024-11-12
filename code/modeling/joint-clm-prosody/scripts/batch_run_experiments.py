@@ -25,6 +25,8 @@ ACCOUNT = 'dbic'
 
 if __name__ == "__main__":
 
+	experiment_name = 'helsinki_prosody' #helsinki_prosody
+ 
 	# parser = argparse.ArgumentParser()
 	# parser.add_argument('-d', '--dataset', type=str)
 	# parser.add_argument('-o', '--overwrite', type=int, default=0)
@@ -32,13 +34,81 @@ if __name__ == "__main__":
 
 	experiments = {
 	
-		# no prosody embeddings
-		'scratch-gpt2_clm-loss_no-prosody-embed': [
-			f"model.loss_mode=clm",
+		# # no prosody embeddings
+		# 'scratch-gpt2_clm-loss_no-prosody-embed': [
+		# 	f"model.loss_mode=clm",
+		# 	f"model.pretrained=False",
+		# 	f"model.use_prosody_embeddings=False"
+		# ],
+
+		# # prosody embeddings
+		# 'scratch-gpt2_clm-loss_prosody-embed': [
+		# 	f"model.loss_mode=clm",
+		# 	f"model.pretrained=False",
+		# 	f"model.use_prosody_embeddings=True"
+		# ],
+
+		# # joint prosody embeddings
+		# 'scratch-gpt2_joint-loss_prosody-embed': [
+		# 	f"model.loss_mode=joint",
+		# 	f"model.pretrained=False",
+		# 	f"model.use_prosody_embeddings=True",
+		# 	f"model.loss_kwargs.w_prosody=0.3"
+		# ],
+
+		# ####### Yoke the shuffling to the batch ##########
+
+		# # joint prosody embeddings
+		# 'yoked-shuffle_scratch-gpt2_joint-loss_prosody-embed': [
+		# 	f"model.loss_mode=joint",
+		# 	f"model.pretrained=False",
+		# 	f"model.use_prosody_embeddings=True",
+		# 	f"model.loss_kwargs.w_prosody=0.3",
+		# 	f"data.shuffle_labels_yoked=True"
+		# ],
+
+
+		# # joint prosody embeddings
+		# 'yoked-shuffle_scratch-gpt2_clm-loss_prosody-embed': [
+		# 	f"model.loss_mode=clm",
+		# 	f"model.pretrained=False",
+		# 	f"model.use_prosody_embeddings=True",
+		# 	f"data.shuffle_labels_yoked=True"
+		# ],
+		
+		# ####### Shuffle labels randomly each batch ##########
+
+		# # joint prosody embeddings
+		# 'label-shuffle_scratch-gpt2_joint-loss_prosody-embed': [
+		# 	f"model.loss_mode=joint",
+		# 	f"model.pretrained=False",
+		# 	f"model.use_prosody_embeddings=True",
+		# 	f"model.loss_kwargs.w_prosody=0.3",
+		# 	f"model.shuffle_prosody=True"
+		# ],
+
+		# 'label-shuffle_scratch-gpt2_clm-loss_prosody-embed': [
+		# 	f"model.loss_mode=clm",
+		# 	f"model.pretrained=False",
+		# 	f"model.shuffle_prosody=True"
+		# ],
+
+		####### Random number draw each batch ##########
+
+		# joint prosody embeddings
+		'random-uniform-label_scratch-gpt2_joint-loss_prosody-embed': [
+			f"model.loss_mode=joint",
 			f"model.pretrained=False",
-			f"model.use_prosody_embeddings=False"
+			f"model.use_prosody_embeddings=True",
+			f"model.loss_kwargs.w_prosody=0.3",
+			f"model.random_prosody=True"
 		],
 
+		'random-uniform-label_scratch-gpt2_clm-loss_prosody-embed': [
+			f"model.loss_mode=clm",
+			f"model.pretrained=False",
+			f"model.random_prosody=True"
+		],
 
 		# # no prosody embeddings
 		# 'finetune-gpt2_clm-loss_no-prosody-embed': [
@@ -88,7 +158,9 @@ if __name__ == "__main__":
 	model = 'gpt2'
 	model_name = "gpt2" #meta-llama/Llama-2-7b-hf"
 
-	for name, experiment in experiments.items():
+	wait_secs = 20
+
+	for i, (name, experiment) in enumerate(experiments.items()):
 
 		name = name.replace('gpt2', model)
 
@@ -97,7 +169,7 @@ if __name__ == "__main__":
 			f"data.model_name={model_name}"
 		]
 
-		cmd = f"{job_string} experiment=joint_clm_prosody.yaml {' '.join(experiment)} logger.wandb.name={name}"
+		cmd = f"sleep {i*wait_secs}; {job_string} experiment={experiment_name}.yaml {' '.join(experiment)} logger.wandb.name={name}"
 		all_cmds.append(cmd)
 		job_num += 1
 

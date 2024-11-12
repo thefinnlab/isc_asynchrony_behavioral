@@ -53,7 +53,7 @@ False,survey-text,50,714382,0.0-50.0,5c92f797803bff0017fef8dd,65a6e80ce229352909
 False,survey-text,51,727036,0.0-51.0,5c92f797803bff0017fef8dd,65a6e80ce229352909d7b53c,65a7e39eab64fc2edd729dda,1705501673304,False,11649.0,ride,False,test,False,False,False,False,False,ride,943,low,high
 False,survey-text,52,744822,0.0-52.0,5c92f797803bff0017fef8dd,65a6e80ce229352909d7b53c,65a7e39eab64fc2edd729dda,1705501673304,False,16782.0,go,False,test,False,False,False,False,False,get,955,high,high
 False,survey-text,53,766525,0.0-53.0,5c92f797803bff0017fef8dd,65a6e80ce229352909d7b53c,65a7e39eab64fc2edd729dda,1705501673304,False,20699.0,a lot,False,test,False,False,False,False,False,cars,975,low,high
-False,survey-text,54,798721,0.0-54.0,5c92f797803bff0017fef8dd,65a6e80ce229352909d7b53c,65a7e39eab64fc2edd729dda,1705501673304,False,31192.0,okay,False,test,False,False,False,False,False,think,1008,high,high
+False,survey-text,54,798721,0.0-54.0,5c92f797803bff0017fef8dd,65a6e80ce229352909d7b53c,65a7e39eab64fc2edd729dda,1705501673304,False,31192.0,ok,False,test,False,False,False,False,False,think,1008,high,high
 False,survey-text,55,815803,0.0-55.0,5c92f797803bff0017fef8dd,65a6e80ce229352909d7b53c,65a7e39eab64fc2edd729dda,1705501673304,False,16079.0,terrible,False,test,False,False,False,False,False,horrible,1021,high,low
 False,survey-text,56,826549,0.0-56.0,5c92f797803bff0017fef8dd,65a6e80ce229352909d7b53c,65a7e39eab64fc2edd729dda,1705501673304,False,9741.0,awful,False,test,False,False,False,False,False,kind,1037,high,high
 False,survey-text,57,856462,0.0-57.0,5c92f797803bff0017fef8dd,65a6e80ce229352909d7b53c,65a7e39eab64fc2edd729dda,1705501673304,False,28910.0,walk,False,test,False,False,False,False,False,go,1099,high,high

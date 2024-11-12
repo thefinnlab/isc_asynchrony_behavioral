@@ -1,20 +1,10 @@
 import sys
 import os
 import glob
-import json
 
 import numpy as np
-
-import nibabel as nib
-from nibabel.nifti1 import Nifti1Image
-
-from nilearn import image
-from scipy import stats
-from mergedeep import merge
 import itertools  
-from operator import itemgetter
 from collections import defaultdict
-from copy import deepcopy
 
 DATASETS = {
 	'huth-moth': {

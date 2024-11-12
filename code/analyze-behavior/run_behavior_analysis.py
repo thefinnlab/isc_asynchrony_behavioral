@@ -57,6 +57,7 @@ if __name__ == "__main__":
     plt.ylabel('Accuracy (Percent Correct)')
     plt.title(f'All task - Subject-wise accuracy')
     plt.ylim(0, 0.75)
+    plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
 
     plt.gca().get_legend().remove()
@@ -94,8 +95,9 @@ if __name__ == "__main__":
     plt.xlabel('Task')
     plt.ylabel('Accuracy (Percent Correct)')
     plt.title(f'All task - Binary accuracy')
-    plt.ylim(0, 0.75)
+    plt.ylim(0, 0.85)
     plt.gca().get_legend().remove()
+    plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
 
     plt.savefig(os.path.join(plots_dir, "all-task_human-behavior_binary-accuracy.pdf"), bbox_inches='tight', dpi=600)
@@ -113,6 +115,7 @@ if __name__ == "__main__":
     plt.ylabel('Cosine similarity')
     plt.title(f'All task - Continuous accuracy')
     plt.gca().get_legend().remove()
+    plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
 
     plt.savefig(os.path.join(plots_dir, "all-task_human-behavior_continuous-accuracy.pdf"), bbox_inches='tight', dpi=600)
@@ -122,7 +125,7 @@ if __name__ == "__main__":
     ###### Plot 4: Weighted accuracy ######
     #######################################
 
-    plot top word accuracy for humans
+    # plot top word accuracy for humans
     cmap = utils.create_spoken_written_cmap(continuous=False)
     ax = utils.plot_bar_results(df_results, x='task', y=f'weighted_accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=(4,5))
 
@@ -130,6 +133,7 @@ if __name__ == "__main__":
     plt.ylabel('Cosine similarity')
     plt.title(f'All task - Weighted accuracy')
     plt.gca().get_legend().remove()
+    plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
 
     plt.savefig(os.path.join(plots_dir, "all-task_human-behavior_weighted-accuracy.pdf"), bbox_inches='tight', dpi=600)
@@ -148,6 +152,7 @@ if __name__ == "__main__":
     plt.title(f'All task - Distribution entropy')
     plt.gca().get_legend().remove()
     plt.ylim([0, 4.5])
+    plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
 
     plt.savefig(os.path.join(plots_dir, "all-task_human-behavior_distribution-entropy.pdf"), bbox_inches='tight', dpi=600)
@@ -165,6 +170,8 @@ if __name__ == "__main__":
     plt.ylabel('Entropy')
     plt.title(f'All task - Normalized entropy')
     plt.gca().get_legend().remove()
+    plt.xticks(rotation=45, ha='right')
+
     plt.tight_layout()
 
     plt.savefig(os.path.join(plots_dir, "all-task_human-behavior_normalized-entropy.pdf"), bbox_inches='tight', dpi=600)

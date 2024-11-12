@@ -28,7 +28,7 @@ False,survey-text,25,670263,0.0-25.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2c
 False,survey-text,26,713236,0.0-26.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2cc4b57c,668ab63a9a34a967bc0bd0d1,1720368063943,False,41962.0,daughter,False,test,False,False,False,False,False,boy,457,low,high
 False,survey-text,27,764785,0.0-27.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2cc4b57c,668ab63a9a34a967bc0bd0d1,1720368063943,False,50529.0,will,False,test,False,False,False,False,False,since,540,high,high
 False,survey-text,28,787036,0.0-28.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2cc4b57c,668ab63a9a34a967bc0bd0d1,1720368063943,False,21234.0,it,False,test,False,False,False,False,False,football,554,high,high
-False,survey-text,29,812723,0.0-29.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2cc4b57c,668ab63a9a34a967bc0bd0d1,1720368063943,False,24671.0,okay,False,test,False,False,False,False,False,football,582,high,low
+False,survey-text,29,812723,0.0-29.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2cc4b57c,668ab63a9a34a967bc0bd0d1,1720368063943,False,24671.0,ok,False,test,False,False,False,False,False,football,582,high,low
 False,survey-text,30,834220,0.0-30.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2cc4b57c,668ab63a9a34a967bc0bd0d1,1720368063943,False,20480.0,way,False,test,False,False,False,False,False,weird,613,low,high
 False,survey-text,31,861095,0.0-31.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2cc4b57c,668ab63a9a34a967bc0bd0d1,1720368063943,False,25858.0,play,False,test,False,False,False,False,False,play,637,high,high
 False,survey-text,32,897965,0.0-32.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2cc4b57c,668ab63a9a34a967bc0bd0d1,1720368063943,False,35846.0,good,False,test,False,False,False,False,False,know,684,high,high
@@ -58,7 +58,7 @@ False,survey-text,55,1524408,0.0-55.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2
 False,survey-text,56,1557093,0.0-56.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2cc4b57c,668ab63a9a34a967bc0bd0d1,1720368063943,False,31661.0,what,False,test,False,False,False,False,False,Wow,1506,low,low
 False,survey-text,57,1576806,0.0-57.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2cc4b57c,668ab63a9a34a967bc0bd0d1,1720368063943,False,18680.0,know,False,test,False,False,False,False,False,know,1534,low,high
 False,survey-text,58,1591882,0.0-58.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2cc4b57c,668ab63a9a34a967bc0bd0d1,1720368063943,False,14060.0,know,False,test,False,False,False,False,False,know,1554,high,low
-False,survey-text,59,1606741,0.0-59.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2cc4b57c,668ab63a9a34a967bc0bd0d1,1720368063943,False,13835.0,yeah,False,test,False,False,False,False,False,lingerie,1569,low,low
+False,survey-text,59,1606741,0.0-59.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2cc4b57c,668ab63a9a34a967bc0bd0d1,1720368063943,False,13835.0,yes,False,test,False,False,False,False,False,lingerie,1569,low,low
 False,survey-text,60,1623685,0.0-60.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2cc4b57c,668ab63a9a34a967bc0bd0d1,1720368063943,False,15928.0,fight,False,test,False,False,False,False,False,asked,1581,low,high
 False,survey-text,61,1645984,0.0-61.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2cc4b57c,668ab63a9a34a967bc0bd0d1,1720368063943,False,21280.0,mom,False,test,False,False,False,False,False,ode,1597,low,low
 False,survey-text,62,1670287,0.0-62.0,667ac4588cd6cbe996dec5ea,66435cf2751bcfbf2cc4b57c,668ab63a9a34a967bc0bd0d1,1720368063943,False,23289.0,grade,False,test,False,False,False,False,False,year,1624,low,high

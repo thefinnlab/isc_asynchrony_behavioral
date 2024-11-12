@@ -52,7 +52,7 @@ False,survey-text,49,722738,0.0-49.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2c
 False,survey-text,50,733281,0.0-50.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2cc4b57c,66435fc40b02a9fb73d970ef,1715691486198,False,9534.0,thing,False,test,False,False,False,False,False,vague,1282,high,high
 False,survey-text,51,748963,0.0-51.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2cc4b57c,66435fc40b02a9fb73d970ef,1715691486198,False,14675.0,life,False,test,False,False,False,False,False,story,1304,low,high
 False,survey-text,52,766084,0.0-52.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2cc4b57c,66435fc40b02a9fb73d970ef,1715691486198,False,16113.0,walk,False,test,False,False,False,False,False,little,1342,low,low
-False,survey-text,53,793251,0.0-53.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2cc4b57c,66435fc40b02a9fb73d970ef,1715691486198,False,26154.0,yeah,False,test,False,False,False,False,False,gonna,1407,low,low
+False,survey-text,53,793251,0.0-53.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2cc4b57c,66435fc40b02a9fb73d970ef,1715691486198,False,26154.0,yes,False,test,False,False,False,False,False,gonna,1407,low,low
 False,survey-text,54,809164,0.0-54.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2cc4b57c,66435fc40b02a9fb73d970ef,1715691486198,False,14900.0,know,False,test,False,False,False,False,False,know,1446,low,high
 False,survey-text,55,825694,0.0-55.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2cc4b57c,66435fc40b02a9fb73d970ef,1715691486198,False,15521.0,like,False,test,False,False,False,False,False,finally,1466,high,low
 False,survey-text,56,855483,0.0-56.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2cc4b57c,66435fc40b02a9fb73d970ef,1715691486198,False,28780.0,god,False,test,False,False,False,False,False,Wow,1506,low,low
@@ -97,7 +97,7 @@ False,survey-text,94,1428651,0.0-94.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2
 False,survey-text,95,1445896,0.0-95.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2cc4b57c,66435fc40b02a9fb73d970ef,1715691486198,False,16236.0,hey,False,test,False,False,False,False,False,hear,2496,high,low
 False,survey-text,96,1459195,0.0-96.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2cc4b57c,66435fc40b02a9fb73d970ef,1715691486198,False,12274.0,hate,False,test,False,False,False,False,False,know,2516,high,low
 False,survey-text,97,1498524,0.0-97.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2cc4b57c,66435fc40b02a9fb73d970ef,1715691486198,False,38319.0,said,False,test,False,False,False,False,False,meant,2611,low,high
-False,survey-text,98,1509654,0.0-98.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2cc4b57c,66435fc40b02a9fb73d970ef,1715691486198,False,10117.0,yeah,False,test,False,False,False,False,False,every,2631,high,low
+False,survey-text,98,1509654,0.0-98.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2cc4b57c,66435fc40b02a9fb73d970ef,1715691486198,False,10117.0,yes,False,test,False,False,False,False,False,every,2631,high,low
 False,survey-text,99,1528128,0.0-99.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2cc4b57c,66435fc40b02a9fb73d970ef,1715691486198,False,False,False,False,False,False,False,False,False,False,False,0,False,False
 False,survey-text,100,1532827,0.0-100.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2cc4b57c,66435fc40b02a9fb73d970ef,1715691486198,False,4693.0,46,False,demographics-age,False,False,False,False,False,False,0,False,False
 False,survey-multi-choice,101,1535497,0.0-101.0,5ec4a2cfc14ec21da0bc4a46,66435cf2751bcfbf2cc4b57c,66435fc40b02a9fb73d970ef,1715691486198,False,2668.0,Female,[0],demographics-gender,False,False,False,False,False,False,0,False,False

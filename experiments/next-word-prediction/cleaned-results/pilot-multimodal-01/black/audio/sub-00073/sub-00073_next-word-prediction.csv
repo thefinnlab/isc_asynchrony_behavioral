@@ -58,7 +58,7 @@ False,survey-text,55,1238404,0.0-55.0,5d3ee89122ed84000172272a,66faaf0e98b476ec1
 False,survey-text,56,1254326,0.0-56.0,5d3ee89122ed84000172272a,66faaf0e98b476ec1457722d,66fae9d2afdeecac89368de4,1727719925802,False,14907.0,black,False,test,False,False,False,False,False,black,1440,low,high
 False,survey-text,57,1281838,0.0-57.0,5d3ee89122ed84000172272a,66faaf0e98b476ec1457722d,66fae9d2afdeecac89368de4,1727719925802,False,26493.0,line,False,test,False,False,False,False,False,lot,1473,high,high
 False,survey-text,58,1305753,0.0-58.0,5d3ee89122ed84000172272a,66faaf0e98b476ec1457722d,66fae9d2afdeecac89368de4,1727719925802,False,22904.0,did,False,test,False,False,False,False,False,know,1507,low,high
-False,survey-text,59,1334259,0.0-59.0,5d3ee89122ed84000172272a,66faaf0e98b476ec1457722d,66fae9d2afdeecac89368de4,1727719925802,False,27492.0,yeah,False,test,False,False,False,False,False,Thank,1539,low,low
+False,survey-text,59,1334259,0.0-59.0,5d3ee89122ed84000172272a,66faaf0e98b476ec1457722d,66fae9d2afdeecac89368de4,1727719925802,False,27492.0,yes,False,test,False,False,False,False,False,Thank,1539,low,low
 False,survey-text,60,1344067,0.0-60.0,5d3ee89122ed84000172272a,66faaf0e98b476ec1457722d,66fae9d2afdeecac89368de4,1727719925802,False,False,False,False,False,False,False,False,False,False,False,0,False,False
 False,survey-text,61,1347944,0.0-61.0,5d3ee89122ed84000172272a,66faaf0e98b476ec1457722d,66fae9d2afdeecac89368de4,1727719925802,False,3866.0,53,False,demographics-age,False,False,False,False,False,False,0,False,False
 False,survey-multi-choice,62,1350290,0.0-62.0,5d3ee89122ed84000172272a,66faaf0e98b476ec1457722d,66fae9d2afdeecac89368de4,1727719925802,False,2335.0,Female,[0],demographics-gender,False,False,False,False,False,False,0,False,False

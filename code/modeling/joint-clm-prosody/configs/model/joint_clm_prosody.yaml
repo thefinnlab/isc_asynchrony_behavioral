@@ -16,6 +16,8 @@ scheduler:
 model_name: gpt2
 num_labels: 1
 loss_mode: 'joint'
+shuffle_prosody: False
+random_prosody: False
 use_prosody_embeddings: True
 tie_prosody_embeddings: True
 pretrained: True

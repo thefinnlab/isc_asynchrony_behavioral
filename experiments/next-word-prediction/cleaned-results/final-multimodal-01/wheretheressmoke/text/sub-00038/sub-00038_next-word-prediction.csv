@@ -78,7 +78,7 @@ False,survey-text,75,1050048,0.0-75.0,5e879ef6785373412156181e,65a6e80ce22935290
 False,survey-text,76,1061639,0.0-76.0,5e879ef6785373412156181e,65a6e80ce229352909d7b53c,65a7cc1d4203d26c305fd4d5,1705495623426,False,10586.0,is,False,test,False,False,False,False,False,keeps,1389,low,high
 False,survey-text,77,1082425,0.0-77.0,5e879ef6785373412156181e,65a6e80ce229352909d7b53c,65a7cc1d4203d26c305fd4d5,1705495623426,False,19778.0,long,False,test,False,False,False,False,False,long,1428,low,high
 False,survey-text,78,1093089,0.0-78.0,5e879ef6785373412156181e,65a6e80ce229352909d7b53c,65a7cc1d4203d26c305fd4d5,1705495623426,False,9656.0,doesn't,False,test,False,False,False,False,False,comes,1443,low,high
-False,survey-text,79,1118081,0.0-79.0,5e879ef6785373412156181e,65a6e80ce229352909d7b53c,65a7cc1d4203d26c305fd4d5,1705495623426,False,23984.0,okay,False,test,False,False,False,False,False,fine,1542,low,low
+False,survey-text,79,1118081,0.0-79.0,5e879ef6785373412156181e,65a6e80ce229352909d7b53c,65a7cc1d4203d26c305fd4d5,1705495623426,False,23984.0,ok,False,test,False,False,False,False,False,fine,1542,low,low
 False,survey-text,80,1128124,0.0-80.0,5e879ef6785373412156181e,65a6e80ce229352909d7b53c,65a7cc1d4203d26c305fd4d5,1705495623426,False,9034.0,light,False,test,False,False,False,False,False,third,1557,high,low
 False,survey-text,81,1143636,0.0-81.0,5e879ef6785373412156181e,65a6e80ce229352909d7b53c,65a7cc1d4203d26c305fd4d5,1705495623426,False,14503.0,lights,False,test,False,False,False,False,False,matches,1568,high,low
 False,survey-text,82,1163868,0.0-82.0,5e879ef6785373412156181e,65a6e80ce229352909d7b53c,65a7cc1d4203d26c305fd4d5,1705495623426,False,19226.0,don't,False,test,False,False,False,False,False,kind,1605,high,low

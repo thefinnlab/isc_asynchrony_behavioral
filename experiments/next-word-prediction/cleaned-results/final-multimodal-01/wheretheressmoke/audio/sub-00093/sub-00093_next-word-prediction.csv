@@ -81,7 +81,7 @@ False,survey-text,78,1049731,0.0-78.0,603bbf426ba69e8af20ace6f,65a6e80ce22935290
 False,survey-text,79,1061108,0.0-79.0,603bbf426ba69e8af20ace6f,65a6e80ce229352909d7b53c,65aeabeeadc2f9e031112ae6,1705946119227,False,10359.0,say,False,test,False,False,False,False,False,say,1596,high,high
 False,survey-text,80,1066960,0.0-80.0,603bbf426ba69e8af20ace6f,65a6e80ce229352909d7b53c,65aeabeeadc2f9e031112ae6,1705946119227,False,4838.0,gonna,False,test,False,False,False,False,False,gonna,1610,low,high
 False,survey-text,81,1076373,0.0-81.0,603bbf426ba69e8af20ace6f,65a6e80ce229352909d7b53c,65aeabeeadc2f9e031112ae6,1705946119227,False,8391.0,can't,False,test,False,False,False,False,False,kind,1622,high,low
-False,survey-text,82,1083368,0.0-82.0,603bbf426ba69e8af20ace6f,65a6e80ce229352909d7b53c,65aeabeeadc2f9e031112ae6,1705946119227,False,5978.0,okay,False,test,False,False,False,False,False,vet,1634,high,low
+False,survey-text,82,1083368,0.0-82.0,603bbf426ba69e8af20ace6f,65a6e80ce229352909d7b53c,65aeabeeadc2f9e031112ae6,1705946119227,False,5978.0,ok,False,test,False,False,False,False,False,vet,1634,high,low
 False,survey-text,83,1092762,0.0-83.0,603bbf426ba69e8af20ace6f,65a6e80ce229352909d7b53c,65aeabeeadc2f9e031112ae6,1705946119227,False,8373.0,funny,False,test,False,False,False,False,False,visit,1649,high,low
 False,survey-text,84,1101971,0.0-84.0,603bbf426ba69e8af20ace6f,65a6e80ce229352909d7b53c,65aeabeeadc2f9e031112ae6,1705946119227,False,8189.0,wow,False,test,False,False,False,False,False,Man,1669,high,low
 False,survey-text,85,1112739,0.0-85.0,603bbf426ba69e8af20ace6f,65a6e80ce229352909d7b53c,65aeabeeadc2f9e031112ae6,1705946119227,False,9753.0,abusive,False,test,False,False,False,False,False,nice,1683,high,low

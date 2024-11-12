@@ -10,7 +10,8 @@ sys.path.append('../utils/')
 
 from config import *
 from dataset_utils import attempt_makedirs
-import analysis_utils as utils
+from prosody_analysis_utils import calculate_prosody_metrics, REMOVE_WORDS
+import plotting_utils as utils
 
 def process_prosody_data(results_dir, task_list, word_model, past_n_words=5, remove_words=None):
     """
@@ -43,7 +44,7 @@ def process_prosody_data(results_dir, task_list, word_model, past_n_words=5, rem
         human_results_df['task'] = task
         
         # Process prosody metrics and filter data
-        prosody_df = utils.calculate_prosody_metrics(prosody_df, n_prev=past_n_words, remove_characters=remove_words)
+        prosody_df = calculate_prosody_metrics(prosody_df, n_prev=past_n_words, remove_characters=remove_words)
         filtered_prosody = prosody_df[transcript_df['NWP_Candidate']]
         filtered_transcript = transcript_df[transcript_df['NWP_Candidate']]
         
@@ -100,12 +101,16 @@ if __name__ == "__main__":
     ### Load results from task list ###
     ###################################
 
-    df_prosody = process_prosody_data(results_dir, p.task_list, p.word_model, remove_words=utils.REMOVE_WORDS)
+    df_prosody = process_prosody_data(results_dir, p.task_list, p.word_model, remove_words=REMOVE_WORDS)
 
     # Melt the dataframe for easy plotting of prosody by metric
     prosody_vars = ['prosody_raw', 'prosody_mean', 'prosody_std', 'boundary',  'boundary_mean', 'boundary_std', 'prosody_slope',  'relative_prosody']
     # df_prosody = pd.melt(df_prosody, id_vars=['modality', 'weighted_accuracy', 'fasttext_top_word_accuracy'], 
     #                 value_vars=prosody_vars, var_name='prosody_metric', value_name='value')
+
+    df_prosody.to_csv(os.path.join(results_dir, f'all-task_group-analyzed-behavior_human-lemmatized_prosody.csv'), index=False)
+
+    sys.exit(0)
 
     #################################################
     ### Plot 1: Average prosody over last n_words ###
@@ -149,13 +154,14 @@ if __name__ == "__main__":
     df_results = pd.concat([pd.read_csv(fn) for fn in results_fns]).reset_index(drop=True)
     df_results['accuracy'] = df_results['accuracy'] * 100
 
-    ax = utils.plot_bar_results(df_results, x='model_name', y="accuracy", hue="model_name", cmap='rocket', figsize=(4,5), add_points=False)
+    ax = utils.plot_bar_results(df_results, x='model_name', y="accuracy", hue="model_name", cmap='rocket', figsize=(10,5), add_points=False)
 
     plt.xlabel('Model')
     plt.ylabel('Accuracy (Percent Correct)')
 
     plt.title(f'ProsodyCLM – Helsinki')
     # plt.gca().get_legend().remove()
+    plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
 
     plt.savefig(os.path.join(plots_dir, "joint-prosody-clm_model-accuracy.pdf"), bbox_inches='tight', dpi=600)

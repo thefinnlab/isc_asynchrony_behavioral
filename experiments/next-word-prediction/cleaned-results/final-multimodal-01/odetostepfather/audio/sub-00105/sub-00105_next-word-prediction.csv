@@ -96,7 +96,7 @@ False,survey-text,93,1260424,0.0-93.0,5c40b26e9d27f00001159231,66435cf2751bcfbf2
 False,survey-text,94,1282014,0.0-94.0,5c40b26e9d27f00001159231,66435cf2751bcfbf2cc4b57c,6643dcc9532761ff90f948c5,1715723489175,False,20586.0,mom,False,test,False,False,False,False,False,mom,2488,high,low
 False,survey-text,95,1291655,0.0-95.0,5c40b26e9d27f00001159231,66435cf2751bcfbf2cc4b57c,6643dcc9532761ff90f948c5,1715723489175,False,8635.0,never,False,test,False,False,False,False,False,never,2509,low,low
 False,survey-text,96,1332407,0.0-96.0,5c40b26e9d27f00001159231,66435cf2751bcfbf2cc4b57c,6643dcc9532761ff90f948c5,1715723489175,False,39747.0,he,False,test,False,False,False,False,False,nobody,2620,low,high
-False,survey-text,97,1344995,0.0-97.0,5c40b26e9d27f00001159231,66435cf2751bcfbf2cc4b57c,6643dcc9532761ff90f948c5,1715723489175,False,11581.0,yeah,False,test,False,False,False,False,False,Thank,2643,high,low
+False,survey-text,97,1344995,0.0-97.0,5c40b26e9d27f00001159231,66435cf2751bcfbf2cc4b57c,6643dcc9532761ff90f948c5,1715723489175,False,11581.0,yes,False,test,False,False,False,False,False,Thank,2643,high,low
 False,survey-text,98,1357848,0.0-98.0,5c40b26e9d27f00001159231,66435cf2751bcfbf2cc4b57c,6643dcc9532761ff90f948c5,1715723489175,False,False,False,False,False,False,False,False,False,False,False,0,False,False
 False,survey-text,99,1359755,0.0-99.0,5c40b26e9d27f00001159231,66435cf2751bcfbf2cc4b57c,6643dcc9532761ff90f948c5,1715723489175,False,1902.0,25,False,demographics-age,False,False,False,False,False,False,0,False,False
 False,survey-multi-choice,100,1361894,0.0-100.0,5c40b26e9d27f00001159231,66435cf2751bcfbf2cc4b57c,6643dcc9532761ff90f948c5,1715723489175,False,2137.0,Male,[0],demographics-gender,False,False,False,False,False,False,0,False,False

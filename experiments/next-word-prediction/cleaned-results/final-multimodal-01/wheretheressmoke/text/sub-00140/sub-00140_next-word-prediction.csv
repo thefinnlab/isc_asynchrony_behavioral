@@ -30,7 +30,7 @@ False,survey-text,27,361713,0.0-27.0,633c74ad6178784ed5b52104,65a6e80ce229352909
 False,survey-text,28,370693,0.0-28.0,633c74ad6178784ed5b52104,65a6e80ce229352909d7b53c,65aeabed180b766db35d5064,1705946125467,False,7972.0,stops,False,test,False,False,False,False,False,composes,355,high,low
 False,survey-text,29,378753,0.0-29.0,633c74ad6178784ed5b52104,65a6e80ce229352909d7b53c,65aeabed180b766db35d5064,1705946125467,False,7051.0,face,False,test,False,False,False,False,False,shoes,367,high,high
 False,survey-text,30,390025,0.0-30.0,633c74ad6178784ed5b52104,65a6e80ce229352909d7b53c,65aeabed180b766db35d5064,1705946125467,False,10260.0,asphalt,False,test,False,False,False,False,False,street,382,low,high
-False,survey-text,31,404069,0.0-31.0,633c74ad6178784ed5b52104,65a6e80ce229352909d7b53c,65aeabed180b766db35d5064,1705946125467,False,13036.0,yeah,False,test,False,False,False,False,False,say,406,low,high
+False,survey-text,31,404069,0.0-31.0,633c74ad6178784ed5b52104,65a6e80ce229352909d7b53c,65aeabed180b766db35d5064,1705946125467,False,13036.0,yes,False,test,False,False,False,False,False,say,406,low,high
 False,survey-text,32,415372,0.0-32.0,633c74ad6178784ed5b52104,65a6e80ce229352909d7b53c,65aeabed180b766db35d5064,1705946125467,False,10289.0,purse,False,test,False,False,False,False,False,cutoffs,425,low,low
 False,survey-text,33,426258,0.0-33.0,633c74ad6178784ed5b52104,65a6e80ce229352909d7b53c,65aeabed180b766db35d5064,1705946125467,False,9871.0,look,False,test,False,False,False,False,False,vest,441,high,low
 False,survey-text,34,437395,0.0-34.0,633c74ad6178784ed5b52104,65a6e80ce229352909d7b53c,65aeabed180b766db35d5064,1705946125467,False,10111.0,sifting,False,test,False,False,False,False,False,checking,453,high,low

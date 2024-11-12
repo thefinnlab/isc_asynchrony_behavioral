@@ -3,6 +3,8 @@ from typing import Optional, Tuple
 
 import os
 import torch
+import random
+
 import datasets
 from pathlib import Path
 from lightning import LightningDataModule
@@ -104,6 +106,14 @@ class HelsinkiDataModule(LightningDataModule):
         )
         self.train_texts = train_extractor.get_all_texts()
         self.train_prominences = train_extractor.get_all_real_prominence()
+
+        # creating a null version of the training labels that are yoked to the text
+        # this will maintain the correspondence across batches
+        if self.hparams.shuffle_labels_yoked:
+            for prominence in self.train_prominences:
+                random.shuffle(prominence)
+
+
         self.train_dataset = TokenTaggingDataset(
             self.train_texts, self.train_prominences, self.tokenizer
         )

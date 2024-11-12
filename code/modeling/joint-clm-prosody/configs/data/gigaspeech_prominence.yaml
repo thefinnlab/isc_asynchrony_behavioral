@@ -1,0 +1,18 @@
+_target_: src.data.wavelet_prominence_datamodule.WaveletDataModule
+data_dir: ${paths.data_dir}/gigaspeech/prosody
+
+batch_size: 32
+train_val_test_split: null
+
+model_name: ??? # must be specified
+use_fast_tokenizer: False 
+score_first_token: False # only score the first token of a word in loss
+score_last_token: False
+relative_to_prev: False # labels are not absolute but relative to n previous words' avg
+n_prev: 1 # number of previous words to compute the avg 
+relative_to_mean: False 
+word_stats_path: null
+shuffle_labels_yoked: False # Yoke the shuffling within each sample
+
+num_workers: 0
+pin_memory: False

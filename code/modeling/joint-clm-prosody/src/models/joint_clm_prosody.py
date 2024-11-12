@@ -36,6 +36,8 @@ class ProsodyCausalLM(LightningModule):
 			pretrained: bool = True,
 			use_prosody_embeddings: bool = True,
 			tie_prosody_embeddings: bool = True,
+			shuffle_prosody: bool = False,
+			random_prosody: bool = False,
 			freeze_kwargs: DefaultDict = {
 				'freeze_lm': False,
 				'unfreeze_after': -1
@@ -65,6 +67,13 @@ class ProsodyCausalLM(LightningModule):
 			if self.freeze_kwargs['freeze_lm']:
 				self.model = freeze_model(self.model)
 
+			# Save the shuffle parameter 
+			self.shuffle_prosody = shuffle_prosody
+			self._shuffle_prosody = False # set to false as default
+
+			self.random_prosody = random_prosody
+			self._random_prosody = False
+			
 			# create embedding layer for prosody
 			self.use_prosody_embeddings = use_prosody_embeddings
 			self.prosody_embed = nn.Linear(num_labels, self.model.config.hidden_size, bias=False)
@@ -139,6 +148,23 @@ class ProsodyCausalLM(LightningModule):
 	#################################
 	####### Helper methods ##########
 	#################################
+
+	# Shuffle labels inplace within a mask
+	def shuffle_masked_values(self, labels, mask):
+		_labels = labels.clone()
+
+		mask = mask.to(bool)
+		masked_values = _labels[mask]
+		_labels[mask] = masked_values[torch.randperm(masked_values.numel())]
+
+		return _labels
+
+	def random_gamma(self, shape, alpha, beta=1.0):
+		alpha = torch.ones(shape) * torch.tensor(alpha)
+		beta = torch.ones(shape) * torch.tensor(beta)
+		gamma_distribution = Gamma(alpha, beta)
+
+		return gamma_distribution.sample()
 
 	def get_input_embeddings(self, input_ids, prosody_values, mask):
 
@@ -254,6 +280,18 @@ class ProsodyCausalLM(LightningModule):
 
 	def forward(self, batch: Dict[str, torch.tensor], eps=1e-4):
 
+		# If specified, shuffle prosody values --> this does it per batch
+		if self._shuffle_prosody:
+			batch['tokenized_labels'] = self.shuffle_masked_values(batch['tokenized_labels'], batch['loss_mask'])
+
+		# If specified, shuffle prosody values --> this does it per batch
+		if self._random_prosody:
+
+			batch['tokenized_labels'] = torch.rand(batch['tokenized_labels'].shape).to(batch['tokenized_labels'].device)
+
+			# random gamma distribution
+			# batch['tokenized_labels'] = self.random_gamma(batch['tokenized_labels'].shape, alpha=1.0).to(batch['tokenized_labels'].device)
+
 		# get token embedding and project prominence to embedding space
 		input_embeds = self.get_input_embeddings(
 			input_ids=batch['input_ids'], 
@@ -331,6 +369,18 @@ class ProsodyCausalLM(LightningModule):
 		return self._shared_step(batch, 'test')
 
 	def _shared_step(self, batch: Dict[str, torch.tensor], stage: str):
+
+		if stage == 'train' and self.shuffle_prosody:
+			self._shuffle_prosody = True
+		else:
+			self._shuffle_prosody = False
+
+		# if we're in the training and want to do random prosody
+		if stage == 'train' and self.random_prosody:
+			self._random_prosody = True
+		else:
+			self._random_prosody = False
+			
 		loss, outputs = self.step(batch)
 
 		metrics = self._calculate_metrics(outputs, batch, stage)

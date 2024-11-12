@@ -193,11 +193,13 @@ if __name__ == "__main__":
     df_kl_div = []
 
     for task in p.task_list:
-        df = pd.read_csv(os.path.join(results_dir,  f'task-{task}_group-analyzed-behavior_human-model-distributions-lemmatized.csv'))
+        df = pd.read_csv(os.path.join(results_dir,  f'task-{task}_group-analyzed-behavior_window-size-{p.window_size}_human-model-distributions-lemmatized.csv'))
         df['task'] = task
         df_kl_div.append(df)
 
     df_kl_div = pd.concat(df_kl_div).reset_index(drop=True)
+    
+    df_kl_div.to_csv(os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{p.window_size}_human-model-distributions-lemmatized.csv'), index=False)
 
     # cmap = create_spoken_written_cmap(continuous=False)
     sns.set(style='white', rc={'figure.figsize':(8,5)})

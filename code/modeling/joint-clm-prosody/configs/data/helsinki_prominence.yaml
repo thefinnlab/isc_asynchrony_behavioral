@@ -15,6 +15,7 @@ relative_to_prev: False # labels are not absolute but relative to n previous wor
 n_prev: 1 # number of previous words to compute the avg 
 relative_to_mean: False 
 word_stats_path: null
+shuffle_labels_yoked: False # Yoke the shuffling within each sample
 
 num_workers: 0
 pin_memory: False

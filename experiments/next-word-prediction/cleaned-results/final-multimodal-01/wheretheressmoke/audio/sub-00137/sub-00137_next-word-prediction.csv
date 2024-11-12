@@ -11,7 +11,7 @@ False,survey-text,8,88954,0.0-8.0,65352d870dfbcccbe48634fe,65a6e80ce229352909d7b
 False,instructions,9,93492,0.0-9.0,65352d870dfbcccbe48634fe,65a6e80ce229352909d7b53c,65a969126e638b84e3011f3f,1705601333589,False,4535.0,False,False,False,"[{""page_index"":0,""viewing_time"":4535}]",False,False,False,False,False,0,False,False
 False,preload,10,96657,0.0-10.0,65352d870dfbcccbe48634fe,65a6e80ce229352909d7b53c,65a969126e638b84e3011f3f,1705601333589,True,False,False,False,False,False,False,[],[],[],False,0,False,False
 False,survey-text,11,119736,0.0-11.0,65352d870dfbcccbe48634fe,65a6e80ce229352909d7b53c,65a969126e638b84e3011f3f,1705601333589,False,23075.0,barefoot,False,test,False,False,False,False,False,crying,34,high,low
-False,survey-text,12,137072,0.0-12.0,65352d870dfbcccbe48634fe,65a6e80ce229352909d7b53c,65a969126e638b84e3011f3f,1705601333589,False,16327.0,cellphone,False,test,False,False,False,False,False,cigarettes,47,high,low
+False,survey-text,12,137072,0.0-12.0,65352d870dfbcccbe48634fe,65a6e80ce229352909d7b53c,65a969126e638b84e3011f3f,1705601333589,False,16327.0,phone,False,test,False,False,False,False,False,cigarettes,47,high,low
 False,survey-text,13,152870,0.0-13.0,65352d870dfbcccbe48634fe,65a6e80ce229352909d7b53c,65a969126e638b84e3011f3f,1705601333589,False,14788.0,thirty,False,test,False,False,False,False,False,live,64,low,low
 False,survey-text,14,163525,0.0-14.0,65352d870dfbcccbe48634fe,65a6e80ce229352909d7b53c,65a969126e638b84e3011f3f,1705601333589,False,9646.0,bad,False,test,False,False,False,False,False,bad,78,low,high
 False,survey-text,15,181557,0.0-15.0,65352d870dfbcccbe48634fe,65a6e80ce229352909d7b53c,65a969126e638b84e3011f3f,1705601333589,False,17022.0,crazy,False,test,False,False,False,False,False,real,99,high,low

@@ -3,6 +3,7 @@ from typing import Optional, Tuple
 
 import os, sys
 import json
+import random
 
 from sklearn.model_selection import train_test_split
 from pathlib import Path
@@ -45,6 +46,7 @@ class ProminenceRegressionDataModule(LightningDataModule):
         val_file: str,
         test_file: str,
         dataset_name: str,
+        shuffle_labels_yoked: bool = False,
         use_fast_tokenizer: bool = False,
         batch_size: int = 64,
         max_length: int = 128,
@@ -158,6 +160,12 @@ class ProminenceRegressionDataModule(LightningDataModule):
                 all_prominences,
                 test_size=0.1,
             )
+
+            # creating a null version of the training labels that are yoked to the text
+            # this will maintain the correspondence across batches
+            if self.hparams.shuffle_labels_yoked:
+                for prominence in self.train_prominences:
+                    random.shuffle(prominence)
 
             # create datasets
             self.train_dataset = TokenTaggingDataset(

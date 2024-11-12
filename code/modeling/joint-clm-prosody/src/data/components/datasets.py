@@ -18,34 +18,88 @@ from src.utils.text_processing import python_remove_punctuation
 # default separators for the tokenization
 SEP = ["-", ".", ",", ";"]
 
-
 def assign_labels(input_string, labels):
-    # Create list to hold words and punctuation
-    words_with_punctuation = re.findall(r"[\w']+|[.,!?;\"-]|'", input_string)
+    
+    input_string = input_string.replace('’', "'")
 
-    # Create list to hold only words
-    words_only = re.findall(r"\w+'?\w*", input_string)
-
-    # Make sure the number of labels matches the number of words
-    if not len(labels) == len(words_only):
-        # print(
-        #     f"Aligning labels: Number of labels ({len(labels)}) does not match number of words ({len(words_only)})"
-        # )
-        # alignmend or extraction failed, skip sample
-        return None, None, None
-
-    # Create a generator for word-label pairs
-    word_label_pairs = ((word, label) for word, label in zip(words_only, labels))
-
-    # Create list of tuples where each word is matched to a label and each punctuation is matched to None
-    words_with_labels = []
+    # Enhanced pattern to better handle ellipsis and quotes
+    pattern = r'\b\w+\'?\w*(?:-\w+)*\b|[.,!?;"’]|\.\.\.|…|\'|\"|\s+'
+    
+    # Initial tokenization
+    words_with_punctuation = re.findall(pattern, input_string)
+    
+    # Clean up empty strings and whitespace while preserving order
+    words_with_punctuation = [token for token in words_with_punctuation if token.strip()]
+    
+    # Enhanced handling of ellipsis attached to words
+    processed_tokens = []
     for token in words_with_punctuation:
-        if re.match(r"\w+'?\w*", token):
-            words_with_labels.append(next(word_label_pairs))
+        if ('…' in token or '...' in token) and any(c.isalnum() for c in token):
+            # Split word and ellipsis, handling both Unicode and ASCII ellipsis
+            parts = re.split(r'(…|\.\.\.)', token)
+            for part in parts:
+                if part and part.strip():
+                    processed_tokens.append(part)
+        else:
+            processed_tokens.append(token)
+    
+    words_with_punctuation = processed_tokens
+    
+    # Extract just the words for label alignment
+    words_only = [token for token in words_with_punctuation 
+                 if re.match(r'\b\w+\'?\w*(?:-\w+)*\b', token)]
+    
+    # Verify label alignment
+    if len(labels) != len(words_only):
+        return None, None, None
+        
+    # Create word-label pairs generator
+    word_label_pairs = ((word, label) for word, label in zip(words_only, labels))
+    
+    # Build final token list with labels
+    words_with_labels = []
+    word_pattern = r'\b\w+\'?\w*(?:-\w+)*\b'
+    
+    for token in words_with_punctuation:
+        if re.match(word_pattern, token):
+            try:
+                current_pair = next(word_label_pairs)
+                words_with_labels.append(current_pair)
+            except StopIteration:
+                return None, None, None
         else:
             words_with_labels.append((token, None))
-
+    
     return words_only, words_with_punctuation, words_with_labels
+
+
+# def assign_labels(input_string, labels):
+#     # Create list to hold words and punctuation
+#     words_with_punctuation = re.findall(r"[\w']+|[.,!?;\"-]|'", input_string)
+
+#     # Create list to hold only words
+#     words_only = re.findall(r"\w+'?\w*", input_string)
+
+#     # Make sure the number of labels matches the number of words
+#     if not len(labels) == len(words_only):
+#         # print(
+#         #     f"Aligning labels: Number of labels ({len(labels)}) does not match number of words ({len(words_only)})"
+#         # )
+#         # alignmend or extraction failed, skip sample
+#         return None, None, None
+
+#     # Create a generator for word-label pairs
+#     word_label_pairs = ((word, label) for word, label in zip(words_only, labels))
+
+#     # Create list of tuples where each word is matched to a label and each punctuation is matched to None
+#     words_with_labels = []
+#     for token in words_with_punctuation:
+#         if re.match(r"\w+'?\w*", token):
+#             words_with_labels.append(next(word_label_pairs))
+#         else:
+#             words_with_labels.append((token, None))
+
+#     return words_only, words_with_punctuation, words_with_labels
 
 
 def tokenize_text_with_labels(
@@ -229,6 +283,7 @@ def tokenize_text_with_labels(
 
     # if mask is all 0 (no valid predicitons) we return None
     if np.all(mask == 0):
+        print ('mask is none')
         return None
 
     return (
@@ -249,6 +304,7 @@ class TokenTaggingDataset(Dataset):
         targets,
         tokenizer,
         model_name: str,
+        shuffle_labels_batch: bool = False,
         score_first_token: bool = False,
         score_last_token: bool = False,
         relative_to_prev: bool = False,
@@ -257,6 +313,7 @@ class TokenTaggingDataset(Dataset):
         relative_to_mean=False,
         word_stats: dict = None,
         debug: bool = False,
+        buffer_missing_samples: bool = False,
     ):
         """
         ::param inputs: list of strings
@@ -271,6 +328,7 @@ class TokenTaggingDataset(Dataset):
         self.targets = targets
         self.tokenizer = tokenizer
         self.model_name = model_name
+        self.shuffle_labels_batch = shuffle_labels_batch
         self.score_first_token = score_first_token
         self.score_last_token = score_last_token
         self.relative_to_prev = relative_to_prev
@@ -279,6 +337,7 @@ class TokenTaggingDataset(Dataset):
         self.relative_to_mean = relative_to_mean
         self.word_stats = word_stats
         self.debug = debug
+        self.buffer_missing_samples = buffer_missing_samples
 
         cnt_failed = 0
         # Perform preprocessing at initialization
@@ -303,6 +362,18 @@ class TokenTaggingDataset(Dataset):
             )
 
             if not result:
+                if self.buffer_missing_samples:
+                    self.processed_data.append(
+                     {
+                        "input_text": [],
+                        "tokenized_text": [],
+                        "original_labels": [],
+                        "tokenized_labels": [],
+                        "input_ids": [],
+                        "loss_mask": [],
+                        "word_to_tokens": [],
+                    })
+                # else:
                 cnt_failed += 1
                 continue
 

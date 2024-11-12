@@ -96,7 +96,7 @@ False,survey-text,93,1288611,0.0-93.0,613caa9f06576b39c91eb6af,66435cf2751bcfbf2
 False,survey-text,94,1312789,0.0-94.0,613caa9f06576b39c91eb6af,66435cf2751bcfbf2cc4b57c,6643d7e637584677e0d25c76,1715722240695,False,23174.0,car,False,test,False,False,False,False,False,mom,2488,high,low
 False,survey-text,95,1322926,0.0-95.0,613caa9f06576b39c91eb6af,66435cf2751bcfbf2cc4b57c,6643d7e637584677e0d25c76,1715722240695,False,9133.0,never,False,test,False,False,False,False,False,never,2509,low,low
 False,survey-text,96,1363071,0.0-96.0,613caa9f06576b39c91eb6af,66435cf2751bcfbf2cc4b57c,6643d7e637584677e0d25c76,1715722240695,False,39140.0,i,False,test,False,False,False,False,False,nobody,2620,low,high
-False,survey-text,97,1377131,0.0-97.0,613caa9f06576b39c91eb6af,66435cf2751bcfbf2cc4b57c,6643d7e637584677e0d25c76,1715722240695,False,13055.0,yeah,False,test,False,False,False,False,False,Thank,2643,high,low
+False,survey-text,97,1377131,0.0-97.0,613caa9f06576b39c91eb6af,66435cf2751bcfbf2cc4b57c,6643d7e637584677e0d25c76,1715722240695,False,13055.0,yes,False,test,False,False,False,False,False,Thank,2643,high,low
 False,survey-text,98,1389956,0.0-98.0,613caa9f06576b39c91eb6af,66435cf2751bcfbf2cc4b57c,6643d7e637584677e0d25c76,1715722240695,False,False,False,False,False,False,False,False,False,False,False,0,False,False
 False,survey-text,99,1393146,0.0-99.0,613caa9f06576b39c91eb6af,66435cf2751bcfbf2cc4b57c,6643d7e637584677e0d25c76,1715722240695,False,3186.0,24,False,demographics-age,False,False,False,False,False,False,0,False,False
 False,survey-multi-choice,100,1394498,0.0-100.0,613caa9f06576b39c91eb6af,66435cf2751bcfbf2cc4b57c,6643d7e637584677e0d25c76,1715722240695,False,1351.0,Male,[0],demographics-gender,False,False,False,False,False,False,0,False,False

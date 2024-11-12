@@ -24,7 +24,7 @@ False,survey-text,21,287733,0.0-21.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909
 False,survey-text,22,298358,0.0-22.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909d7b53c,65a7e3ba8ec3eb862f9cd75a,1705501737986,False,9619.0,anxiety,False,test,False,False,False,False,False,freedom,257,high,low
 False,survey-text,23,309291,0.0-23.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909d7b53c,65a7e3ba8ec3eb862f9cd75a,1705501737986,False,9927.0,small,False,test,False,False,False,False,False,smoke,268,high,low
 False,survey-text,24,322994,0.0-24.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909d7b53c,65a7e3ba8ec3eb862f9cd75a,1705501737986,False,12697.0,lighter,False,test,False,False,False,False,False,light,282,low,low
-False,survey-text,25,346327,0.0-25.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909d7b53c,65a7e3ba8ec3eb862f9cd75a,1705501737986,False,22327.0,lite,False,test,False,False,False,False,False,dog,306,high,low
+False,survey-text,25,346327,0.0-25.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909d7b53c,65a7e3ba8ec3eb862f9cd75a,1705501737986,False,22327.0,light,False,test,False,False,False,False,False,dog,306,high,low
 False,survey-text,26,357281,0.0-26.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909d7b53c,65a7e3ba8ec3eb862f9cd75a,1705501737986,False,9946.0,tell,False,test,False,False,False,False,False,see,329,low,high
 False,survey-text,27,366347,0.0-27.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909d7b53c,65a7e3ba8ec3eb862f9cd75a,1705501737986,False,8060.0,dog,False,test,False,False,False,False,False,hands,341,high,high
 False,survey-text,28,377259,0.0-28.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909d7b53c,65a7e3ba8ec3eb862f9cd75a,1705501737986,False,9905.0,pretends,False,test,False,False,False,False,False,composes,355,high,low
@@ -45,7 +45,7 @@ False,survey-text,42,600817,0.0-42.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909
 False,survey-text,43,619261,0.0-43.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909d7b53c,65a7e3ba8ec3eb862f9cd75a,1705501737986,False,17437.0,your,False,test,False,False,False,False,False,fight,646,high,low
 False,survey-text,44,664823,0.0-44.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909d7b53c,65a7e3ba8ec3eb862f9cd75a,1705501737986,False,44555.0,opossum,False,test,False,False,False,False,False,bad,670,high,low
 False,survey-text,45,679284,0.0-45.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909d7b53c,65a7e3ba8ec3eb862f9cd75a,1705501737986,False,13454.0,started,False,test,False,False,False,False,False,start,685,high,low
-False,survey-text,46,699993,0.0-46.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909d7b53c,65a7e3ba8ec3eb862f9cd75a,1705501737986,False,19702.0,mums,False,test,False,False,False,False,False,kind,699,high,low
+False,survey-text,46,699993,0.0-46.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909d7b53c,65a7e3ba8ec3eb862f9cd75a,1705501737986,False,19702.0,mom,False,test,False,False,False,False,False,kind,699,high,low
 False,survey-text,47,726096,0.0-47.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909d7b53c,65a7e3ba8ec3eb862f9cd75a,1705501737986,False,25096.0,never,False,test,False,False,False,False,False,loves,748,high,high
 False,survey-text,48,750488,0.0-48.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909d7b53c,65a7e3ba8ec3eb862f9cd75a,1705501737986,False,23385.0,local,False,test,False,False,False,False,False,ice,769,low,low
 False,survey-text,49,759114,0.0-49.0,6172cf92f2ea6613f717abb6,65a6e80ce229352909d7b53c,65a7e3ba8ec3eb862f9cd75a,1705501737986,False,7618.0,am,False,test,False,False,False,False,False,want,781,low,high

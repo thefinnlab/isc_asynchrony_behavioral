@@ -15,7 +15,7 @@ False,survey-text,12,124823,0.0-12.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce229352909
 False,survey-text,13,138056,0.0-13.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce229352909d7b53c,65a7e3bc1f6bfe6ddfa4bb62,1705501681588,False,12226.0,fags,False,test,False,False,False,False,False,cigarettes,61,low,high
 False,survey-text,14,155623,0.0-14.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce229352909d7b53c,65a7e3bc1f6bfe6ddfa4bb62,1705501681588,False,16560.0,cope,False,test,False,False,False,False,False,play,83,high,low
 False,survey-text,15,180140,0.0-15.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce229352909d7b53c,65a7e3bc1f6bfe6ddfa4bb62,1705501681588,False,23510.0,plotting,False,test,False,False,False,False,False,running,130,low,high
-False,survey-text,16,200756,0.0-16.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce229352909d7b53c,65a7e3bc1f6bfe6ddfa4bb62,1705501681588,False,19611.0,fag,False,test,False,False,False,False,False,cigarettes,198,high,low
+False,survey-text,16,200756,0.0-16.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce229352909d7b53c,65a7e3bc1f6bfe6ddfa4bb62,1705501681588,False,19611.0,cigarette,False,test,False,False,False,False,False,cigarettes,198,high,low
 False,survey-text,17,215890,0.0-17.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce229352909d7b53c,65a7e3bc1f6bfe6ddfa4bb62,1705501681588,False,14126.0,dark,False,test,False,False,False,False,False,silent,217,high,low
 False,survey-text,18,246740,0.0-18.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce229352909d7b53c,65a7e3bc1f6bfe6ddfa4bb62,1705501681588,False,29843.0,consider,False,test,False,False,False,False,False,perfect,261,high,low
 False,survey-text,19,261023,0.0-19.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce229352909d7b53c,65a7e3bc1f6bfe6ddfa4bb62,1705501681588,False,13276.0,hindsight,False,test,False,False,False,False,False,horrifying,276,low,low
@@ -71,7 +71,7 @@ False,survey-text,68,1030356,0.0-68.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce22935290
 False,survey-text,69,1044539,0.0-69.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce229352909d7b53c,65a7e3bc1f6bfe6ddfa4bb62,1705501681588,False,13174.0,smiles,False,test,False,False,False,False,False,man,1330,low,high
 False,survey-text,70,1061172,0.0-70.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce229352909d7b53c,65a7e3bc1f6bfe6ddfa4bb62,1705501681588,False,15624.0,buy,False,test,False,False,False,False,False,smoke,1345,low,low
 False,survey-text,71,1079272,0.0-71.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce229352909d7b53c,65a7e3bc1f6bfe6ddfa4bb62,1705501681588,False,17091.0,says,False,test,False,False,False,False,False,says,1371,low,high
-False,survey-text,72,1094056,0.0-72.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce229352909d7b53c,65a7e3bc1f6bfe6ddfa4bb62,1705501681588,False,13776.0,fag,False,test,False,False,False,False,False,cigarettes,1397,low,high
+False,survey-text,72,1094056,0.0-72.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce229352909d7b53c,65a7e3bc1f6bfe6ddfa4bb62,1705501681588,False,13776.0,cigarette,False,test,False,False,False,False,False,cigarettes,1397,low,high
 False,survey-text,73,1117473,0.0-73.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce229352909d7b53c,65a7e3bc1f6bfe6ddfa4bb62,1705501681588,False,22408.0,crying,False,test,False,False,False,False,False,says,1447,low,high
 False,survey-text,74,1132356,0.0-74.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce229352909d7b53c,65a7e3bc1f6bfe6ddfa4bb62,1705501681588,False,13875.0,morning,False,test,False,False,False,False,False,morning,1476,low,high
 False,survey-text,75,1143838,0.0-75.0,5f61f7f59df6ca1bfe6a8a89,65a6e80ce229352909d7b53c,65a7e3bc1f6bfe6ddfa4bb62,1705501681588,False,10473.0,map,False,test,False,False,False,False,False,map,1504,high,low
