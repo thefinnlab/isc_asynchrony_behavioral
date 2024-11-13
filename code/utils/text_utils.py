@@ -3,8 +3,12 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from collections import defaultdict
 import re
+import spacy
 
 STOP_WORDS = stopwords.words('english')
+
+# Load the spaCy model globally
+SPACY_MODEL = spacy.load("en_core_web_sm")
 
 def strip_punctuation(text):
 
@@ -45,13 +49,14 @@ def get_pos_tags(text, strip_punc=True):
         # TLB 10/26/22 - removing ignoring of apostrophe
         # re.sub("[^a-zA-Z\s'-]+", '', full_text)
         full_text = re.sub("[^a-zA-Z\s'-]+", '', full_text)
+    
     # POS tagging (works better on full transcript, more context provided)
     words_tags = pos_tag(full_text.split())
 
     #case normalize word -> case doesn't matter anymore
     return [(word.lower(), tag) for word, tag in words_tags]
 
-def get_lemma(word, tag, remove_stopwords=True):
+def get_lemma(word, tag, remove_stopwords=True, backend='spacy'):
     """
     Handles lemmatization of words. Removes stopwords and alpha-numeric
     words from the text.
@@ -68,32 +73,41 @@ def get_lemma(word, tag, remove_stopwords=True):
         The word-postag pairings for the list of text samples with 
         preprocessing steps applied to each element.
     """
-    
-    # define some constants only used in this function:
-    lemmatizer = WordNetLemmatizer()
-    
-    # POS tag mapping, format: {Treebank tag (1st letter only): Wordnet}
-    tagset_mapping = defaultdict(
-        lambda: 'n',   # defaults to noun
-        {
-            'N': 'n',  # noun types
-            'P': 'n',  # pronoun types, predeterminers
-            'V': 'v',  # verb types
-            'J': 'a',  # adjective types
-            'D': 'a',  # determiner
-            'R': 'r'   # adverb types
-        })
-    
-    if "'" in word:
-        word = word.split("'")[0]
+
+    # if "'" in word:
+    #     word = word.split("'")[0]
+
+    if "'" in word and "n't" in word:
+        lemma = word #"not"
+        return lemma
         
     # remove stop words & digits
     if remove_stopwords and word in STOP_WORDS or any(c.isdigit() for c in word):
         return None
     
-    # convert Treebank POS tags to WordNet POS tags; lemmatize
-    tag = tagset_mapping[tag[0]]
-    lemma = lemmatizer.lemmatize(word, tag)
+    if backend == 'spacy':
+
+        doc = SPACY_MODEL(word)
+        lemma = doc[0].lemma_
+
+    elif backend == 'nltk':
+
+        lemmatizer = WordNetLemmatizer()
+        
+        # POS tag mapping, format: {Treebank tag (1st letter only): Wordnet}
+        tagset_mapping = defaultdict(
+            lambda: 'n',   # defaults to noun
+            {
+                'N': 'n',  # noun types
+                'P': 'n',  # pronoun types, predeterminers
+                'V': 'v',  # verb types
+                'J': 'a',  # adjective types
+                'D': 'a',  # determiner
+                'R': 'r'   # adverb types
+            })
+            
+        # convert Treebank POS tags to WordNet POS tags; lemmatize
+        tag = tagset_mapping[tag[0]]
+        lemma = lemmatizer.lemmatize(word, tag)
     
     return lemma
-        

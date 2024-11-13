@@ -38,23 +38,19 @@ def calculate_prosody_metrics(df_prosody, n_prev=3, remove_characters=[], zscore
     # get mean of past n_words
     indices = np.arange(len(prosody_raw))
     start_idxs = indices - n_prev
-    start_idxs[start_idxs < 0] = 0
 
     # go through the past x words 
     all_items = []
     
     for idx in start_idxs:
         # get the prosody of the n_prev words
-        if idx >= n_prev:
-            n_prev_prosody =  prosody_raw[idx:idx+n_prev]
-            n_prev_boundary =  boundary_raw[idx:idx+n_prev]
-    
+        if idx >= 0:
+            n_prev_prosody = prosody_raw[idx:idx+n_prev]
+            n_prev_boundary = boundary_raw[idx:idx+n_prev]
+            
             # get mean and std of n_prev words prosody
             prosody_mean = n_prev_prosody.mean()
             prosody_std = n_prev_prosody.std()
-    
-            # get linear fit to n_prev words
-            slope, _ = np.polyfit(np.arange(n_prev), n_prev_prosody, 1)
 
             relative = prosody_raw[idx+n_prev] - prosody_mean
             relative_norm = relative / prosody_std
@@ -64,18 +60,17 @@ def calculate_prosody_metrics(df_prosody, n_prev=3, remove_characters=[], zscore
             boundary_std = n_prev_boundary.std()
             
         else:
-            prosody_mean = prosody_std = slope = relative = relative_norm = np.nan
+            prosody_mean = prosody_std = relative = relative_norm = np.nan
             boundary_mean = boundary_std = np.nan
         
         all_items.append(
-            (prosody_mean, prosody_std, slope, relative, relative_norm, boundary_mean, boundary_std)
+            (prosody_mean, prosody_std, relative, relative_norm, boundary_mean, boundary_std)
         )
 
-    prosody_mean, prosody_std, slope, relative_prosody, relative_norm, boundary_mean, boundary_std = zip(*all_items)
+    prosody_mean, prosody_std, relative_prosody, relative_norm, boundary_mean, boundary_std = zip(*all_items)
 
     df_prosody['prosody_mean'] = prosody_mean
     df_prosody['prosody_std'] = prosody_std
-    df_prosody['prosody_slope'] = slope
     df_prosody['relative_prosody'] = relative_prosody
     df_prosody['relative_norm'] = relative_norm
     df_prosody['boundary_mean'] = boundary_mean

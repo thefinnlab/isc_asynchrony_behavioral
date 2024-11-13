@@ -32,7 +32,9 @@ from pliers.extractors import PredefinedDictionaryExtractor, merge_results
 # nltk.download('wordnet')
 # nltk.download('omw-1.4')
 
-### FUNCTIONS FOR CUTTING AUDIO ###
+############################################
+##### Functions for cutting audio files ####
+############################################
 
 def get_cut_times(df, start_idx, end_idx):
     
@@ -89,7 +91,9 @@ def cut_audio_segments(df_preproc, task, audio_fn, audio_out_dir):
     
     return out_fns, df_segments
 
-### FUNCTIONS FOR EDITING GENTLE TRANSCRIPTS
+############################################
+##### Functions for editing transcripts ####
+############################################
 
 def update_dataframe_from_praat(df, textgrid):
     
@@ -294,7 +298,9 @@ def align_missing_word(content, ix):
     return prev_end, next_start
 
 
-### FUNCTIONS FOR SELECTING CANDIDATES FOR PREDICTION ###
+########################################################
+##### Functions for selecting prediction candidates ####
+########################################################
 
 lemmatizer = WordNetLemmatizer()
 
@@ -621,19 +627,18 @@ def load_model_results(model_dir, model_name, task, window_size, top_n):
     results_fn = natsorted(glob.glob(os.path.join(model_dir, f'*top-{top_n}*')))[0]
 
     # load the data, remove nans
-    model_results = pd.read_csv(results_fn)
-
-    model_results.loc[1:, 'top_n_predictions'] = model_results.loc[1:, 'top_n_predictions'].apply(safe_eval)
+    df_model_results = pd.read_csv(results_fn)
+    df_model_results.loc[1:, 'top_n_predictions'] = df_model_results.loc[1:, 'top_n_predictions'].apply(safe_eval)
     
-    model_results['glove_avg_accuracy'] = model_results['glove_avg_accuracy'] #.apply(np.nan_to_num)
-    model_results['word2vec_avg_accuracy'] = model_results['word2vec_avg_accuracy'] #.apply(np.nan_to_num)
-    model_results['fasttext_avg_accuracy'] = model_results['fasttext_avg_accuracy'] #.apply(np.nan_to_num)
+    # model_results['glove_avg_accuracy'] = model_results['glove_avg_accuracy'] #.apply(np.nan_to_num)
+    # model_results['word2vec_avg_accuracy'] = model_results['word2vec_avg_accuracy'] #.apply(np.nan_to_num)
+    # model_results['fasttext_avg_accuracy'] = model_results['fasttext_avg_accuracy'] #.apply(np.nan_to_num)
 
-    model_results['glove_max_accuracy'] = model_results['glove_max_accuracy'] #.apply(np.nan_to_num)
-    model_results['word2vec_max_accuracy'] = model_results['word2vec_max_accuracy'] #.apply(np.nan_to_num)
-    model_results['fasttext_max_accuracy'] = model_results['fasttext_max_accuracy'] #.apply(np.nan_to_num)
+    # model_results['glove_max_accuracy'] = model_results['glove_max_accuracy'] #.apply(np.nan_to_num)
+    # model_results['word2vec_max_accuracy'] = model_results['word2vec_max_accuracy'] #.apply(np.nan_to_num)
+    # model_results['fasttext_max_accuracy'] = model_results['fasttext_max_accuracy'] #.apply(np.nan_to_num)
     
-    return model_results
+    return df_model_results
 
 def divide_nwp_dataframe(df, accuracy_type, percentile, drop=True):
 
