@@ -4,9 +4,14 @@ import numpy as np
 import pandas as pd
 import librosa
 from tqdm import tqdm
+from natsort import natsorted
 
 from scipy import stats
-from scipy.spatial.distance import cdist
+from scipy.spatial import distance
+import scipy.special as special
+
+import torch
+from torch.nn import functional as F
 
 from config import *
 import nlp_utils as nlp
@@ -439,7 +444,7 @@ def analyze_human_results(df_transcript, df_results, word_model_info, window_siz
         bert_top_word_embedding = bert_top_word_embedding[-1, :][np.newaxis]
 
         # Calculate cosine similarity between ground truth and prediction   
-        bert_similarity = 1 - cdist(bert_ground_truth_embedding, bert_top_word_embedding, metric='cosine').squeeze()
+        bert_similarity = 1 - distance.cdist(bert_ground_truth_embedding, bert_top_word_embedding, metric='cosine').squeeze()
 
         #############################################
         #### Prediction density metrics          ####
@@ -460,7 +465,7 @@ def analyze_human_results(df_transcript, df_results, word_model_info, window_siz
         predicted_vectors = [word_model[word] for word in unique_words if word in word_model]
         predicted_vectors = np.stack(predicted_vectors)
 
-        centroid_distance = cdist(predicted_vectors.mean(0)[np.newaxis], predicted_vectors, metric='cosine')
+        centroid_distance = distance.cdist(predicted_vectors.mean(0)[np.newaxis], predicted_vectors, metric='cosine')
         centroid_distance = np.nanmean(centroid_distance)
 
         # pred_distances = nan when there was only one prediction
@@ -498,6 +503,22 @@ def analyze_human_results(df_transcript, df_results, word_model_info, window_siz
 ###############################################
 ########### Analysis of LLM data ##############
 ###############################################
+
+def load_logits(model_dir, model_name, task, window_size, word_index):
+    '''
+    Loads model data from directory
+    '''
+
+    if 'prosody' in model_name:
+        model_dir = os.path.join(model_dir, task, 'prosody-models', model_name, f'window-size-{window_size}')
+    else:
+        model_dir = os.path.join(model_dir, task, model_name, f'window-size-{window_size}')
+
+    logits_fns = natsorted(glob.glob(os.path.join(model_dir, 'logits', f'*{str(word_index).zfill(5)}*.pt')))
+    
+    assert (len(logits_fns) == 1)
+    
+    return torch.load(logits_fns[0])
     
 # def get_model_word_quadrants(df_model_results, df_transcript, task, selected_idxs=None, accuracy_type='fasttext_avg_accuracy', accuracy_percentile=50, top_n=5, window_size=25):
     
@@ -525,7 +546,7 @@ def analyze_human_results(df_transcript, df_results, word_model_info, window_siz
     
 #     return df_divide.loc[selected_idxs, ['entropy_group', 'accuracy_group']]
 
-def analyze_model_accuracy(df_transcript_selected, models_dir, model_name, word_model_info, task, top_n=1, window_size=25, lemmatize=False):
+def analyze_model_accuracy(df_transcript_selected, models_dir, model_name, word_model_info, task, top_n=1, window_size=25):
     """
     Perform analysis of model predictions (similar to analyze_human_results). Formats
     the model predictions dataframe similar to the human dataframe so the two can be collapsed.
@@ -564,129 +585,198 @@ def analyze_model_accuracy(df_transcript_selected, models_dir, model_name, word_
 
     # df_model_results.loc[:, ['entropy_group', 'accuracy_group']] = df_model_quadrants.loc[: ['entropy_group', 'accuracy_group']] 
 
-    if lemmatize:
-        # Lemmatize the response and the ground truth
-        for response_col in ['top_pred', 'ground_truth']:
-            df_model_results = lemmatize_responses(df_model_results, df_transcript_selected, response_column=response_col)
+    # if lemmatize:
+    #     # Lemmatize the response and the ground truth
+    #     for response_col in ['top_pred', 'ground_truth']:
+    #         df_model_results = lemmatize_responses(df_model_results, df_transcript_selected, response_column=response_col)
 
     print (f"Total missing values: {df_model_results[f'{word_model_name}_avg_accuracy'].isna().sum()}")
 
     return df_model_results
 
 
-def compare_human_model_distributions(tokenizer, word_model, human_responses, all_responses, model_logits, ground_truth):
-    
-    df = pd.DataFrame(columns=[
-        'top_word_human', 
-        'top_word_model',
-        'top_word_model_adjusted',
-        'prob_human',
-        'prob_model',
-        'prob_model_adjusted', 
-        'prob_model_human_pred',
-        'predictability_model',
-        'predictability_human',
-        'continuous_predictability_human',
-        'log_odds_predictability_model',
-        'log_odds_predictability_human',
-        'log_odds_continuous_predictability_human',
-        'entropy',
+def compare_human_model_distributions(df_human_results, models_dir, model_name, task, top_n=1, window_size=25):
+#tokenizer, word_model, human_responses, all_responses, model_logits, ground_truth):
+
+    # Load the tokenizer 
+    tokenizer, _ = nlp.load_clm_model(model_name='gpt2' if 'prosody' in model_name else model_name, 
+        cache_dir=CACHE_DIR
+    )
+
+    df_comparison = pd.DataFrame(columns=[
+        'model_name',
+        'modality',
+        'word_index',
+        'ground_truth',
+        'entropy_group',
+        'accuracy_group',
+        'human_top_word',
+        'human_prob',
+        'human_predictability',
+        'human_log_odds_predictability',
+        'human_entropy',
+        'model_top_word',
+        'model_prob',
+        'model_predictability',
+        'model_log_odds_predictability',
+        'model_entropy',
+        'model_prob_adjusted',
+        'model_prob_human_prediction',
         'kl_divergence',
-        'relative_entropy',
-        'wasserstein_dist',
+        'earthmovers_dist',
         'jensenshannon_dist',
         'ks_stat'
     ])
-    
-    pre_filter = len(human_responses)
-    human_responses = list(filter(None, human_responses))
-    post_filter = len(human_responses)
-    
-    if pre_filter != post_filter:
-        print (f'Removed {pre_filter - post_filter} empty responses')
-    
-    model_probs = F.softmax(model_logits, dim=-1).squeeze()
-    prob_model = model_probs.max().item()
-    top_word_model = tokenizer.decode(model_probs.argmax())
 
-    entropy = stats.entropy(model_probs)
-    
-    ## get ground truth word prob
-    gt_token = tokenizer.encode(ground_truth)
-    gt_predictability_model = model_probs[gt_token].mean(0).item()
-   
-    # continuous predictability - average semantic distance of words from ground truth word
-    human_predictability = sum(np.asarray(human_responses) == ground_truth) / len(human_responses)
-    continuous_predictability = (1 - distance.cdist(word_model[ground_truth][np.newaxis], word_model[human_responses], metric='cosine')).mean()
+    # Go through each word index in the current modality
+    for (modality, word_index), df_index in tqdm(df_human_results.groupby(['modality', 'word_index'])):
 
-    if human_predictability == 0:
-        log_odds_human_predictability = statistics.log_odds(1e-2)
-    else:
-        log_odds_human_predictability = statistics.log_odds(human_predictability)
-
-    log_odds_model_predictability = statistics.log_odds(gt_predictability_model)
-    log_odds_continuous_predictability = statistics.log_odds(continuous_predictability)
+        # Grab global information across participants
+        ground_truth, entropy_group, accuracy_group = df_index \
+            .reset_index(drop=True) \
+            .loc[0, ['ground_truth', 'entropy_group', 'accuracy_group']]
         
-    # get the probability distribution of the human responses --> also return the unique words
-    human_probs, unique_words = get_human_probs(human_responses)
-    prob_human = human_probs.max()
-    
-    # get the words indices in the overall array then add in the human probs
-    word_idxs = [all_responses.index(word) for word in unique_words]    
-    temp = np.zeros(len(all_responses))
-    temp[word_idxs] = human_probs
-    human_probs = temp
-    
-    # get probability of the words humans chose within the model distribution
-    # then normalize to the number of samples
-    model_adjusted_probs = np.asarray([nlp.get_word_prob(tokenizer, word, model_logits) for word in all_responses])
-    model_adjusted_probs = model_adjusted_probs / model_adjusted_probs.sum()
+        # All responses (across modalities) for the current predicted word
+        word_index_filter = df_human_results['word_index'] == word_index
+        all_responses = df_human_results.loc[word_index_filter, 'response'].apply(strip_punctuation)
+        all_responses = list(filter(None, all_responses))
 
-    # select the probability of the top word that humans chose
-    prob_model_adjusted = model_adjusted_probs[model_adjusted_probs.argmax()]
-    prob_model_human_pred = model_adjusted_probs[human_probs.argmax()]
+        # Responses for the current modality
+        human_responses = df_index['response'].apply(strip_punctuation)
+    
+        ##############################################
+        #### Remove blank reponses from human data ###
+        #############################################
+        
+        pre_filter = len(human_responses)
+        human_responses = list(filter(None, human_responses))
+        post_filter = len(human_responses)
+    
+        if pre_filter != post_filter:
+            print (f'Removed {pre_filter - post_filter} empty responses')
 
-    # grab the human and model top words
-    top_word_human = all_responses[human_probs.argmax()]
-    top_word_model_adjusted = all_responses[model_adjusted_probs.argmax()]
+        ###############################################
+        ##### Calculate model probability metrics #####
+        ###############################################
 
-    # now calculate kl divergence between the human and adjusted model distribution
-    # measures how different P (human) is from Q (model) distribution
-    #  KL divergence of P from Q is the expected excess surprise from 
-    #  using Q as a model when the actual distribution is P
-    kl_divergence = kl_div(human_probs, model_adjusted_probs)
-    kl_divergence[np.isinf(kl_divergence)] = 0
-    kl_divergence = kl_divergence.sum().item()
-    
-    relative_entropy = rel_entr(human_probs, model_adjusted_probs).sum().item()
-    
-    # earth movers distance between adjusted probs
-    wasserstein_dist = stats.wasserstein_distance(human_probs, model_adjusted_probs)
-    
-    jensenshannon_dist = distance.jensenshannon(human_probs, model_adjusted_probs)
-    
-    ks_stats = stats.kstest(human_probs, model_adjusted_probs)
-    
-    df.loc[len(df)] = {
-        'top_word_human': top_word_human,
-        'top_word_model': top_word_model,
-        'top_word_model_adjusted': top_word_model,
-        'prob_human': prob_human,
-        'prob_model': prob_model,
-        'prob_model_adjusted': prob_model_adjusted, 
-        'prob_model_human_pred': prob_model_human_pred,
-        'predictability_model': gt_predictability_model,
-        'predictability_human': human_predictability,
-        'continuous_predictability_human': continuous_predictability,
-        'log_odds_predictability_human': log_odds_human_predictability.astype(float),
-        'log_odds_predictability_model': log_odds_model_predictability.astype(float),
-        'log_odds_continuous_predictability_human': log_odds_continuous_predictability.astype(float),
-        'entropy': entropy,
-        'kl_divergence': kl_divergence,
-        'relative_entropy': relative_entropy,
-        'wasserstein_dist': wasserstein_dist,
-        'jensenshannon_dist': jensenshannon_dist,
-        'ks_stat': ks_stats[0]
-    }
-    
-    return df
+        # Load logits for the current word
+        model_logits = load_logits(models_dir, model_name, task, window_size, word_index)
+            
+        # Turn logits into probabilities and get top probability and prediction
+        model_dist = F.softmax(model_logits, dim=-1).squeeze()
+        model_prob = model_dist.max().item()
+        model_prediction = tokenizer.decode(model_dist.argmax())
+
+        # Entropy of model distribution
+        model_entropy = stats.entropy(model_dist)
+        
+        # Token for ground truth word & predictability (probability of ground truth word)
+        ground_truth_token = tokenizer.encode(ground_truth)
+        model_predictability = model_dist[ground_truth_token].mean(0).item() # average over items in case it is multiple tokens
+        model_log_odds_predictability = special.logit(model_predictability)
+
+        ###############################################
+        ##### Calculate human probability metrics #####
+        ###############################################
+
+        # Probability distribution for humans & associated words
+        human_dist, unique_words = get_human_probs(human_responses)
+        human_prob = human_dist.max()
+        human_prediction = unique_words[human_dist.argmax()]
+
+        # Entropy of human distribution
+        human_entropy = stats.entropy(human_dist)
+
+        # Find respective human predictability
+        human_predictability = sum(np.asarray(human_responses) == ground_truth) / len(human_responses)
+        
+        # Substitute small value to avoid inf error
+        if human_predictability == 0:
+            human_log_odds_predictability = special.logit(1e-2)
+        else:
+            human_log_odds_predictability = special.logit(human_predictability)
+        
+        ########################################################
+        ##### Trim model distribution to human predictions #####
+        ########################################################
+
+        # Add entries for words predicted within the other modality
+        temp = np.zeros(len(all_responses)) # initialize an empty array
+        word_idxs = [all_responses.index(word) for word in unique_words] # get indices of current responses within that array
+        temp[word_idxs] = human_dist # insert probabilities
+        human_dist = temp # set to the human distribution
+        
+        # Match the model distribution to the human distribution
+        # Find probability of words human chose in the model distribution --> then normalize
+        model_adjusted_dist = np.asarray([nlp.get_word_prob(tokenizer, word, model_logits) for word in all_responses])
+        model_adjusted_dist = model_adjusted_dist / model_adjusted_dist.sum()
+
+        # Find probability of the top word in the adjusted distribution & word humans chose
+        model_prob_adjusted = model_adjusted_dist[model_adjusted_dist.argmax()]
+        model_prob_human_prediction = model_adjusted_dist[human_dist.argmax()]
+
+        # Grab the human and model top words
+        model_prediction_adjusted = all_responses[model_adjusted_dist.argmax()]
+
+        ###############################################
+        #### Compare human and model distributions ####
+        ###############################################
+
+        # KL divergence between human (P) and model (Q) distributions
+        # Measures how different P is from Q --> expected excess surprise
+        # from using Q as a model when the actual distribution is P
+        kl_divergence = special.kl_div(human_dist, model_adjusted_dist)
+        kl_divergence[np.isinf(kl_divergence)] = 0
+        kl_divergence = kl_divergence.sum().item()
+
+        # Jensen-Shannon distance (or divergence) is a metric version of KL divergence
+        # Measures the similarity between two distributions (a symmetric version of KL)
+        jensenshannon_dist = distance.jensenshannon(human_dist, model_adjusted_dist)
+        
+        # Earth Movers Distance (EMD)
+        # Measures the dissimilarity of two frequency distributions
+        earthmovers_dist = stats.wasserstein_distance(human_dist, model_adjusted_dist)
+        
+        # Kolmogorov-Smirnov test for goodness-of-fit
+        # Tests if two distributions significantly differ 
+        ks_stat = stats.kstest(human_dist, model_adjusted_dist)
+
+        ###############################################
+        ######### Create dataframe and return #########
+        ###############################################
+        
+        # Create a dataframe to store the information
+        df_comparison.loc[len(df_comparison)] = {
+            'model_name': model_name,
+            'modality': modality,
+            'word_index': word_index,
+            'ground_truth': ground_truth,
+            'entropy_group': entropy_group,
+            'accuracy_group': accuracy_group,
+
+            # Human information
+            'human_top_word': human_prediction,
+            'human_prob': human_prob,
+            'human_predictability': human_predictability, 
+            'human_log_odds_predictability': human_log_odds_predictability.astype(float),
+            'human_entropy': human_entropy,
+
+            # Model information
+            'model_top_word': model_prediction,
+            'model_prob': model_prob,
+            'model_predictability': model_predictability,
+            'model_log_odds_predictability': model_log_odds_predictability.astype(float),
+            'model_entropy': model_entropy,
+
+            # Model adjusted distribution information
+            'model_prob_adjusted': model_prob_adjusted,
+            'model_prob_human_prediction': model_prob_human_prediction,
+            
+            # Comparison of distributions 
+            'kl_divergence': kl_divergence,
+            'earthmovers_dist': earthmovers_dist,
+            'jensenshannon_dist': jensenshannon_dist,
+            'ks_stat': ks_stat[0]
+        }
+
+    return df_comparison

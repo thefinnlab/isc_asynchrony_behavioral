@@ -9,11 +9,11 @@ BASE_DIR = '/dartfs/rc/lab/F/FinnLab/tommy/isc_asynchrony_behavior/'
 CACHE_DIR = '/dartfs/rc/lab/F/FinnLab/tommy/models/'
 ATLAS_DIR = '/dartfs/rc/lab/F/FinnLab/tommy/atlases/'
 DATASETS_DIR = '/dartfs/rc/lab/F/FinnLab/datasets/'
+SCRATCH_DIR = '/dartfs-hpc/scratch/f003rjw/'
 
 ## secondary directories
 SUBMIT_DIR = os.path.join(BASE_DIR, 'code', 'submit_scripts')
 LOGS_DIR = os.path.join(BASE_DIR, 'derivatives', 'logs')
-SCRATCH_DIR = '/dartfs-hpc/scratch/f003rjw'
 
 ## SET ATLAS DIRECTORIES
 os.environ['NILEARN_DATA'] = os.path.join(ATLAS_DIR, 'nilearn_data')
