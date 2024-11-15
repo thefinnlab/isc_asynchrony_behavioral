@@ -42,7 +42,7 @@ def calculate_prosody_metrics(df_prosody, n_prev=3, remove_characters=[], zscore
     # go through the past x words 
     all_items = []
     
-    for idx in start_idxs:
+    for idx in tqdm(start_idxs):
         # get the prosody of the n_prev words
         if idx >= 0:
             n_prev_prosody = prosody_raw[idx:idx+n_prev]
@@ -52,27 +52,27 @@ def calculate_prosody_metrics(df_prosody, n_prev=3, remove_characters=[], zscore
             prosody_mean = n_prev_prosody.mean()
             prosody_std = n_prev_prosody.std()
 
-            relative = prosody_raw[idx+n_prev] - prosody_mean
-            relative_norm = relative / prosody_std
+            relative_prosody = prosody_raw[idx+n_prev] - prosody_mean
+            relative_prosody_norm = relative_prosody / prosody_std
 
             # get mean and std of n_prev prosodic boundaries
             boundary_mean = n_prev_boundary.mean()
             boundary_std = n_prev_boundary.std()
             
         else:
-            prosody_mean = prosody_std = relative = relative_norm = np.nan
+            prosody_mean = prosody_std = relative_prosody = relative_prosody_norm = np.nan
             boundary_mean = boundary_std = np.nan
         
         all_items.append(
-            (prosody_mean, prosody_std, relative, relative_norm, boundary_mean, boundary_std)
+            (prosody_mean, prosody_std, relative_prosody, relative_prosody_norm, boundary_mean, boundary_std)
         )
 
-    prosody_mean, prosody_std, relative_prosody, relative_norm, boundary_mean, boundary_std = zip(*all_items)
+    prosody_mean, prosody_std, relative_prosody, relative_prosody_norm, boundary_mean, boundary_std = zip(*all_items)
 
-    df_prosody['prosody_mean'] = prosody_mean
-    df_prosody['prosody_std'] = prosody_std
-    df_prosody['relative_prosody'] = relative_prosody
-    df_prosody['relative_norm'] = relative_norm
+    df_prosody['prominence_mean'] = prosody_mean
+    df_prosody['prominence_std'] = prosody_std
+    df_prosody['relative_prominence'] = relative_prosody
+    df_prosody['relative_prominence_norm'] = relative_prosody_norm
     df_prosody['boundary_mean'] = boundary_mean
     df_prosody['boundary_std'] = boundary_std
 

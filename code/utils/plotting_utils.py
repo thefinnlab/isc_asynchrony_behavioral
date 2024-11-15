@@ -19,10 +19,10 @@ def linear_norm(x, min, max):
 def get_ordered_accuracy(df_human_models, word_model_name='fasttext'):
     
     # Get order of models by binary accuracy
-    ordered_accuracy = df_human_models.loc[:,['modality', f'{word_model_name}_avg_accuracy']] \
+    ordered_accuracy = df_human_models.loc[:,['modality', f'{word_model_name}_top_word_accuracy']] \
         .groupby(['modality']) \
         .mean() \
-        .sort_values(by=f'{word_model_name}_avg_accuracy').index[::-1]
+        .sort_values(by=f'{word_model_name}_top_word_accuracy').index[::-1]
 
     return ordered_accuracy
 
@@ -197,7 +197,8 @@ def create_joint_density_plot(
     """
     
     # Calculate human vs model contrasts
-    accuracy_type = f'{word_model_name}_avg_accuracy'
+    accuracy_type = f'{word_model_name}_top_word_accuracy'
+    quadrant_accuracy_type = f'{word_model_name}_avg_accuracy'
     
    # Calculate weights DataFrame
     df_weights = calculate_weights(df_human_models, accuracy_type)
@@ -211,7 +212,7 @@ def create_joint_density_plot(
     cmap = cm.get_cmap(cmap_name)
 
     # Create joint plot
-    g = sns.JointGrid(data=model_results, x=accuracy_type, y="entropy", space=0)
+    g = sns.JointGrid(data=model_results, x=quadrant_accuracy_type, y="entropy", space=0)
 
     # # Create custom norm for colormap centered at mean
     # norm = TwoSlopeNorm(vmin=0, vcenter=0.5, vmax=1)
@@ -259,9 +260,9 @@ def create_joint_density_plot(
     g.plot_marginals(sns.kdeplot, color=cmap(0.5), fill=True, bw_adjust=bw_adjust)
     
     # Add median lines
-    x_median = np.nanmedian(model_results[accuracy_type])
+    x_median = np.nanmedian(model_results[quadrant_accuracy_type])
     y_median = np.nanmedian(model_results['entropy'])
-    xmin, xmax = model_results[accuracy_type].min(), model_results[accuracy_type].max()
+    xmin, xmax = model_results[quadrant_accuracy_type].min(), model_results[quadrant_accuracy_type].max()
     ymin, ymax = model_results['entropy'].min(), model_results['entropy'].max()
     
     xmax *= 1.05

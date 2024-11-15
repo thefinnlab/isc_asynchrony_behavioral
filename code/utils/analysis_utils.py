@@ -14,9 +14,9 @@ import torch
 from torch.nn import functional as F
 
 from config import *
-import nlp_utils as nlp
-from preproc_utils import load_model_results
-from text_utils import get_lemma, strip_punctuation
+from tommy_utils import nlp
+from preproc_utils import divide_nwp_dataframe, load_model_results
+from text_utils import get_pos_tags, get_lemma, strip_punctuation
 
 
 ###############################################
@@ -70,6 +70,7 @@ def lemmatize_word(word, df_transcript, word_index, remove_stopwords=False):
     context, index = make_transcript_context(word, df_transcript, word_index)
     lemmatized_word, _ = get_pos_tags([context])[index]
     lemmatized_word = get_lemma(lemmatized_word, _, remove_stopwords=remove_stopwords)
+    
     return lemmatized_word
 
 def lemmatize_responses(df_results, df_transcript, response_column='response', debug=False):
@@ -88,7 +89,7 @@ def lemmatize_responses(df_results, df_transcript, response_column='response', d
 
     print (f'Lemmatizing column: {response_column}')
 
-    for _, row in df_results.iterrows():
+    for _, row in tqdm(df_results.iterrows()):
 
         # Lemmatize the response
         response_lemma = lemmatize_word(
@@ -104,6 +105,13 @@ def lemmatize_responses(df_results, df_transcript, response_column='response', d
             print(f'Word: {row[response_column]} \t Lemma: {response_lemma}')
     
     return df_results
+
+def calculate_response_accuracy(df):
+    # compare response to ground truth --> cast as integer
+    df['accuracy'] = df['response'] == df['ground_truth']
+    df['accuracy'] = df['accuracy'].astype(int)
+
+    return df
 
 # def calculate_results_accuracy(df_results):
 
@@ -134,12 +142,12 @@ def get_audio_duration(filepath):
     y, sr = librosa.load(filepath, sr=None)
     return librosa.get_duration(y=y, sr=sr) * 1000
 
-def get_subject_audio_durations(stim_dir, n_orders=3):
+def get_subject_audio_durations(audio_dir, n_orders=3):
     """
     Get the audio durations for all stimulus files in a directory.
 
     Parameters:
-    stim_dir (str): Directory path containing the stimulus files.
+    audio_dir (str): Directory path containing the stimulus files.
     n_orders (int, optional): Number of stimulus presentation orders. Defaults to 3.
 
     Returns:
@@ -151,7 +159,7 @@ def get_subject_audio_durations(stim_dir, n_orders=3):
 
     # Iterate over the stimulus orders
     for order in range(1, n_orders + 1):
-        order_dir = os.path.join(stim_dir, f'sub-{str(order).zfill(5)}')
+        order_dir = os.path.join(audio_dir, f'sub-{str(order).zfill(5)}')
         audio_files = sorted(glob.glob(os.path.join(order_dir, '*')))
 
         # Iterate over the audio files and get the durations
@@ -206,13 +214,13 @@ def load_participant_results(sub_dir, sub):
     return prolific_id, demographics, experience, responses
 
 
-def aggregate_participant_responses(results_dir, stim_dir, task, modality, n_orders=3, debug=False):
+def aggregate_participant_responses(results_dir, audio_dir, task, modality, n_orders=3, debug=False):
     """
     Aggregate participant responses for a given task and modality.
 
     Parameters:
     results_dir (str): Directory path containing the participant results.
-    stim_dir (str): Directory path containing the stimulus files.
+    audio_dir (str): Directory path containing the stimulus files.
     task (str): Name of the task.
     modality (str): Modality of the task (e.g., 'audio', 'visual').
     n_orders (int, optional): Number of stimulus presentation orders. Defaults to 3.
@@ -227,7 +235,7 @@ def aggregate_participant_responses(results_dir, stim_dir, task, modality, n_ord
     df_results = pd.DataFrame(columns=columns)
 
     # Get the subject audio durations
-    df_order_durations = get_subject_audio_durations(os.path.join(stim_dir, task), n_orders=n_orders)
+    df_order_durations = get_subject_audio_durations(os.path.join(audio_dir, task), n_orders=n_orders)
 
     # Get subject directories
     sub_dirs = sorted(glob.glob(os.path.join(results_dir, task, modality, f'sub*')))
@@ -304,6 +312,9 @@ def analyze_human_results(df_transcript, df_results, word_model_info, window_siz
     word_model_name, word_model = word_model_info
     modality = np.unique(df_results['modality'])[0]
 
+    # Clean responses for nans
+    df_results.loc[:, 'response'] = df_results['response'].apply(lambda x: strip_punctuation(x) if isinstance(x, str) else '')
+
     # Instantiate the dataframe
     df_analysis = pd.DataFrame(columns=[
         'modality',
@@ -336,7 +347,7 @@ def analyze_human_results(df_transcript, df_results, word_model_info, window_siz
     segments = nlp.get_segment_indices(n_words=len(df_transcript), window_size=window_size, bidirectional=True)
     
     # Go through each response word 
-    for index, df_index in tqdm(df_results.groupby('word_index')):
+    for (modality, index), df_index in tqdm(df_results.groupby(['modality', 'word_index'])):
 
         # Grab global information across participants
         ground_truth, entropy_group, accuracy_group = df_index \
@@ -415,8 +426,8 @@ def analyze_human_results(df_transcript, df_results, word_model_info, window_siz
         #######    using the current word model                          #########
         ##########################################################################
 
-        top_word_accuracy, _ = nlp.get_word_vector_metrics(word_model, [top_word], ground_truth[0])
-        max_pred_similarity, _ = nlp.get_word_vector_metrics(word_model, top_n_words, ground_truth[0], method='max')
+        top_word_accuracy, _ = nlp.get_word_vector_metrics(word_model, [top_word], ground_truth)
+        max_pred_similarity, _ = nlp.get_word_vector_metrics(word_model, top_n_words, ground_truth, method='max')
 
         ##########################################################################
         ####### 3. Contextual continuous accuracy:                       #########
@@ -455,7 +466,7 @@ def analyze_human_results(df_transcript, df_results, word_model_info, window_siz
 
         # pred_similarity = similarity of all words to ground truth word
         # pred_distances = similarity of all words from each other
-        pred_similarity, pred_distances = nlp.get_word_vector_metrics(word_model, top_n_words, ground_truth[0])
+        pred_similarity, pred_distances = nlp.get_word_vector_metrics(word_model, top_n_words, ground_truth)
         
         # Weight these scores by the probability (e.g., more probable items contribute more)
         weighted_pred_distances = np.nanmean(pred_distances * sorted_probs)
@@ -520,33 +531,19 @@ def load_logits(model_dir, model_name, task, window_size, word_index):
     
     return torch.load(logits_fns[0])
     
-# def get_model_word_quadrants(df_model_results, df_transcript, task, selected_idxs=None, accuracy_type='fasttext_avg_accuracy', accuracy_percentile=50, top_n=5, window_size=25):
-    
-#     # # FOR DIVIDING THE MODEL RESULTS INTO QUADRANTS
-#     # ACCURACY_TYPE = accuracy_type
-#     # ACCURACY_PERCENTILE = 50
-#     # WINDOW_SIZE = 100
-#     # TOP_N = 5
-    
-#     # preproc_dir = os.path.join(BASE_DIR, 'stimuli', 'preprocessed')
-    
-#     # load our preprocessed file --> get the indices of the prediction words
-#     # df_preproc = pd.read_csv(os.path.join(preproc_dir, task, f'{task}_transcript-preprocessed.csv'))
+def get_model_word_quadrants(models_dir, model_name, task, window_size=25, top_n=5, candidate_rows=None, accuracy_type='fasttext_avg_accuracy', accuracy_percentile=50):
 
-#     selected_rows = np.where(df_transcript['NWP_Candidate'])[0]
+    # select based on model quadrants --> trim down to only the words of interest
+    df_model_results = load_model_results(models_dir, model_name=model_name, task=task, window_size=window_size, top_n=top_n)
+    df_model_results = df_model_results.iloc[candidate_rows]
     
-#     # select based on model quadrants --> trim down to only the words of interest
-#     # df_model_results = load_model_results(models_dir, model_name=model_name, task=task, window_size=WINDOW_SIZE, top_n=TOP_N)
-#     # model_results.loc[:, 'binary_accuracy'] = model_results['binary_accuracy'].astype(bool)
-#     # model_results = model_results.iloc[nwp_idxs]
+    # now grab the current model divided over the 50th percentile
+    # while we originally divided words on the 45th percentile of gpt2, we want to see patterns across models
+    df_divide = divide_nwp_dataframe(df_model_results, accuracy_type=accuracy_type, percentile=accuracy_percentile, drop=False)
     
-#     # now grab the current model divided over the 50th percentile
-#     # while we originally divided words on the 45th percentile of gpt2, we want to see patterns across models
-#     df_divide = divide_nwp_dataframe(model_results, accuracy_type=accuracy_type, percentile=accuracy_percentile, drop=False)
-    
-#     return df_divide.loc[selected_idxs, ['entropy_group', 'accuracy_group']]
+    return df_divide
 
-def analyze_model_accuracy(df_transcript_selected, models_dir, model_name, word_model_info, task, top_n=1, window_size=25):
+def analyze_model_accuracy(df_transcript, word_model_info, models_dir, model_name, task, top_n=1, window_size=25, candidate_rows=None, lemmatize=False):
     """
     Perform analysis of model predictions (similar to analyze_human_results). Formats
     the model predictions dataframe similar to the human dataframe so the two can be collapsed.
@@ -558,14 +555,15 @@ def analyze_model_accuracy(df_transcript_selected, models_dir, model_name, word_
 
     # Rows for words used in the next-word prediction experiment
     # Columns of the model predictions that we care about for comparison
-    selected_rows = np.where(df_transcript_selected['NWP_Candidate'])[0]
-    selected_columns = ['ground_truth_word', 'top_n_predictions', 'top_prob', 'ground_truth_prob', f'{word_model_name}_avg_accuracy', 'entropy']
+    selected_rows = np.where(df_transcript['NWP_Candidate'])[0]
+    selected_columns = ['ground_truth_word', 'top_n_predictions', 'top_prob', 'ground_truth_prob', f'{word_model_name}_max_accuracy', 'entropy']
 
     # Load results for the specified model -- this is output from the prediction-extraction script
     df_model_results = load_model_results(models_dir, model_name=model_name, task=task, top_n=top_n, window_size=window_size)
 
     # Grab model binarized entropy/accuracy quadrants
-    # df_model_quadrants = get_model_word_quadrants(model_name, task, selected_rows, accuracy_type=f'{word_model_name}_max_accuracy').reset_index(drop=True)
+    df_model_quadrants = get_model_word_quadrants(models_dir, model_name=model_name, task=task, window_size=window_size, candidate_rows=candidate_rows)
+    df_model_quadrants = df_model_quadrants.loc[selected_rows, ['entropy_group', 'accuracy_group']]
 
     # Select only the words used for next-word prediction
     df_model_results = df_model_results.loc[selected_rows, selected_columns].reset_index()
@@ -577,29 +575,40 @@ def analyze_model_accuracy(df_transcript_selected, models_dir, model_name, word_
             'ground_truth_word': 'ground_truth',
             'ground_truth_prob': 'predictability', 
             'top_n_predictions': 'top_pred',
+            f'{word_model_name}_max_accuracy': 'fasttext_top_word_accuracy',
     })
 
     # Add other information to the dataframe
     df_model_results['modality'] = model_name
     df_model_results['accuracy'] = (df_model_results['top_pred'] == df_model_results['ground_truth']).astype(int) # binary accuracy
+    df_model_results[['entropy_group', 'accuracy_group']] = df_model_quadrants.loc[:, ['entropy_group', 'accuracy_group']].reset_index(drop=True)
 
-    # df_model_results.loc[:, ['entropy_group', 'accuracy_group']] = df_model_quadrants.loc[: ['entropy_group', 'accuracy_group']] 
+    print (f"Total missing values: {df_model_results[f'{word_model_name}_top_word_accuracy'].isna().sum()}")
 
-    # if lemmatize:
-    #     # Lemmatize the response and the ground truth
-    #     for response_col in ['top_pred', 'ground_truth']:
-    #         df_model_results = lemmatize_responses(df_model_results, df_transcript_selected, response_column=response_col)
+    # If specified lemmatize and recalculate accuracy
+    if lemmatize:
+        df_model_results = lemmatize_responses(df_model_results, df_transcript, response_column='top_pred')
+        df_model_results = lemmatize_responses(df_model_results, df_transcript, response_column='ground_truth')
 
-    print (f"Total missing values: {df_model_results[f'{word_model_name}_avg_accuracy'].isna().sum()}")
+        for i, row in tqdm(df_model_results.iterrows()):
+
+            top_word, ground_truth = row[['top_pred', 'ground_truth']]
+
+            # Calculate binary & continuous accuracy
+            accuracy = int(top_word == ground_truth)
+            top_word_accuracy, _ = nlp.get_word_vector_metrics(word_model, [top_word], ground_truth)
+
+            # Update dataframe
+            df_model_results.loc[i, ['accuracy', f'{word_model_name}_top_word_accuracy']] = [accuracy, top_word_accuracy]
 
     return df_model_results
-
 
 def compare_human_model_distributions(df_human_results, models_dir, model_name, task, top_n=1, window_size=25):
 #tokenizer, word_model, human_responses, all_responses, model_logits, ground_truth):
 
     # Load the tokenizer 
-    tokenizer, _ = nlp.load_clm_model(model_name='gpt2' if 'prosody' in model_name else model_name, 
+    tokenizer, _ = nlp.load_clm_model(
+        model_name='gpt2' if 'prosody' in model_name else model_name, 
         cache_dir=CACHE_DIR
     )
 

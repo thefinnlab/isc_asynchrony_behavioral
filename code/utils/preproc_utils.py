@@ -630,14 +630,6 @@ def load_model_results(model_dir, model_name, task, window_size, top_n):
     df_model_results = pd.read_csv(results_fn)
     df_model_results.loc[1:, 'top_n_predictions'] = df_model_results.loc[1:, 'top_n_predictions'].apply(safe_eval)
     
-    # model_results['glove_avg_accuracy'] = model_results['glove_avg_accuracy'] #.apply(np.nan_to_num)
-    # model_results['word2vec_avg_accuracy'] = model_results['word2vec_avg_accuracy'] #.apply(np.nan_to_num)
-    # model_results['fasttext_avg_accuracy'] = model_results['fasttext_avg_accuracy'] #.apply(np.nan_to_num)
-
-    # model_results['glove_max_accuracy'] = model_results['glove_max_accuracy'] #.apply(np.nan_to_num)
-    # model_results['word2vec_max_accuracy'] = model_results['word2vec_max_accuracy'] #.apply(np.nan_to_num)
-    # model_results['fasttext_max_accuracy'] = model_results['fasttext_max_accuracy'] #.apply(np.nan_to_num)
-    
     return df_model_results
 
 def divide_nwp_dataframe(df, accuracy_type, percentile, drop=True):

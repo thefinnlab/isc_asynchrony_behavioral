@@ -85,7 +85,7 @@ if __name__ == "__main__":
     for ax, (task, df) in zip(axes, df_results.groupby('task')):
         plt.sca(ax)
         ax = utils.plot_bar_results(df, x='modality', y=variable, hue=None, order=human_models_order, cmap=cmap, figsize=None, add_points=False)
-        ax.set_ylim([0, 100])
+        ax.set_ylim([0, 1])
         ax.set_title(f'Task - {task}')
         plt.xticks(rotation=45, ha='right')
 
@@ -107,7 +107,7 @@ if __name__ == "__main__":
     plt.xlabel('Modality/Model')
     plt.xticks(rotation=45, ha='right')
     
-    plt.ylim([0, 100])
+    plt.ylim([0, 1])
     plt.ylabel('Accuracy (Percent Correct)')
     plt.title(f'All task - binary accuracy')
     plt.tight_layout()
@@ -122,7 +122,7 @@ if __name__ == "__main__":
     fig, axes = plt.subplots(1,3, figsize=(15, 5))
     axes = axes.flatten()
 
-    variable = f'{p.word_model}_avg_accuracy'
+    variable = f'{p.word_model}_top_word_accuracy'
 
     for ax, (task, df) in zip(axes, df_results.groupby('task')):
         plt.sca(ax)
@@ -143,7 +143,7 @@ if __name__ == "__main__":
     ###########################################################
 
     # plot top word accuracy for humans
-    variable = f'{p.word_model}_avg_accuracy'
+    variable = f'{p.word_model}_top_word_accuracy'
 
     cmap = utils.create_spoken_written_cmap(continuous=False)
     ax = utils.plot_bar_results(df_results, x='modality', y=variable, hue=None, order=human_models_order, cmap=cmap, figsize=(6,5), add_points=False)

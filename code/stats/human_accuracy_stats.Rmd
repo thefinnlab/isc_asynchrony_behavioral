@@ -1,0 +1,293 @@
+---
+title: "human_accuracy_stats"
+author: "Tommy Botch"
+date: "2024-11-15"
+output: html_document
+---
+
+# Setup environment
+
+## Load packages
+
+```{r}
+# remove all variables
+rm(list=ls()) 
+
+# install.packages(c("lmerTest", "emmeans", "glue", "ggeffects", "ggplot2", 
+#                    "ggsignif", "ggpattern", "viridis", "forcats", "dplyr",
+#                    "stringr", "tools", "lmer4", "combinat", "ggpubr", "report",
+#                    "rcompanion", "sjPlot", "glmmTMB", "DHARMa", "tidyverse"))
+
+library(lmerTest)
+library(emmeans)
+library(glue)
+library(ggeffects)
+library(ggplot2)
+library(sjPlot)
+library(report)
+library(rcompanion)
+library(sjPlot)
+
+library(DHARMa)
+library(glmmTMB)
+library(tidyverse)
+library(performance)
+library(ordinal)
+```
+
+## Prepare directories
+
+Set up directories - since we're doing this locally (and mounting the server), 
+we're going to use a different base_dir
+
+```{r}
+
+base_dir<-'/Volumes/FinnLab/tommy/isc_asynchrony_behavior/derivatives/'
+results_dir<-glue('{base_dir}results/behavioral/')
+plots_dir <- glue('{base_dir}plots/final/')
+
+```
+
+## Functions
+
+```{r}
+# Function to convert specified columns to factors
+convert_columns_to_factors <- function(df, columns_to_convert) {
+  # Check if all specified columns exist in the dataframe
+  if (!all(columns_to_convert %in% names(df))) {
+    missing_cols <- columns_to_convert[!columns_to_convert %in% names(df)]
+    stop(paste("The following columns do not exist in the dataframe:", 
+               paste(missing_cols, collapse = ", ")))
+  }
+  
+  # Convert each specified column to factor
+  for (col in columns_to_convert) {
+    df[[col]] <- factor(df[[col]])
+  }
+  
+  return(df)
+}
+
+```
+
+# Run human participant analysis
+
+## Data loading
+
+Load data and set factor columns 
+
+```{r}
+
+# Load the results file
+results_fn<-glue('{results_dir}all-task_group-analyzed-behavior_human-lemmatized.csv')
+df_results <- read.csv(results_fn)
+
+# Set the variable types
+factor_columns <- c('modality', 'ground_truth', 'word_index', 'top_pred', 'task')
+df_results <- convert_columns_to_factors(df_results, factor_columns)
+df_results
+```
+## Binary accuracy
+
+### Logistic regression 
+
+Classify accuracy based on modality. Conduct a contrast of audio > text
+
+```{r}
+
+# subject model for accuracy --> test if audio > text
+audio_greater_text <- c(1,-1)
+contrasts(df_results$modality) <- cbind(audio_greater_text)
+
+binary_accuracy_formula <- 'accuracy ~ modality + (1|word_index:task)'
+
+# Fit the logistic mixed-effects model
+model <- glmer(binary_accuracy_formula, 
+               data = df_results, 
+               family = binomial(link = "logit"))
+
+tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
+summary (model)
+```
+
+### Prosody interaction
+
+Rerun the logistic regression with the mean prosody included as an interaction effect. 
+
+```{r}
+
+# subject model for accuracy --> test if audio > text
+audio_greater_text <- c(1,-1)
+contrasts(df_results$modality) <- cbind(audio_greater_text)
+
+binary_accuracy_formula <- 'accuracy ~ modality * prominence_mean + (1|word_index:task)'
+
+# Fit the logistic mixed-effects model
+model <- glmer(binary_accuracy_formula, 
+               data = df_results, 
+               family = binomial(link = "logit"))
+
+tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
+summary (model)
+
+```
+
+### Plot interaction model
+
+```{r}
+
+plot_model(model, type="pred", terms=c("prominence_mean", "modality"))
+```
+
+
+## Continuous accuracy
+
+### Linear mixed-effects model
+
+Predict accuracy based on modality 
+
+```{r}
+
+# subject model for accuracy --> test if audio > text
+audio_greater_text <- c(1,-1)
+contrasts(df_results$modality) <- cbind(audio_greater_text)
+
+continuous_accuracy_formula <- 'fasttext_top_word_accuracy ~ modality + (1|word_index:task)'
+
+# Fit the logistic mixed-effects model
+model <- lmer(continuous_accuracy_formula, data=df_results)
+
+tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
+summary (model)
+```
+
+### Include prosody within model
+
+```{r}
+
+# subject model for accuracy --> test if audio > text
+audio_greater_text <- c(1,-1)
+contrasts(df_results$modality) <- cbind(audio_greater_text)
+
+continuous_accuracy_formula <- 'fasttext_top_word_accuracy ~ modality * prominence_mean + (1|word_index:task)'
+
+# Fit the logistic mixed-effects model
+model <- lmer(continuous_accuracy_formula, data=df_results)
+
+tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
+summary (model)
+
+plot_model(model, type='pred', terms=c('prominence_mean', 'modality'))
+```
+```
+
+### Try beta distribution
+
+```{r}
+
+library(GLMMadaptive)
+
+normalize <- function(x){(x-min(x))/(max(x)-min(x))}
+
+df_results$fasttext_top_word_distance <- normalize(1 - df_results$fasttext_top_word_accuracy)
+df_results[df_results$fasttext_top_word_distance == 1,]$fasttext_top_word_distance <- 0.999
+
+
+# Fit zero-one inflated beta mixed model
+model <- glmmTMB(
+  fasttext_top_word_distance ~ modality  + (1|word_index),  # Main beta component
+  ziformula = ~  modality + (1|word_index),  # Zero-inflation component
+  data = df_results,
+  family = beta_family(),
+)
+
+tab_model(model)
+
+check_model(model)
+```
+
+```{r}
+
+# library(GLMMadaptive)
+# library(stats)
+# library(truncnorm)
+# 
+# hurdle_normal <- function() {
+#     # Initialize variables for the family
+#     stats <- make.link("identity")
+#     
+#     # Define variance function
+#     variance <- function(mu) 1
+#     
+#     # Define initialization function
+#     initialize <- expression({
+#         n <- rep.int(1, nobs)
+#         mustart <- y
+#     })
+#     
+#     # Define log density function
+#     log_dens <- function(y, eta, phi) {
+#         mu <- eta  # Identity link for normal part
+#         pi <- plogis(phi[1])  # Probability of being equal to 1
+#         sigma <- exp(phi[2])  # Standard deviation
+#         
+#         # Calculate log-likelihood
+#         log_probs <- numeric(length(y))
+#         
+#         # For observations equal to 1
+#         ones <- y == 1
+#         log_probs[ones] <- log(pi)
+#         
+#         # For observations less than 1
+#         less_than_one <- !ones
+#         if (any(less_than_one)) {
+#             log_probs[less_than_one] <- log(1 - pi) + 
+#                 dtruncnorm(y[less_than_one], 
+#                           a = -Inf,  # Changed from 1 to -Inf for normal distribution
+#                           b = 1,     # Upper bound at 1
+#                           mean = mu[less_than_one], 
+#                           sd = sigma, 
+#                           log = TRUE)
+#         }
+#         
+#         # Calculate score (derivative of log-likelihood with respect to eta)
+#         score <- numeric(length(y))
+#         score[less_than_one] <- (y[less_than_one] - mu[less_than_one]) / (sigma^2)
+#         score[ones] <- 0
+#         
+#         list(log_dens = log_probs,
+#              score = score)
+#     }
+#     
+#     # Create the family object
+#     structure(list(
+#         family = "hurdle_normal",
+#         link = "identity",
+#         linkfun = stats$linkfun,
+#         linkinv = stats$linkinv,
+#         variance = variance,
+#         dev.resids = function(...) NA,
+#         aic = function(...) NA,
+#         mu.eta = stats$mu.eta,
+#         initialize = initialize,
+#         log_dens = log_dens,
+#         valid.mu = function(mu) TRUE,
+#         valid.eta = function(eta) TRUE,
+#         n_phis = 2  # Two extra parameters: pi and sigma
+#     ), class = "family")
+# }
+
+# check_model(model)
+```
+
+```{r}
+
+ # model <- mixed_model(
+ #        fixed = fasttext_top_word_accuracy ~ modality,
+ #        random = ~ 1|word_index:task,
+ #        data = df_results,
+ #        family = hurdle_normal(),
+ #        n_phis = 2,
+ #        nAGQ = 7  # Reduced from 15 for better convergence
+ #    )
+```
