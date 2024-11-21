@@ -1,8 +1,10 @@
 import os, sys
 import argparse
 import pandas as pd
+import numpy as np
 
 from matplotlib import pyplot as plt
+import matplotlib.patches as patches
 import seaborn as sns
 
 sys.path.append('../utils/')
@@ -12,6 +14,8 @@ from config import *
 from tommy_utils import nlp
 from dataset_utils import attempt_makedirs
 import plotting_utils as utils
+
+FIGSIZE = (6,5)
 
 if __name__ == "__main__":
 
@@ -102,7 +106,7 @@ if __name__ == "__main__":
 
     # plot top word accuracy for humans
     cmap = utils.create_spoken_written_cmap(continuous=False)
-    ax = utils.plot_bar_results(df_results, x='modality', y='accuracy', hue=None, order=human_models_order, cmap=cmap, figsize=(6,5), add_points=False)
+    ax = utils.plot_bar_results(df_results, x='modality', y='accuracy', hue=None, order=human_models_order, cmap=cmap, figsize=FIGSIZE, add_points=False)
     
     plt.xlabel('Modality/Model')
     plt.xticks(rotation=45, ha='right')
@@ -146,12 +150,12 @@ if __name__ == "__main__":
     variable = f'{p.word_model}_top_word_accuracy'
 
     cmap = utils.create_spoken_written_cmap(continuous=False)
-    ax = utils.plot_bar_results(df_results, x='modality', y=variable, hue=None, order=human_models_order, cmap=cmap, figsize=(6,5), add_points=False)
+    ax = utils.plot_bar_results(df_results, x='modality', y=variable, hue=None, order=human_models_order, cmap=cmap, figsize=FIGSIZE, add_points=False)
 
     plt.xlabel('Task')
     plt.xticks(rotation=45, ha='right')
 
-    plt.ylim([0, 0.75])
+    plt.ylim([0, 1.0])
     plt.ylabel('Cosine similarity')
     
     plt.title(f'All task - continuous accuracy')
@@ -205,7 +209,7 @@ if __name__ == "__main__":
     sns.set(style='white', rc={'figure.figsize':(8,5)})
 
     cmap = utils.create_spoken_written_cmap(continuous=False)
-    ax = utils.plot_bar_results(df, x='model_name', y="kl_divergence", hue="modality", order=models_order, cmap=cmap, figsize=(8,5), add_points=False)
+    ax = utils.plot_bar_results(df, x='model_name', y="kl_divergence", hue="modality", order=models_order, cmap=cmap, figsize=(7,5), add_points=False)
 
     plt.xticks(rotation=45, ha='right')
 
@@ -221,3 +225,57 @@ if __name__ == "__main__":
 
     # sns.barplot(data=df_kl_div, x='model_name', y=variable, hue='modality', palette=cmap, order=ordered_modalities)
     # plt.ylim([0, 4.5])
+
+    #################################################
+    ###### Plot 5: Difference of KL Divergence ######
+    #################################################
+
+    # Define gradient colors
+    cmap = utils.create_spoken_written_cmap()
+
+    df_kl_difference = []
+
+    for (task, model_name), df in df_kl_div.groupby(['task', 'model_name']):
+        df_audio = df[df['modality'] == 'audio'].reset_index(drop=True)
+        df_text = df[df['modality'] == 'text'].reset_index(drop=True)
+
+        kl_diff = df_text['kl_divergence'] - df_audio['kl_divergence'] 
+
+        df_diff = pd.DataFrame(kl_diff, columns=['kl_divergence'])
+        df_diff['task'] = task
+        df_diff['model_name'] = model_name
+
+        df_kl_difference.append(df_diff)
+
+    df_kl_difference = pd.concat(df_kl_difference).reset_index(drop=True)
+
+    ax = sns.pointplot(df_kl_difference, x="kl_divergence", y="model_name",
+        color="black", markersize=4, linestyles="none", order=models_order,
+        errorbar='se',
+    )
+
+    plt.xlim([-1, 1])
+
+    xmin, xmax = ax.get_xlim()
+    ymin, ymax = ax.get_ylim()
+
+    # Create gradient rectangle
+    gradient_rect = patches.Rectangle(
+        (xmin, ymin), xmax - xmin, ymax - ymin,
+        transform=ax.transData,
+        color="white", alpha=0.2
+    )
+
+    ax.add_patch(gradient_rect)
+
+    # Use the gradient as an image in the background
+    ax.imshow(
+        np.linspace(0, 1, 256).reshape(1, -1),  # Create 1D gradient
+        aspect="auto", extent=(xmin, xmax, ymin, ymax),
+        origin="lower", cmap=cmap, alpha=0.75
+    )
+
+    ax.vlines(0, ymin=ymin, ymax=ymax, linestyle='--', color='0.5', linewidth=2)
+
+    plt.savefig(os.path.join(plots_dir, "all-task_human-llm-comparison_kl-divergence-difference.pdf"), bbox_inches='tight', dpi=600)
+    plt.close('all')

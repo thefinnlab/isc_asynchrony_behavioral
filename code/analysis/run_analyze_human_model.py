@@ -19,6 +19,7 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--model_names', type=str, nargs='+')
     parser.add_argument('-word_model', '--word_model_name', type=str, default='fasttext')
     parser.add_argument('-window_size', '--window_size', type=int, default=25)
+    parser.add_argument('-prosody', '--prosody', type=int, default=0)
     parser.add_argument('-o', '--overwrite', type=int, default=0)
     p = parser.parse_args()
 
@@ -106,7 +107,7 @@ if __name__ == '__main__':
 
     # # Analyze human lemmatized data
     # df_lemmatized_results = pd.read_csv(os.path.join(results_dir, f'task-{p.task}_group-cleaned-behavior_lemmatized.csv'))
-    # df_analyzed_lemmatized = analysis.analyze_human_results(df_transcript, df_results, word_model_info, window_size=p.window_size, top_n=None, drop_rt=None)
+    # df_analyzed_lemmatized = analysis.analyze_human_results(df_transcript, df_lemmatized_results, word_model_info, window_size=p.window_size, top_n=None, drop_rt=None)
 
     # # Add in prosody columns and add to the list
     # out_fn = os.path.join(results_dir, f'task-{p.task}_group-analyzed-behavior_human-lemmatized.csv')
@@ -146,10 +147,14 @@ if __name__ == '__main__':
     for model_name in p.model_names:
         print (model_name)
 
-        df_comparison = analysis.compare_human_model_distributions(df_lemmatized_results, models_dir=logits_dir, model_name=model_name, task=p.task)
+        df_comparison = analysis.compare_human_model_distributions(df_lemmatized_results, word_model_info, models_dir=logits_dir, model_name=model_name, task=p.task, lemmatize=True)
         df_comparison.loc[:, prosody_columns] = df_transcript.loc[df_comparison['word_index'], prosody_columns].reset_index(drop=True)
         df_all_comparisons.append(df_comparison)
 
-    out_fn = os.path.join(results_dir, f'task-{p.task}_group-analyzed-behavior_window-size-{p.window_size}_human-model-distributions-lemmatized.csv')
+    if p.prosody:
+        out_fn = os.path.join(results_dir, f'task-{p.task}_group-analyzed-behavior_window-size-{p.window_size}_human-prosody-model-distributions-lemmatized.csv')
+    else:
+        out_fn = os.path.join(results_dir, f'task-{p.task}_group-analyzed-behavior_window-size-{p.window_size}_human-model-distributions-lemmatized.csv')
+    
     df_all_comparisons = pd.concat(df_all_comparisons).reset_index(drop=True)
     df_all_comparisons.to_csv(out_fn, index=False)

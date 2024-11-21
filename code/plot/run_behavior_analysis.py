@@ -11,6 +11,8 @@ from config import *
 from dataset_utils import attempt_makedirs
 import plotting_utils as utils
 
+FIG_SIZE = (3,5)
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -51,7 +53,7 @@ if __name__ == "__main__":
     df_subject_accuracy = df_subject_results.groupby(['task', 'modality', 'subject'])['accuracy'].mean().reset_index()
 
     cmap = utils.create_spoken_written_cmap(continuous=False)
-    ax = utils.plot_bar_results(df_subject_accuracy, x='task', y='accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=(4,5))
+    ax = utils.plot_bar_results(df_subject_accuracy, x='task', y='accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE)
 
     plt.xlabel('Task')
     plt.ylabel('Accuracy (Percent Correct)')
@@ -90,7 +92,7 @@ if __name__ == "__main__":
 
     # no points for binary since it's 0 or 1
     cmap = utils.create_spoken_written_cmap(continuous=False)
-    ax = utils.plot_bar_results(df_results, x='task', y='accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=(4,5), add_points=False)
+    ax = utils.plot_bar_results(df_results, x='task', y='accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE, add_points=False)
     
     plt.xlabel('Task')
     plt.ylabel('Accuracy (Percent Correct)')
@@ -109,7 +111,7 @@ if __name__ == "__main__":
 
     # plot top word accuracy for humans
     cmap = utils.create_spoken_written_cmap(continuous=False)
-    ax = utils.plot_bar_results(df_results, x='task', y=f'{p.word_model}_top_word_accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=(4,5))
+    ax = utils.plot_bar_results(df_results, x='task', y=f'{p.word_model}_top_word_accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE)
 
     plt.xlabel('Task')
     plt.ylabel('Cosine similarity')
@@ -127,7 +129,7 @@ if __name__ == "__main__":
 
     # plot top word accuracy for humans
     cmap = utils.create_spoken_written_cmap(continuous=False)
-    ax = utils.plot_bar_results(df_results, x='task', y=f'weighted_accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=(4,5))
+    ax = utils.plot_bar_results(df_results, x='task', y=f'weighted_accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE)
 
     plt.xlabel('Task')
     plt.ylabel('Cosine similarity')
@@ -145,7 +147,7 @@ if __name__ == "__main__":
 
     # plot entropy of human distributions
     cmap = utils.create_spoken_written_cmap(continuous=False)
-    ax = utils.plot_bar_results(df_results, x='task', y='entropy', hue='modality', order=p.task_list, cmap=cmap, figsize=(4,5))
+    ax = utils.plot_bar_results(df_results, x='task', y='entropy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE)
 
     plt.xlabel('Task')
     plt.ylabel('Entropy')
@@ -164,7 +166,7 @@ if __name__ == "__main__":
 
     # plot entropy of human distributions
     cmap = utils.create_spoken_written_cmap(continuous=False)
-    ax = utils.plot_bar_results(df_results, x='task', y='normalized_entropy', hue='modality', order=p.task_list, cmap=cmap, figsize=(4,5))
+    ax = utils.plot_bar_results(df_results, x='task', y='normalized_entropy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE)
 
     plt.xlabel('Task')
     plt.ylabel('Entropy')
@@ -199,7 +201,7 @@ if __name__ == "__main__":
 
     for i, (task, df) in enumerate(df_predictability.groupby('task')):
         # lines of color to average skew = cmap(df['colors'].mean())
-        ax = sns.scatterplot(data=df, x='audio', y='text', hue='colors', palette=cmap, alpha=0.5, s=25, ax=ax, legend=False)
+        ax = sns.scatterplot(data=df, x='audio', y='text', color=cmap(df['colors']), alpha=0.75, s=25, ax=ax, legend=False)
         ax = sns.regplot(data=df, x='audio', y='text', color=line_cmap[i], scatter=False, label=task, ax=ax)
 
     plt.plot((0,1), (0, 1), 'k--')

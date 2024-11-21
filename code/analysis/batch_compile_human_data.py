@@ -11,7 +11,7 @@ sys.path.append('../utils/')
 from config import *
 import dataset_utils as utils
 
-PARTITION = 'preemptable'
+PARTITION = 'standard'
 TIME = '12:00:00'
 N_NODES = 1
 N_TASKS_PER_NODE = 1

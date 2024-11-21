@@ -603,8 +603,10 @@ def analyze_model_accuracy(df_transcript, word_model_info, models_dir, model_nam
 
     return df_model_results
 
-def compare_human_model_distributions(df_human_results, models_dir, model_name, task, top_n=1, window_size=25):
-#tokenizer, word_model, human_responses, all_responses, model_logits, ground_truth):
+def compare_human_model_distributions(df_human_results, word_model_info, models_dir, model_name, task, top_n=1, window_size=25, lemmatize=False):
+
+    # Get word model information
+    word_model_name, word_model = word_model_info
 
     # Load the tokenizer 
     tokenizer, _ = nlp.load_clm_model(
@@ -634,7 +636,8 @@ def compare_human_model_distributions(df_human_results, models_dir, model_name, 
         'kl_divergence',
         'earthmovers_dist',
         'jensenshannon_dist',
-        'ks_stat'
+        'ks_stat',
+        'human_model_pred_similarity'
     ])
 
     # Go through each word index in the current modality
@@ -674,7 +677,7 @@ def compare_human_model_distributions(df_human_results, models_dir, model_name, 
         # Turn logits into probabilities and get top probability and prediction
         model_dist = F.softmax(model_logits, dim=-1).squeeze()
         model_prob = model_dist.max().item()
-        model_prediction = tokenizer.decode(model_dist.argmax())
+        model_prediction = tokenizer.decode(model_dist.argmax()).strip()
 
         # Entropy of model distribution
         model_entropy = stats.entropy(model_dist)
@@ -704,6 +707,22 @@ def compare_human_model_distributions(df_human_results, models_dir, model_name, 
             human_log_odds_predictability = special.logit(1e-2)
         else:
             human_log_odds_predictability = special.logit(human_predictability)
+
+        ########################################################
+        ###### Compare semantic similarity of predictions ######
+        ########################################################
+
+        if lemmatize:
+            try:
+                _lemmatized = get_lemma(model_prediction)
+                model_prediction = _lemmatized if _lemmatized is not None else model_prediction
+            except:
+                pass
+        
+        human_vector = word_model[human_prediction]
+        model_vector = word_model[model_prediction]
+
+        pred_similarity = 1 - distance.cdist(human_vector[np.newaxis], model_vector[np.newaxis], metric='cosine').squeeze()
         
         ########################################################
         ##### Trim model distribution to human predictions #####
@@ -785,7 +804,10 @@ def compare_human_model_distributions(df_human_results, models_dir, model_name, 
             'kl_divergence': kl_divergence,
             'earthmovers_dist': earthmovers_dist,
             'jensenshannon_dist': jensenshannon_dist,
-            'ks_stat': ks_stat[0]
+            'ks_stat': ks_stat[0],
+
+            # Comparison of top prediction
+            'human_model_pred_similarity': pred_similarity,
         }
 
     return df_comparison

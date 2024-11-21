@@ -10,84 +10,52 @@ sys.path.append('../utils/')
 
 from config import *
 from dataset_utils import attempt_makedirs
-from prosody_analysis_utils import calculate_prosody_metrics, REMOVE_WORDS
-import plotting_utils as utils
 
-def process_prosody_data(results_dir, task_list, word_model, past_n_words=5, remove_words=None):
+def batch_average(df, batch_size, columns):
     """
-    Process prosody data for multiple tasks by combining transcripts, prosody metrics, and human results.
+    Average a DataFrame into batches of specified size.
     
-    Args:
-        task_list (list): List of tasks to process
-        results_dir (str): Directory containing human results
-        past_n_words (int): Number of previous words to consider for prosody calculations
-        remove_words (list): List of words to remove from analysis
+    Parameters:
+    df (pandas.DataFrame): Input DataFrame to be batched
+    batch_size (int): Size of each batch
     
     Returns:
-        tuple: (processed_data, processed_results) DataFrames containing combined analysis
+    pandas.DataFrame: DataFrame with averaged batches
     """
-    # Define column names for prosody data
-    prosody_columns = ['stim', 'start', 'end', 'word', 'prominence', 'boundary']
+    # Calculate number of complete batches
+    n_batches = len(df) // batch_size
     
-    # Initialize lists to store processed DataFrames
-    processed_data = []
-    processed_results = []
+    # Handle case where DataFrame length isn't divisible by batch_size
+    remainder = len(df) % batch_size
     
-    for task in task_list:
-        # Load data files
-        transcript_df = pd.read_csv(os.path.join(BASE_DIR, 'stimuli/preprocessed/', task, f'{task}_transcript-selected.csv'))
-        prosody_df = pd.read_csv(os.path.join(BASE_DIR, 'stimuli/prosody/', f'{task}.prom'), sep='\t', names=prosody_columns)
-
-        # Read results from behavioral tasks and sort by modality and word index --> allows us to add the prosody data easily
-        human_results_df = pd.read_csv(os.path.join(results_dir, f'task-{task}_group-analyzed-behavior_human-lemmatized.csv'))
-        human_results_df = human_results_df.sort_values(by=['modality', 'word_index'])
-        human_results_df['task'] = task
-        
-        # Process prosody metrics and filter data
-        prosody_df = calculate_prosody_metrics(prosody_df, n_prev=past_n_words, remove_characters=remove_words)
-        filtered_prosody = prosody_df[transcript_df['NWP_Candidate']]
-        filtered_transcript = transcript_df[transcript_df['NWP_Candidate']]
-        
-        # Add task-specific columns
-        filtered_transcript['entropy_accuracy_group'] = (filtered_transcript['entropy_group'] + 
-                                                       '_' + filtered_transcript['accuracy_group'])
-        filtered_transcript['stim'] = task
-        
-        # Map prosody features to human results (duplicate for paired data)
-        prosody_features = {
-            'boundary': filtered_prosody['boundary'],
-            'prosody_raw': filtered_prosody['prominence'],
-            'prosody_mean': filtered_prosody['prosody_mean'],
-            'prosody_std': filtered_prosody['prosody_std'],
-            'prosody_slope': filtered_prosody['prosody_slope'],
-            'relative_prosody': filtered_prosody['relative_prosody'],
-            'relative_norm': filtered_prosody['relative_norm'],
-            'boundary_mean': filtered_prosody['boundary_mean'],
-            'boundary_std': filtered_prosody['boundary_std']
-        }
-        
-        # Apply features to human results DataFrame
-        for feature, values in prosody_features.items():
-            human_results_df[feature] = np.tile(values, 2)
-        
-        # Append processed DataFrames
-        processed_results.append(human_results_df)
+    # If there's no perfect division, we'll need one more batch
+    if remainder > 0:
+        n_batches += 1
     
-    # Combine all processed data
-    final_results = pd.concat(processed_results).reset_index(drop=True)
+    # Create list to store batch averages
+    batch_averages = []
     
-    # Calculate weighted accuracy
-    final_results['weighted_accuracy'] = (final_results[f'{word_model}_top_word_accuracy'] * final_results['top_prob'])
+    # Process complete batches
+    for i in range(n_batches):
+        start_idx = i * batch_size
+        end_idx = min((i + 1) * batch_size, len(df))  # Use min to handle last batch
+        
+        # Calculate average for current batch
+        batch_avg = df.iloc[start_idx:end_idx]
+        batch_avg = batch_avg[columns].mean()
+        batch_avg['batch_number'] = i  # Add batch number for reference
+        batch_averages.append(batch_avg)
     
-    return final_results
+    # Combine all batch averages into a new DataFrame
+    return pd.DataFrame(batch_averages)
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
     # type of analysis we're running --> linked to the name of the regressors
-    parser.add_argument('-task_list', '--task_list', type=str, nargs='+')
-    parser.add_argument('-word_model', '--word_model', type=str, default='fasttext')
+    parser.add_argument('-d', '--dataset', type=str)
+    parser.add_argument('-b', '--batch_size', type=int)
     parser.add_argument('-o', '--overwrite', type=int, default=0)
     p = parser.parse_args()
 
@@ -97,73 +65,125 @@ if __name__ == "__main__":
 
     attempt_makedirs(plots_dir)
 
-    ###################################
-    ### Load results from task list ###
-    ###################################
+    model_name_mapping = {
+        f'{p.dataset}-prosody_scratch-gpt2_joint-loss_prosody-embed': 'ProsodyPrediction',
+        f'{p.dataset}-prosody_scratch-gpt2_clm-loss_prosody-embed': 'ProsodyAccess',
+        f'{p.dataset}-prosody_scratch-gpt2_clm-loss_no-prosody-embed': 'ProsodyDeprived'
+    }
 
-    df_prosody = process_prosody_data(results_dir, p.task_list, p.word_model, remove_words=REMOVE_WORDS)
+    # Load results for all models except the yoked models
+    results_fns = glob.glob(os.path.join(BASE_DIR, f'derivatives/joint-prosody-clm/*{p.dataset}*'))
+    df_results = pd.concat([pd.read_csv(fn) for fn in results_fns if 'yoked' not in fn]).reset_index(drop=True)
 
-    # Melt the dataframe for easy plotting of prosody by metric
-    prosody_vars = ['prosody_raw', 'prosody_mean', 'prosody_std', 'boundary',  'boundary_mean', 'boundary_std', 'prosody_slope',  'relative_prosody']
-    # df_prosody = pd.melt(df_prosody, id_vars=['modality', 'weighted_accuracy', 'fasttext_top_word_accuracy'], 
-    #                 value_vars=prosody_vars, var_name='prosody_metric', value_name='value')
+    df_stack = []
 
-    df_prosody.to_csv(os.path.join(results_dir, f'all-task_group-analyzed-behavior_human-lemmatized_prosody.csv'), index=False)
+    # Go through each set of results and average based on batch size
+    for i, df in df_results.groupby('model_name'):
+        df = batch_average(df, batch_size=p.batch_size, columns=['loss', 'clm_loss', 'accuracy'])
+        df['model_name'] = i
+        df['perplexity'] = np.exp(df['clm_loss'])
+        df['batch'] = i
+        df_stack.append(df)
 
-    sys.exit(0)
+    df_results = pd.concat(df_stack).reset_index(drop=True)
 
-    #################################################
-    ### Plot 1: Average prosody over last n_words ###
-    #################################################
+    # Get order of models by binary accuracy
+    ordered_accuracy = df_results.loc[:,['model_name', 'accuracy', 'perplexity']] \
+        .groupby(['model_name']) \
+        .mean()
 
-    cmap = utils.create_spoken_written_cmap(continuous=False)
-    ax = sns.lmplot(df_prosody, x='prosody_mean', y=f"{p.word_model}_top_word_accuracy", hue='modality', palette=cmap)
+    # get max chance of null models
+    null_models = ordered_accuracy.index.str.contains('shuffle')
+    accuracy_chance = ordered_accuracy.loc[null_models, 'accuracy'].max()
+    perplexity_chance = ordered_accuracy.loc[null_models, 'perplexity'].min()
 
-    plt.xlabel('Average Prosodic Prominence')
-    plt.ylabel('Cosine Similarity')
+    # order models by accuracy
+    ordered_accuracy = ordered_accuracy[~null_models]
+    ordered_models = ordered_accuracy.sort_values(by=f'accuracy').index[::-1]
 
-    plt.title(f'All task - average prosody accuracy relationship')
-    # plt.gca().get_legend().remove()
-    plt.tight_layout()
+    # remove the null models
+    df_results = df_results[~df_results['model_name'].str.contains('shuffle')]
+    df_results['model_name'] = df_results['model_name'].apply(lambda x: model_name_mapping[x])
+    ordered_models = [model_name_mapping[model] for model in ordered_models]
 
-    plt.savefig(os.path.join(plots_dir, "all-task_avg-prosody-accuracy.pdf"), bbox_inches='tight', dpi=600)
-    plt.close('all')
-
-    #################################################
-    ##### Plot 2: STD prosody over last n_words #####
-    #################################################
-
-    cmap = utils.create_spoken_written_cmap(continuous=False)
-    ax = sns.lmplot(df_prosody, x='prosody_std', y=f"{p.word_model}_top_word_accuracy", hue='modality', palette=cmap)
-
-    plt.xlabel('Variability of Prosodic Prominence')
-    plt.ylabel('Cosine Similarity')
-
-    plt.title(f'All task - std prosody accuracy relationship')
-    # plt.gca().get_legend().remove()
-    plt.tight_layout()
-
-    plt.savefig(os.path.join(plots_dir, "all-task_std-prosody-accuracy.pdf"), bbox_inches='tight', dpi=600)
-    plt.close('all')
+    # Save to a csv file
+    out_fn = os.path.join(results_dir, f'{p.dataset}-prosodyllm_all-results_batch-size-{p.batch_size}.csv')
+    df_results.to_csv(out_fn, index=False)
 
     #################################################
-    ##### Plot 3: LLM w/ prosody access v. none  ####
+    ########## Plot 1: Plot model accuracy  #########
     #################################################
 
-    results_fns = glob.glob(os.path.join(prosody_dir, f'*test-prominence.csv'))
-    df_results = pd.concat([pd.read_csv(fn) for fn in results_fns]).reset_index(drop=True)
-    df_results['accuracy'] = df_results['accuracy'] * 100
-
-    ax = utils.plot_bar_results(df_results, x='model_name', y="accuracy", hue="model_name", cmap='rocket', figsize=(10,5), add_points=False)
+    plt.figure(figsize=(4,5))
+    sns.set(style='white')
+    
+    ax = sns.barplot(data=df_results, x="model_name", y="accuracy", hue="model_name",  # Add hue parameter
+        palette="rocket", alpha=0.8, order=ordered_models, legend=False)
 
     plt.xlabel('Model')
     plt.ylabel('Accuracy (Percent Correct)')
 
-    plt.title(f'ProsodyCLM – Helsinki')
-    # plt.gca().get_legend().remove()
+    plt.title(f'ProsodyLLM – {p.dataset.capitalize()}')
     plt.xticks(rotation=45, ha='right')
-    plt.tight_layout()
 
-    plt.savefig(os.path.join(plots_dir, "joint-prosody-clm_model-accuracy.pdf"), bbox_inches='tight', dpi=600)
+    if p.dataset == 'helsinki':
+        plt.ylim([0.2, 0.26])
+    elif p.dataset == 'gigaspeech':
+        plt.ylim([0.15, 0.21])
+
+    plt.axhline(y=accuracy_chance, color='k', linestyle='--')
+    sns.despine()
+
+    # Add text labels on top of each bar
+    for patch, acc in zip(ax.patches, ordered_accuracy['accuracy']):  # Changed variable name from p to patch
+        height = patch.get_height()
+        ax.text(
+            patch.get_x() + patch.get_width() / 2.,
+            height + 0.008,
+            f'{acc:.3f}',
+            ha='center',
+            va='bottom'
+        )
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, f"{p.dataset}-prosody-llm_accuracy.pdf"), bbox_inches='tight', dpi=600)
     plt.close('all')
 
+    #################################################
+    ########## Plot 2: Plot model perplexity  #########
+    #################################################
+
+    plt.figure(figsize=(4,5))
+    sns.set(style='white')
+    
+    ax = sns.barplot(data=df_results, x="model_name", y="perplexity", hue="model_name",
+        palette="rocket", alpha=0.8, order=ordered_models, legend=False)
+
+    plt.xlabel('Model')
+    plt.ylabel('Perplexity')
+
+    plt.title(f'ProsodyLLM – {p.dataset.capitalize()}')
+    plt.xticks(rotation=45, ha='right')
+
+    if p.dataset == 'helsinki':
+        plt.ylim([0, 350])
+    elif p.dataset == 'gigaspeech':
+        plt.ylim([0, 350])
+
+    plt.axhline(y=perplexity_chance, color='k', linestyle='--')
+    sns.despine()
+
+    # Add text labels on top of each bar
+    for patch, acc in zip(ax.patches, ordered_accuracy['perplexity']):  # Changed variable name from p to patch
+        height = patch.get_height()
+        ax.text(
+            patch.get_x() + patch.get_width() / 2.,
+            height + 15,
+            f'{acc:.2f}',
+            ha='center',
+            va='bottom'
+        )
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(plots_dir, f"{p.dataset}-prosody-llm_perplexity.pdf"), bbox_inches='tight', dpi=600)
+    plt.close('all')

@@ -1,0 +1,244 @@
+---
+title: "prosodyllm_stats"
+author: "Tommy Botch"
+date: "2024-11-15"
+output: html_document
+---
+
+# Setup environment
+
+## Load packages
+
+```{r}
+# remove all variables
+rm(list=ls()) 
+
+# install.packages(c("lmerTest", "emmeans", "glue", "ggeffects", "ggplot2", 
+#                    "ggsignif", "ggpattern", "viridis", "forcats", "dplyr",
+#                    "stringr", "tools", "lmer4", "combinat", "ggpubr", "report",
+#                    "rcompanion", "sjPlot", "glmmTMB", "DHARMa", "tidyverse"))
+
+library(lmerTest)
+library(emmeans)
+library(glue)
+library(ggeffects)
+library(ggplot2)
+library(sjPlot)
+library(report)
+library(rcompanion)
+library(sjPlot)
+library(tidyverse)
+
+library(DHARMa)
+library(glmmTMB)
+library(tidyverse)
+library(performance)
+library(ordinal)
+```
+
+## Prepare directories
+
+Set up directories - since we're doing this locally (and mounting the server), 
+we're going to use a different base_dir
+
+```{r}
+
+base_dir<-'/Volumes/FinnLab/tommy/isc_asynchrony_behavior/derivatives/'
+results_dir<-glue('{base_dir}results/behavioral/')
+plots_dir <- glue('{base_dir}plots/final/')
+
+```
+
+## Functions
+
+```{r}
+# Function to convert specified columns to factors
+convert_columns_to_factors <- function(df, columns_to_convert) {
+  # Check if all specified columns exist in the dataframe
+  if (!all(columns_to_convert %in% names(df))) {
+    missing_cols <- columns_to_convert[!columns_to_convert %in% names(df)]
+    stop(paste("The following columns do not exist in the dataframe:", 
+               paste(missing_cols, collapse = ", ")))
+  }
+  
+  # Convert each specified column to factor
+  for (col in columns_to_convert) {
+    df[[col]] <- factor(df[[col]])
+  }
+  
+  return(df)
+}
+
+# Function to process a single dataset
+process_dataset <- function(dataset) {
+  # Construct filename using glue
+  results_fn <- glue('{results_dir}{dataset}-prosodyllm_all-results_batch-size-8.csv')
+  
+  # Read the CSV file
+  df <- read.csv(results_fn)
+  
+  # Add dataset column
+  df <- df %>%
+    mutate(dataset_name = dataset)
+  
+  return(df)
+}
+
+# Function to remove outliers based on IQR of a specific column and print the number of removed values
+remove_outliers <- function(df, column) {
+  if (!column %in% names(df)) {
+    stop("Column not found in dataframe.")
+  }
+  if (!is.numeric(df[[column]])) {
+    stop("Selected column is not numeric.")
+  }
+
+  initial_rows <- nrow(df)  # Store the initial number of rows
+
+  # Calculate IQR bounds for the specified column
+  Q1 <- quantile(df[[column]], 0.25)
+  Q3 <- quantile(df[[column]], 0.75)
+  IQR <- Q3 - Q1
+  lower_bound <- Q1 - 1.5 * IQR
+  upper_bound <- Q3 + 1.5 * IQR
+
+  # Filter rows based on the specified column's bounds
+  df_clean <- df[df[[column]] >= lower_bound & df[[column]] <= upper_bound, ]
+  
+  # Calculate and print number of rows removed
+  removed_rows <- initial_rows - nrow(df_clean)
+  cat("Number of rows removed due to outliers in column", column, ":", removed_rows, "\n")
+  
+  return(df_clean)
+}
+
+
+
+```
+
+# Run human participant analysis
+
+## Data loading
+
+Load data and set factor columns 
+
+```{r}
+
+
+# Define datasets
+datasets <- c('helsinki', 'gigaspeech')
+
+# Process all datasets and combine them
+df_results <- datasets %>%
+  # Map over each dataset name and process it
+  map_dfr(process_dataset)
+# 
+# # View the first few rows of the combined dataset
+head(df_results)
+df_results <- remove_outliers(df_results, 'perplexity')
+# 
+# 
+# # Load the results file
+# datasets <- c('helsinki', 'gigaspeech')
+# 
+# 
+# results_fn<-glue('{results_dir}{dataset}-prosodyllm_all-results_batch-size-8.csv')
+# 
+# df_results <- read.csv(results_fn)
+
+```
+
+### Set up order of factors
+
+```{r}
+
+# Set the variable types
+factor_columns <- c('batch_number', 'model_name', 'dataset_name')
+
+df_results <- convert_columns_to_factors(df_results, factor_columns)
+
+# set order of variables
+df_results$model_name <- factor(df_results$model_name, levels = c("ProsodyPrediction", "ProsodyAccess", "ProsodyDeprived"))
+
+```
+
+
+## Accuracy
+
+```{r}
+
+# Test ordered contrast --> audio > 
+contrasts(df_results$model_name) <- contr.poly(length(unique(df_results$model_name)))
+
+accuracy_formula <- 'accuracy ~ model_name  + (1|batch_number:dataset_name)'
+
+model <- glmer(accuracy_formula, data = df_results)
+
+BIC(model)
+report(model)
+summary(model)
+tab_model(model, show.stat=TRUE, show.est = TRUE, show.r2=TRUE)
+# 
+plot_model(model, type='pred', terms=c('model_name'), show.data=TRUE)
+
+```
+### Plot for each dataset
+
+```{r}
+
+ggplot(df_results, aes(x = model_name, y = accuracy, group = dataset_name, color = dataset_name)) +
+ geom_line(stat = "summary", fun = mean) +
+ geom_point(stat = "summary", fun = mean) +
+ geom_errorbar(stat = "summary", fun.data = mean_se, width = 0.2) +
+ theme_minimal() +
+ theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+ labs(title = "Mean Accuracy by Model Name and Dataset")
+```
+
+
+```{r, fig.width=10, fig.height=8}
+
+check_model(model)
+```
+
+## Perplexity
+
+```{r} 
+# Test ordered contrast --> audio > 
+contrasts(df_results$model_name) <- contr.poly(length(unique(df_results$model_name)))
+
+
+# Test ordered contrast --> audio > 
+perplexity_formula <- 'perplexity ~ model_name  + (1|batch_number:dataset_name)'
+
+model <- lmer(perplexity_formula, data = df_results, REML=TRUE)
+
+report(model)
+summary(model)
+tab_model(model)
+
+
+AIC(model)
+
+```
+
+### Load comparisons to humans
+
+```{r}
+
+# Load the results file
+results_fn<-glue('{results_dir}/archive/all-task_group-analyzed-behavior_window-size-25_human-prosody-model-distributions-lemmatized.csv')
+df_results <- read.csv(results_fn)
+
+
+# ADD A COLUMN THAT GROUPS HUMANS/MODELS
+df_results <- df_results %>%
+  mutate(dataset = case_when(
+    model_name %in% c("audio") ~ "audio",
+    modality %in% c("text") ~ "text",
+    modality %in% c('roberta', 'electra', 'xlm-prophetnet') ~ "mlm",
+    TRUE ~ "clm"  # Default case
+  ))
+
+
+```

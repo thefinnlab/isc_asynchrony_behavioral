@@ -1,0 +1,272 @@
+---
+title: "human_v_llm_distribution_stats"
+author: "Tommy Botch"
+date: "2024-11-15"
+output: html_document
+---
+
+# Setup environment
+
+## Load packages
+
+```{r}
+# remove all variables
+rm(list=ls()) 
+
+# install.packages(c("lmerTest", "emmeans", "glue", "ggeffects", "ggplot2", 
+#                    "ggsignif", "ggpattern", "viridis", "forcats", "dplyr",
+#                    "stringr", "tools", "lmer4", "combinat", "ggpubr", "report",
+#                    "rcompanion", "sjPlot", "glmmTMB", "DHARMa", "tidyverse"))
+
+library(lmerTest)
+library(emmeans)
+library(glue)
+library(ggeffects)
+library(ggplot2)
+library(sjPlot)
+library(report)
+library(rcompanion)
+library(sjPlot)
+library(tidyverse)
+
+library(DHARMa)
+library(glmmTMB)
+library(tidyverse)
+library(performance)
+library(ordinal)
+```
+
+## Prepare directories
+
+Set up directories - since we're doing this locally (and mounting the server), 
+we're going to use a different base_dir
+
+```{r}
+
+base_dir<-'/Volumes/FinnLab/tommy/isc_asynchrony_behavior/derivatives/'
+results_dir<-glue('{base_dir}results/behavioral/')
+plots_dir <- glue('{base_dir}plots/final/')
+
+```
+
+## Functions
+
+```{r}
+# Function to convert specified columns to factors
+convert_columns_to_factors <- function(df, columns_to_convert) {
+  # Check if all specified columns exist in the dataframe
+  if (!all(columns_to_convert %in% names(df))) {
+    missing_cols <- columns_to_convert[!columns_to_convert %in% names(df)]
+    stop(paste("The following columns do not exist in the dataframe:", 
+               paste(missing_cols, collapse = ", ")))
+  }
+  
+  # Convert each specified column to factor
+  for (col in columns_to_convert) {
+    df[[col]] <- factor(df[[col]])
+  }
+  
+  return(df)
+}
+
+
+replace_infinite <- function(data) {
+  # Check if input is a data frame
+  if (!is.data.frame(data)) {
+    stop("Input must be a data frame")
+  }
+  
+  # Process each numeric column
+  for (col in names(data)) {
+    if (is.numeric(data[[col]])) {
+      # Get finite values only for calculating true maximum
+      finite_values <- data[[col]][is.finite(data[[col]])]
+      
+      if (length(finite_values) > 0) {
+        # Calculate maximum of finite values
+        col_max <- max(finite_values)
+        
+        # Replace Inf and -Inf with column maximum
+        data[[col]][is.infinite(data[[col]])] <- col_max
+      }
+    }
+  }
+  
+  return(data)
+}
+
+# Function to remove outliers based on IQR of a specific column and print the number of removed values
+remove_outliers <- function(df, column) {
+  if (!column %in% names(df)) {
+    stop("Column not found in dataframe.")
+  }
+  if (!is.numeric(df[[column]])) {
+    stop("Selected column is not numeric.")
+  }
+
+  initial_rows <- nrow(df)  # Store the initial number of rows
+
+  # Calculate IQR bounds for the specified column
+  Q1 <- quantile(df[[column]], 0.25)
+  Q3 <- quantile(df[[column]], 0.75)
+  IQR <- Q3 - Q1
+  lower_bound <- Q1 - 1 * IQR
+  upper_bound <- Q3 + 1 * IQR
+
+  # Filter rows based on the specified column's bounds
+  df_clean <- df[df[[column]] >= lower_bound & df[[column]] <= upper_bound, ]
+  
+  # Calculate and print number of rows removed
+  removed_rows <- initial_rows - nrow(df_clean)
+  cat("Number of rows removed due to outliers in column", column, ":", removed_rows, "\n")
+  
+  return(df_clean)
+}
+
+```
+
+# Run human participant analysis
+
+## Data loading
+
+Load data and set factor columns 
+
+```{r}
+
+# Load the results file
+results_fn<-glue('{results_dir}all-task_group-analyzed-behavior_window-size-25_human-model-distributions-lemmatized.csv')
+
+df_results <- read.csv(results_fn)
+
+# ADD A COLUMN THAT GROUPS HUMANS/MODELS
+df_results <- df_results %>%
+  mutate(model_type = case_when(
+    model_name %in% c('roberta', 'electra', 'xlm-prophetnet') ~ "mlm",
+    TRUE ~ "clm"  # Default case
+
+  ))
+
+# df_results <- df_results[df_results$human_predictability > 0.02,]
+df_results[df_results$human_predictability == 0,]$human_predictability <- 0.01
+df_results[df_results$human_predictability == 1,]$human_predictability <- 0.99
+```
+
+### Set up order of factors
+
+```{r}
+
+# Set the variable types
+factor_columns <- c('modality', 'model_name', 'model_type', 'word_index', 'task', "entropy_group", "accuracy_group", 'task')
+
+df_results <- convert_columns_to_factors(df_results, factor_columns)
+
+# set order of variables
+df_results$modality <- factor(df_results$modality, levels = c("audio", "text"))
+df_results$model_type <- factor(df_results$model_type, levels = c("clm", "mlm"))
+
+# df_results <- df_results[df_results$model_type == 'clm',]
+```
+
+## Predictability
+
+```{r}
+
+audio_greater_text <- c(1,-1)
+contrasts(df_results$modality) <- cbind(audio_greater_text)
+
+df_results$log_model_predictability <- log(df_results$model_predictability)
+df_results$log_human_predictability <- log(df_results$human_predictability)
+# 
+df_cleaned <- remove_outliers(df_results, 'log_model_predictability')
+
+model <- glmmTMB(
+  formula = human_predictability ~ modality * log_model_predictability + (1|word_index:task),
+  # ziformula = ~ modality * model_predictability + (1|word_index:task),
+  data = df_cleaned,
+  family = gaussian(link='log')
+  # family = beta_family()
+)
+
+AIC(model)
+summary(model)
+tab_model(model)
+
+```
+### Plot using ggplot
+
+```{r}
+
+preds <- data.frame(get_model_data(model, type='pred', terms = c("log_model_predictability", "modality")))
+
+head(preds)
+
+colors <- c('#82C564', '#F7CD84')
+
+ggplot(preds, aes(x=x, y=log(predicted), color=group)) + 
+  geom_point(
+    data = df_cleaned, 
+    aes(x=log_model_predictability, y=log(human_predictability), color=modality), 
+    stroke=1,
+    alpha=0.05) +
+  geom_line(size=1) + 
+  geom_ribbon(aes(ymin=log(conf.low), ymax=log(conf.high), fill=group), alpha=0.3, color=NA) + 
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", size = 1) +
+  theme(
+    aspect.ratio = 4/5,
+    axis.line = element_line(colour = "black"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank()
+  ) +
+  scale_color_manual(values=colors) +
+  scale_fill_manual(values=colors) +
+  labs(
+    x = "Model Predictability (Log-Scale)",
+    y = "Human Predictability",
+    title = "Relationship of predictability") 
+
+ggsave('human-llm_predictability-relationship.pdf', device = "pdf")
+
+```
+
+### Plot model predictions + data
+
+```{r}
+#, fig.width=10, fig.height=8}
+
+testDispersion(model)
+simulationOutput <- simulateResiduals(model, plot = F)
+plot(simulationOutput)
+# 
+check_predictions(model)
+
+
+# plot_model(model, type='pred', terms=c('model_predictability', 'modality'))
+```
+```{r}
+
+predictability_formula <- 'human_predictability ~ modality * log_model_predictability * prominence_mean + (1|word_index:task)'
+
+model <- glmer(predictability_formula, data = df_cleaned,
+               family=gaussian(link='log'))
+
+plot_model(model, type='pred', terms=c('log_model_predictability', 'modality', 'prominence_mean'))
+```
+
+## KL Divergence
+
+```{r}
+audio_greater_text <- c(1,-1)
+contrasts(df_results$modality) <- cbind(audio_greater_text)
+
+# df_trimmed <- df_results[df_results$model_type == 'clm', ]
+
+kl_divergence <- 'kl_divergence ~ modality * prominence_mean + (1|word_index:task) + (1|model_name)'
+
+model <- lmer(kl_divergence, data = df_results)
+
+tab_model(model)
+
+plot_model(model, type='pred',  terms=c('prominence_mean', 'modality' ))
+```

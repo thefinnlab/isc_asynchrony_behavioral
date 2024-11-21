@@ -39,10 +39,11 @@ def plot_comparison_identity(ds_a, ds_b, lim):
 
     return fig
 
-def create_spoken_written_cmap(continuous=True):
+def create_spoken_written_cmap(continuous=True, N=256):
 
     if continuous:
-        spoken_written_cmap = clr.LinearSegmentedColormap.from_list('spoken-written', ['#005208', '#72D16B', '#808080', '#E4B266', '#623800'], N=256)
+        # spoken_written_cmap = clr.LinearSegmentedColormap.from_list('spoken-written', ['#005208', '#72D16B', '#808080', '#E4B266', '#623800'], N=256)
+        spoken_written_cmap = clr.LinearSegmentedColormap.from_list('spoken-written', ['#2C8E00', '#E2E2E2', '#DE8C00'], N=N)
         spoken_written_cmap = spoken_written_cmap.reversed()
     else:
         spoken_written_cmap = sns.color_palette('BuPu', n_colors=9)

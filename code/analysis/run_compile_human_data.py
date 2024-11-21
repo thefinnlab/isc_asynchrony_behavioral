@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
     # Lemmatize responses & ground truth --> save results 
     df_lemmatized_results = analysis.lemmatize_responses(df_aggregated_results, df_transcript, response_column='response')
-    df_lemmatized_results = analysis.lemmatize_responses(df_aggregated_results, df_transcript, response_column='ground_truth')
+    df_lemmatized_results = analysis.lemmatize_responses(df_lemmatized_results, df_transcript, response_column='ground_truth')
 
     # Recalculate response accuracy for lemmatized data
     df_lemmatized_results = analysis.calculate_response_accuracy(df_lemmatized_results)

@@ -22,18 +22,33 @@ MEM_PER_CPU = '8G'
 
 if __name__ == '__main__':
 
+    parser = argparse.ArgumentParser()
+
+    # type of analysis we're running --> linked to the name of the regressors
+    parser.add_argument('-prosody', '--prosody', type=int, default=0)
+    parser.add_argument('-o', '--overwrite', type=int, default=0)
+    p = parser.parse_args()
+
     task_list = ['black', 'wheretheressmoke', 'howtodraw']
     window_size = 25
 
     # get all MLM models except BERT
-    MLM_MODELS = list(MLM_MODELS_DICT.keys())[1:]
-    CLM_MODELS = list(CLM_MODELS_DICT.keys()) 
-    model_names = CLM_MODELS + MLM_MODELS
-    model_names = ' '.join(model_names)
+    if p.prosody:
+        PROSODY_MODELS = sorted(glob.glob(os.path.join(BASE_DIR, f'derivatives/model-predictions/{task_list[0]}/prosody-models/*')))
+        PROSODY_MODELS = [os.path.basename(model) for model in PROSODY_MODELS]
+        model_names = ' '.join(PROSODY_MODELS)
 
-    print (f'Loading the following models')
-    print (f'MLM models: {MLM_MODELS}')
-    print (f'CLM models: {CLM_MODELS}')
+        print (f'Loading the following models')
+        print (f'Prosody models: {PROSODY_MODELS}')
+    else:
+        MLM_MODELS = list(MLM_MODELS_DICT.keys())[1:]
+        CLM_MODELS = list(CLM_MODELS_DICT.keys()) 
+        model_names = CLM_MODELS + MLM_MODELS
+        model_names = ' '.join(model_names)
+
+        print (f'Loading the following models')
+        print (f'MLM models: {MLM_MODELS}')
+        print (f'CLM models: {CLM_MODELS}')
 
     # grab the tasks
     all_cmds = []
@@ -42,7 +57,6 @@ if __name__ == '__main__':
     job_num = 0
 
     for i, task in enumerate(task_list):
-
         cmd = ''.join([
             f"{job_string} -t {task} -m {model_names}"
         ])

@@ -56,7 +56,7 @@ def get_pos_tags(text, strip_punc=True):
     #case normalize word -> case doesn't matter anymore
     return [(word.lower(), tag) for word, tag in words_tags]
 
-def get_lemma(word, tag, remove_stopwords=True, backend='spacy'):
+def get_lemma(word, tag=None, remove_stopwords=True, backend='spacy'):
     """
     Handles lemmatization of words. Removes stopwords and alpha-numeric
     words from the text.

@@ -106,7 +106,39 @@ entropy_formula <- 'entropy ~ modality + (1|word_index:task)'
 model <- lmer(entropy_formula, data = df_results)
 
 tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
-summary (model)
+report (model)
+
+```
+
+### Task-wise effects
+
+```{r}
+
+human_task_entropy_formula <- 'entropy ~ modality + (1|word_index)'
+
+## Black model
+task = 'black'
+df_task <- df_results[df_results$task == task,]
+task_model <- lmer(human_task_entropy_formula, data=df_task, REML=TRUE)
+
+report (task_model)
+tab_model(task_model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
+
+# Wheretheressmoke
+task = 'wheretheressmoke'
+df_task <- df_results[df_results$task == task,]
+task_model <- lmer(human_task_entropy_formula, data=df_task, REML=TRUE)
+
+report (task_model)
+tab_model(task_model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
+
+# Howtodraw
+task = 'howtodraw'
+df_task <- df_results[df_results$task == task,]
+task_model <- lmer(human_task_entropy_formula, data=df_task, REML=TRUE)
+
+report (task_model)
+tab_model(task_model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
 
 ```
 
@@ -126,7 +158,7 @@ entropy_formula <- 'entropy ~ modality * prominence_mean + (1|word_index:task)'
 model <- lmer(entropy_formula, data = df_results)
 
 tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
-summary (model)
+report (model)
 
 ```
 
@@ -134,7 +166,34 @@ summary (model)
 
 ```{r}
 
-plot_model(model, type='pred', terms=c('prominence_mean', 'modality'))
+preds <- data.frame(get_model_data(model, type='pred', terms = c("prominence_mean", "modality")))
+
+head(preds)
+
+colors <- c('#82C564', '#F7CD84')
+
+ggplot(preds, aes(x=x, y=predicted, color=group)) + 
+  geom_point(
+    data = df_results, 
+    aes(x=prominence_mean, y=entropy, color=modality), 
+    stroke=1,
+    alpha=0.15) +
+  geom_line(size=1) + 
+  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.3, color=NA) + 
+  theme(
+    aspect.ratio = 4/3,
+    axis.line = element_line(colour = "black"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank()
+  ) +
+  scale_color_manual(values=colors) +
+  scale_fill_manual(values=colors) +
+  labs(
+    x = "Prosodic Prominence",
+    y = "Entropy",
+    title = "Prosody reduces entropy of prediction distributions") 
 ```
 
 
@@ -150,13 +209,17 @@ Predict accuracy based on modality
 audio_greater_text <- c(1,-1)
 contrasts(df_results$modality) <- cbind(audio_greater_text)
 
+df_results[df_results$predictability == 0,]$predictability <- 0.01
+
 predictability_formula <- 'predictability ~ modality + (1|word_index:task)'
 
 # Fit the logistic mixed-effects model
-model <- lmer(predictability_formula, data=df_results)
+model <- glmer(predictability_formula, data=df_results, family=Gamma(link='log'))
 
 tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
 summary (model)
+
+check_model(model)
 ```
 
 ### Include prosody within model
@@ -169,11 +232,11 @@ contrasts(df_results$modality) <- cbind(audio_greater_text)
 
 predictability_formula <- 'predictability ~ modality * prominence_mean + (1|word_index:task)'
 
-# Fit the logistic mixed-effects model
-model <- lmer(predictability_formula, data=df_results)
+# Fit the mixed-effects model
+model <- glmer(predictability_formula, data=df_results, family=Gamma(link='log'))
 
 tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
-summary (model)
+report (model)
 
 plot_model(model, type='pred', terms=c('prominence_mean', 'modality'))
 ```
