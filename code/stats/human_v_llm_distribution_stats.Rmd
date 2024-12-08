@@ -110,8 +110,8 @@ remove_outliers <- function(df, column) {
   Q1 <- quantile(df[[column]], 0.25)
   Q3 <- quantile(df[[column]], 0.75)
   IQR <- Q3 - Q1
-  lower_bound <- Q1 - 1 * IQR
-  upper_bound <- Q3 + 1 * IQR
+  lower_bound <- Q1 - 1.5 * IQR
+  upper_bound <- Q3 + 1.5 * IQR
 
   # Filter rows based on the specified column's bounds
   df_clean <- df[df[[column]] >= lower_bound & df[[column]] <= upper_bound, ]
@@ -179,8 +179,10 @@ df_results$log_human_predictability <- log(df_results$human_predictability)
 # 
 df_cleaned <- remove_outliers(df_results, 'log_model_predictability')
 
+# df_cleaned <- df_cleaned[df_cleaned$modality == 'text',]
+# 
 model <- glmmTMB(
-  formula = human_predictability ~ modality * log_model_predictability + (1|word_index:task),
+  formula = human_predictability ~ modality * log_model_predictability  + (1|word_index:task) + (1|model_name),
   # ziformula = ~ modality * model_predictability + (1|word_index:task),
   data = df_cleaned,
   family = gaussian(link='log')
@@ -189,9 +191,10 @@ model <- glmmTMB(
 
 AIC(model)
 summary(model)
-tab_model(model)
+tab_model(model, show.df=TRUE, show.se=TRUE, show.stat=TRUE)
 
 ```
+
 ### Plot using ggplot
 
 ```{r}
@@ -246,11 +249,17 @@ check_predictions(model)
 ```
 ```{r}
 
-predictability_formula <- 'human_predictability ~ modality * log_model_predictability * prominence_mean + (1|word_index:task)'
+predictability_formula <- 'human_predictability ~ modality * model_predictability * prominence_mean + (1|word_index:task)'
 
-model <- glmer(predictability_formula, data = df_cleaned,
-               family=gaussian(link='log'))
+model <- glmmTMB(
+  formula = human_predictability ~ modality * log_model_predictability * prominence_mean  + (1|word_index:task),
+  # ziformula = ~ modality * model_predictability + (1|word_index:task),
+  data = df_cleaned,
+  family = gaussian(link='log')
+  # family = beta_family()
+)
 
+tab_model(model)
 plot_model(model, type='pred', terms=c('log_model_predictability', 'modality', 'prominence_mean'))
 ```
 
@@ -264,9 +273,9 @@ contrasts(df_results$modality) <- cbind(audio_greater_text)
 
 kl_divergence <- 'kl_divergence ~ modality * prominence_mean + (1|word_index:task) + (1|model_name)'
 
-model <- lmer(kl_divergence, data = df_results)
+model <- lmer(kl_divergence, data = df_cleaned)
 
-tab_model(model)
+tab_model(model, show.est = TRUE, show.se = TRUE, show.df = TRUE, show.stat = TRUE)
 
 plot_model(model, type='pred',  terms=c('prominence_mean', 'modality' ))
 ```

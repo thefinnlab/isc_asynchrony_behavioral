@@ -2,6 +2,7 @@ import re
 import os
 from typing import List, Dict, Any
 from pathlib import Path
+from tqdm import tqdm
 
 def process_wavelet_file(filename: str) -> List[Dict[str, Any]]:
     """
@@ -84,7 +85,7 @@ def process_wavelet_directory(directory: str) -> List[Dict[str, Any]]:
     directory_path = Path(directory)
     
     # Process all .prom files in the directory
-    for file_path in directory_path.glob("*.prom"):
+    for file_path in tqdm(directory_path.glob("*.prom")):
         utterances = process_wavelet_file(str(file_path))
         all_utterances.extend(utterances)
         

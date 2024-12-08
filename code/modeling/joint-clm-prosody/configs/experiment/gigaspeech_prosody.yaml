@@ -20,7 +20,7 @@ seed: 42
 
 logger:
   wandb:
-    project: gigaspeech-prosody
+    project: gigaspeech-m-prosody
     # entity: prosody
     tags: ["gpt2", "prominence", "both"]
     name: "run-${now:%Y-%m-%d_%H-%M-%S}-joint-prominence-clm-gpt2"
@@ -69,6 +69,6 @@ data:
   num_workers: 8
   batch_size: 64
   dataset_name: gigaspeech
-  data_dir: ${paths.data_dir}/gigaspeech/prosody
+  data_dir: ${paths.data_dir}/gigaspeech/m/prosody
   score_last_token: true # only score the first token of a word in loss
   debug: false

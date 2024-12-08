@@ -672,7 +672,11 @@ def compare_human_model_distributions(df_human_results, word_model_info, models_
         ###############################################
 
         # Load logits for the current word
-        model_logits = load_logits(models_dir, model_name, task, window_size, word_index)
+        try:
+            model_logits = load_logits(models_dir, model_name, task, window_size, word_index)
+        except:
+            print (f'Missing logits for {task} {word_index}', flush=True)
+            continue
             
         # Turn logits into probabilities and get top probability and prediction
         model_dist = F.softmax(model_logits, dim=-1).squeeze()

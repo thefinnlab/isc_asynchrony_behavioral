@@ -58,7 +58,7 @@ if __name__ == '__main__':
 
     for i, task in enumerate(task_list):
         cmd = ''.join([
-            f"{job_string} -t {task} -m {model_names}"
+            f"{job_string} -t {task} -m {model_names} -p {p.prosody}"
         ])
 
         all_cmds.append(cmd)

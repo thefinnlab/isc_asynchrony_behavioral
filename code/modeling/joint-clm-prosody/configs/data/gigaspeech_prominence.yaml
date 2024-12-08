@@ -1,5 +1,5 @@
 _target_: src.data.wavelet_prominence_datamodule.WaveletDataModule
-data_dir: ${paths.data_dir}/gigaspeech/prosody
+data_dir: ${paths.data_dir}/gigaspeech/m/prosody
 
 batch_size: 32
 train_val_test_split: null

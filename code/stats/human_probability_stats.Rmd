@@ -105,7 +105,7 @@ entropy_formula <- 'entropy ~ modality + (1|word_index:task)'
 # Fit the logistic mixed-effects model
 model <- lmer(entropy_formula, data = df_results)
 
-tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
+tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE,  show.df = TRUE)
 report (model)
 
 ```
@@ -114,31 +114,72 @@ report (model)
 
 ```{r}
 
+# Function to extract p-values and test statistics
+extract_lme_results <- function(task, df_results, formula, include_intercept = FALSE) {
+  # Subset data for the specific task
+  df_task <- df_results[df_results$task == task,]
+  
+  # Fit the linear mixed-effects model
+  task_model <- lmer(formula, data = df_task, REML = TRUE)
+  
+  # Extract summary information
+  model_summary <- summary(task_model)
+  
+  # Create results dataframe
+  results_df <- data.frame(
+    task = task,
+    effect = rownames(model_summary$coefficients),
+    estimate = model_summary$coefficients[, "Estimate"],
+    std_error = model_summary$coefficients[, "Std. Error"],
+    t_value = model_summary$coefficients[, "t value"],
+    p_value = formatC(model_summary$coefficients[, "Pr(>|t|)"], format = "e", digits = 3)
+  )
+  
+  # Optionally filter out intercept
+  if (!include_intercept) {
+    results_df <- results_df[results_df$effect != "(Intercept)", ]
+  }
+  
+  return(results_df)
+}
+
+# Formula used in the original models
 human_task_entropy_formula <- 'entropy ~ modality + (1|word_index)'
 
-## Black model
-task = 'black'
-df_task <- df_results[df_results$task == task,]
-task_model <- lmer(human_task_entropy_formula, data=df_task, REML=TRUE)
+# List of tasks
+tasks <- c('black', 'wheretheressmoke', 'howtodraw')
 
-report (task_model)
-tab_model(task_model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
+# Extract results for all tasks (excluding intercept by default)
+results_list <- lapply(tasks, function(task) {
+  extract_lme_results(task, df_results, human_task_entropy_formula)
+})
 
-# Wheretheressmoke
-task = 'wheretheressmoke'
-df_task <- df_results[df_results$task == task,]
-task_model <- lmer(human_task_entropy_formula, data=df_task, REML=TRUE)
+# Combine results
+combined_results <- do.call(rbind, results_list)
 
-report (task_model)
-tab_model(task_model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
+# Apply multiple comparison corrections
+# Convert back to numeric for p.adjust
+original_p_values <- as.numeric(as.character(combined_results$p_value))
+combined_results$bonferroni_p = formatC(p.adjust(original_p_values, method = "bonferroni"), format = "e", digits = 3)
+combined_results$fdr_p = formatC(p.adjust(original_p_values, method = "fdr"), format = "e", digits = 3)
+combined_results$holm_p = formatC(p.adjust(original_p_values, method = "holm"), format = "e", digits = 3)
 
-# Howtodraw
-task = 'howtodraw'
-df_task <- df_results[df_results$task == task,]
-task_model <- lmer(human_task_entropy_formula, data=df_task, REML=TRUE)
+# Print corrected results
+print(combined_results)
 
-report (task_model)
-tab_model(task_model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
+# Optional: Identify significant effects after correction
+significant_bonferroni <- combined_results[as.numeric(as.character(combined_results$bonferroni_p)) < 0.05, ]
+significant_fdr <- combined_results[as.numeric(as.character(combined_results$fdr_p)) < 0.05, ]
+significant_holm <- combined_results[as.numeric(as.character(combined_results$holm_p)) < 0.05, ]
+
+print("Significant effects (Bonferroni):")
+print(significant_bonferroni)
+
+print("Significant effects (FDR):")
+print(significant_fdr)
+
+print("Significant effects (Holm):")
+print(significant_holm)
 
 ```
 
@@ -181,7 +222,7 @@ ggplot(preds, aes(x=x, y=predicted, color=group)) +
   geom_line(size=1) + 
   geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.3, color=NA) + 
   theme(
-    aspect.ratio = 4/3,
+    aspect.ratio = 6/7,
     axis.line = element_line(colour = "black"),
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
@@ -194,6 +235,8 @@ ggplot(preds, aes(x=x, y=predicted, color=group)) +
     x = "Prosodic Prominence",
     y = "Entropy",
     title = "Prosody reduces entropy of prediction distributions") 
+
+ggsave('human_entropy-prosody-interaction.pdf', device = "pdf")
 ```
 
 
@@ -214,10 +257,9 @@ df_results[df_results$predictability == 0,]$predictability <- 0.01
 predictability_formula <- 'predictability ~ modality + (1|word_index:task)'
 
 # Fit the logistic mixed-effects model
-model <- glmer(predictability_formula, data=df_results, family=Gamma(link='log'))
+model <- glmer(predictability_formula, data=df_results, family=gaussian(link='log'))
 
-tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
-summary (model)
+tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE,  show.df = TRUE)
 
 check_model(model)
 ```
@@ -233,11 +275,12 @@ contrasts(df_results$modality) <- cbind(audio_greater_text)
 predictability_formula <- 'predictability ~ modality * prominence_mean + (1|word_index:task)'
 
 # Fit the mixed-effects model
-model <- glmer(predictability_formula, data=df_results, family=Gamma(link='log'))
+model <- glmer(predictability_formula, data=df_results, family=gaussian(link='log'))
 
-tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
-report (model)
+tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE,  show.df = TRUE)
+summary(model)
+# report (model)
 
-plot_model(model, type='pred', terms=c('prominence_mean', 'modality'))
+# plot_model(model, type='pred', terms=c('prominence_mean', 'modality'))
 ```
 ```

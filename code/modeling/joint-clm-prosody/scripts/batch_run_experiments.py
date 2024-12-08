@@ -15,7 +15,7 @@ CPUS_PER_TASK = 8
 MEM_PER_CPU = '8G'
 GPU_INFO = ''
 
-TIME = '1-00:00:00'
+TIME = '2-12:00:00'
 CPUS_PER_TASK = 8
 MEM_PER_CPU = '8G'
 PARTITION = 'gpuq'
@@ -25,7 +25,7 @@ ACCOUNT = 'dbic'
 
 if __name__ == "__main__":
 
-	experiment_name = 'helsinki_prosody' #helsinki_prosody
+	experiment_name = 'gigaspeech_prosody' #helsinki_prosody
  
 	# parser = argparse.ArgumentParser()
 	# parser.add_argument('-d', '--dataset', type=str)
@@ -34,27 +34,27 @@ if __name__ == "__main__":
 
 	experiments = {
 	
-		# # no prosody embeddings
-		# 'scratch-gpt2_clm-loss_no-prosody-embed': [
-		# 	f"model.loss_mode=clm",
-		# 	f"model.pretrained=False",
-		# 	f"model.use_prosody_embeddings=False"
-		# ],
+		# no prosody embeddings
+		'scratch-gpt2_clm-loss_no-prosody-embed': [
+			f"model.loss_mode=clm",
+			f"model.pretrained=False",
+			f"model.use_prosody_embeddings=False"
+		],
 
-		# # prosody embeddings
-		# 'scratch-gpt2_clm-loss_prosody-embed': [
-		# 	f"model.loss_mode=clm",
-		# 	f"model.pretrained=False",
-		# 	f"model.use_prosody_embeddings=True"
-		# ],
+		# prosody embeddings
+		'scratch-gpt2_clm-loss_prosody-embed': [
+			f"model.loss_mode=clm",
+			f"model.pretrained=False",
+			f"model.use_prosody_embeddings=True"
+		],
 
-		# # joint prosody embeddings
-		# 'scratch-gpt2_joint-loss_prosody-embed': [
-		# 	f"model.loss_mode=joint",
-		# 	f"model.pretrained=False",
-		# 	f"model.use_prosody_embeddings=True",
-		# 	f"model.loss_kwargs.w_prosody=0.3"
-		# ],
+		# joint prosody embeddings
+		'scratch-gpt2_joint-loss_prosody-embed': [
+			f"model.loss_mode=joint",
+			f"model.pretrained=False",
+			f"model.use_prosody_embeddings=True",
+			f"model.loss_kwargs.w_prosody=0.3"
+		],
 
 		# ####### Yoke the shuffling to the batch ##########
 
@@ -78,37 +78,37 @@ if __name__ == "__main__":
 		
 		# ####### Shuffle labels randomly each batch ##########
 
-		# # joint prosody embeddings
-		# 'label-shuffle_scratch-gpt2_joint-loss_prosody-embed': [
-		# 	f"model.loss_mode=joint",
-		# 	f"model.pretrained=False",
-		# 	f"model.use_prosody_embeddings=True",
-		# 	f"model.loss_kwargs.w_prosody=0.3",
-		# 	f"model.shuffle_prosody=True"
-		# ],
-
-		# 'label-shuffle_scratch-gpt2_clm-loss_prosody-embed': [
-		# 	f"model.loss_mode=clm",
-		# 	f"model.pretrained=False",
-		# 	f"model.shuffle_prosody=True"
-		# ],
-
-		####### Random number draw each batch ##########
-
 		# joint prosody embeddings
-		'random-uniform-label_scratch-gpt2_joint-loss_prosody-embed': [
+		'label-shuffle_scratch-gpt2_joint-loss_prosody-embed': [
 			f"model.loss_mode=joint",
 			f"model.pretrained=False",
 			f"model.use_prosody_embeddings=True",
 			f"model.loss_kwargs.w_prosody=0.3",
-			f"model.random_prosody=True"
+			f"model.shuffle_prosody=True"
 		],
 
-		'random-uniform-label_scratch-gpt2_clm-loss_prosody-embed': [
+		'label-shuffle_scratch-gpt2_clm-loss_prosody-embed': [
 			f"model.loss_mode=clm",
 			f"model.pretrained=False",
-			f"model.random_prosody=True"
+			f"model.shuffle_prosody=True"
 		],
+
+		####### Random number draw each batch ##########
+
+		# # joint prosody embeddings
+		# 'random-uniform-label_scratch-gpt2_joint-loss_prosody-embed': [
+		# 	f"model.loss_mode=joint",
+		# 	f"model.pretrained=False",
+		# 	f"model.use_prosody_embeddings=True",
+		# 	f"model.loss_kwargs.w_prosody=0.3",
+		# 	f"model.random_prosody=True"
+		# ],
+
+		# 'random-uniform-label_scratch-gpt2_clm-loss_prosody-embed': [
+		# 	f"model.loss_mode=clm",
+		# 	f"model.pretrained=False",
+		# 	f"model.random_prosody=True"
+		# ],
 
 		# # no prosody embeddings
 		# 'finetune-gpt2_clm-loss_no-prosody-embed': [

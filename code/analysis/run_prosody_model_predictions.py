@@ -22,7 +22,7 @@ sys.path.append('../modeling/joint-clm-prosody/')
 
 from config import *
 from dataset_utils import attempt_makedirs
-import prosody_analysis_utils as analysis
+import prosody_utils as prosody
 
 from src import utils
 from src.utils.text_processing import python_remove_punctuation
@@ -112,7 +112,7 @@ if __name__ == '__main__':
     prosody_columns = ['stim', 'start', 'end', 'word', 'prominence', 'boundary']
 
     df_prosody = pd.read_csv(os.path.join(BASE_DIR, 'stimuli/prosody/', f'{p.task}.prom'), sep='\t', names=prosody_columns)
-    df_prosody = df_prosody[~df_prosody['word'].isin(analysis.REMOVE_WORDS)].reset_index(drop=True) # remove non-words
+    df_prosody = df_prosody[~df_prosody['word'].isin(prosody.REMOVE_WORDS)].reset_index(drop=True) # remove non-words
 
     df_preproc = pd.read_csv(os.path.join(BASE_DIR, 'stimuli/preprocessed/', p.task, f'{p.task}_transcript-preprocessed.csv'))
     df_preproc = df_preproc.rename(columns={'Word_Written': 'word', 'Punctuation': 'punctuation'})
@@ -132,8 +132,8 @@ if __name__ == '__main__':
     ###########################################
 
     # create a list of indices that we will iterate through to sample the transcript
-    segments = analysis.get_segment_indices(n_words=len(df_preproc), window_size=p.window_size)[:-1]
-    inputs = [analysis.transcript_to_input(df_preproc, segment, add_punctuation=True) for segment in segments]
+    segments = prosody.get_segment_indices(n_words=len(df_preproc), window_size=p.window_size)[:-1]
+    inputs = [prosody.transcript_to_input(df_preproc, segment, add_punctuation=True) for segment in segments]
     inputs, labels = zip(*inputs)
 
     # now create the dataset out of the labels --> buffer the missing samples to keep it aligned with the transcript
@@ -146,11 +146,11 @@ if __name__ == '__main__':
 
     # load a word-level model --> we use glove here
     # first function downloads the model if needed, second function loads it as gensim format
-    word_models = {model_name: analysis.load_word_model(model_name=model_name, cache_dir=CACHE_DIR) for model_name in analysis.WORD_MODELS.keys()}
+    word_models = {model_name: prosody.load_word_model(model_name=model_name, cache_dir=CACHE_DIR) for model_name in prosody.WORD_MODELS.keys()}
 
     # add the first word to the dataframe --> we don't run NWP on this as there is no context
     # to condition, nor do we have humans do it
-    df = analysis.create_results_dataframe()
+    df = prosody.create_results_dataframe()
     first_word = df_preproc.iloc[0]['word'].lower()
     df.loc[len(df)] = {'ground_truth_word': first_word}
 
@@ -180,7 +180,7 @@ if __name__ == '__main__':
 
             # now given the outputs of the model, run our stats of interest
             for n in p.top_n:
-                segment_stats = analysis.get_model_statistics(ground_truth_word, probs, tokenizer, prev_probs=prev_probs, word_models=word_models, top_n=n)
+                segment_stats = prosody.get_model_statistics(ground_truth_word, probs, tokenizer, prev_probs=prev_probs, word_models=word_models, top_n=n)
                 df_stack[str(n)].append(segment_stats)
 
             # now that we've run our stats, set the previous distribution to the one we just ran
@@ -189,7 +189,7 @@ if __name__ == '__main__':
         else:
             # append blank frames for the current rows
             for n in p.top_n:
-                df = analysis.create_results_dataframe()
+                df = prosody.create_results_dataframe()
                 df.loc[len(df)] = {'ground_truth_word': ground_truth_word}
                 df_stack[str(n)].append(df)
         

@@ -114,9 +114,9 @@ df_results <- read.csv(results_fn)
 # Set the variable types
 factor_columns <- c('modality', 'ground_truth', 'word_index', 'top_pred', 'task')
 df_results <- convert_columns_to_factors(df_results, factor_columns)
-df_results
+
 ```
-## Binary accuracy
+## Population-level Binary accuracy
 
 ### Logistic regression 
 
@@ -135,8 +135,9 @@ model <- glmer(binary_accuracy_formula,
                data = df_results, 
                family = binomial(link = "logit"))
 
-tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
+tab_model(model,show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
 summary (model)
+report (model)
 ```
 
 ### Prosody interaction
@@ -158,7 +159,6 @@ model <- glmer(binary_accuracy_formula,
 
 tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
 summary (model)
-
 ```
 
 ### Plot interaction model
@@ -189,6 +189,7 @@ model <- lmer(continuous_accuracy_formula, data=df_results)
 
 tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
 summary (model)
+report(model)
 ```
 
 ### Include prosody within model
@@ -204,7 +205,7 @@ continuous_accuracy_formula <- 'fasttext_top_word_accuracy ~ modality * prominen
 # Fit the logistic mixed-effects model
 model <- lmer(continuous_accuracy_formula, data=df_results)
 
-tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
+tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE, show.df=TRUE)
 summary (model)
 
 plot_model(model, type='pred', terms=c('prominence_mean', 'modality'))

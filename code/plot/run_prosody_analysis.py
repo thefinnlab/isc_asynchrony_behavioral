@@ -127,9 +127,9 @@ if __name__ == "__main__":
     plt.xticks(rotation=45, ha='right')
 
     if p.dataset == 'helsinki':
-        plt.ylim([0.2, 0.26])
+        plt.ylim([0.18, 0.26])
     elif p.dataset == 'gigaspeech':
-        plt.ylim([0.15, 0.21])
+        plt.ylim([0.18, 0.26])
 
     plt.axhline(y=accuracy_chance, color='k', linestyle='--')
     sns.despine()
@@ -166,9 +166,9 @@ if __name__ == "__main__":
     plt.xticks(rotation=45, ha='right')
 
     if p.dataset == 'helsinki':
-        plt.ylim([0, 350])
+        plt.ylim([0, 250])
     elif p.dataset == 'gigaspeech':
-        plt.ylim([0, 350])
+        plt.ylim([0, 250])
 
     plt.axhline(y=perplexity_chance, color='k', linestyle='--')
     sns.despine()

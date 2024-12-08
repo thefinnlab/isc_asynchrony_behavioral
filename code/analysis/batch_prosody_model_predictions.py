@@ -22,7 +22,7 @@ MEM_PER_CPU = '8G'
 if __name__ == '__main__':
 
     task_names = ['black', 'wheretheressmoke', 'howtodraw']
-    dataset_names = ['helsinki', 'gigaspeech']
+    dataset_names = ['gigaspeech']
 
     window_sizes = [25, 100]
     top_ns = [1, 5]
@@ -32,48 +32,70 @@ if __name__ == '__main__':
     MODELS_DIR = os.path.join(BASE_DIR, 'code/modeling/joint-clm-prosody/')
 
     MODEL_ARGS = {
-        'helsinki': {
-            # Prosody model + Joint loss: training with both CLM loss & prosody prediction objectives + adding prosodic information
-            'helsinki-prosody_scratch-gpt2_joint-loss_prosody-embed': {
-                'ckpt_path': os.path.join(MODELS_DIR, 'logs/train/runs/2024-09-12/07-41-15/checkpoints/epoch_014.ckpt'),
-                'overrides': [f"model.loss_mode=joint", f"model.pretrained=False", f"model.use_prosody_embeddings=True"]
-            },
+        # 'helsinki': {
+        #     # Prosody model + Joint loss: training with both CLM loss & prosody prediction objectives + adding prosodic information
+        #     'helsinki-prosody_scratch-gpt2_joint-loss_prosody-embed': {
+        #         'ckpt_path': os.path.join(MODELS_DIR, 'logs/train/runs/2024-09-12/07-41-15/checkpoints/epoch_014.ckpt'),
+        #         'overrides': [f"model.loss_mode=joint", f"model.pretrained=False", f"model.use_prosody_embeddings=True"]
+        #     },
 
-            # Prosody model + CLM loss: training with only CLM loss adding prosodic information
-            'helsinki-prosody_scratch-gpt2_clm-loss_prosody-embed': {
-                'ckpt_path': os.path.join(MODELS_DIR, 'logs/train/runs/2024-09-11/17-06-38/checkpoints/epoch_014.ckpt'),
-                'overrides': [f"model.loss_mode=clm", f"model.pretrained=False", f"model.use_prosody_embeddings=True"]
-            },
+        #     # Prosody model + CLM loss: training with only CLM loss adding prosodic information
+        #     'helsinki-prosody_scratch-gpt2_clm-loss_prosody-embed': {
+        #         'ckpt_path': os.path.join(MODELS_DIR, 'logs/train/runs/2024-09-11/17-06-38/checkpoints/epoch_014.ckpt'),
+        #         'overrides': [f"model.loss_mode=clm", f"model.pretrained=False", f"model.use_prosody_embeddings=True"]
+        #     },
 
-            # Baseline model: training with only CLM loss without prosody embeddings
-            'helsinki-prosody_scratch-gpt2_clm-loss_no-prosody-embed': {
-                'ckpt_path': os.path.join(MODELS_DIR, 'logs/train/runs/2024-10-24/14-26-40/checkpoints/epoch_014.ckpt'), 
-                'overrides': [f"model.loss_mode=clm", f"model.pretrained=False", f"model.use_prosody_embeddings=False"]
-            }, 
-        },
+        #     # Baseline model: training with only CLM loss without prosody embeddings
+        #     'helsinki-prosody_scratch-gpt2_clm-loss_no-prosody-embed': {
+        #         'ckpt_path': os.path.join(MODELS_DIR, 'logs/train/runs/2024-10-24/14-26-40/checkpoints/epoch_014.ckpt'), 
+        #         'overrides': [f"model.loss_mode=clm", f"model.pretrained=False", f"model.use_prosody_embeddings=False"]
+        #     }, 
+        # },
 
-        ################### GIGASPEECH ############
+        ################### GIGASPEECH - M ############
 
         'gigaspeech' : {
-
             # Prosody model + Joint loss: training with both CLM loss & prosody prediction objectives + adding prosodic information
             'gigaspeech-prosody_scratch-gpt2_joint-loss_prosody-embed': {
-                'ckpt_path': os.path.join(MODELS_DIR, 'logs/train/runs/2024-11-01/18-06-45/checkpoints/epoch_014.ckpt'),
+                'ckpt_path': os.path.join(MODELS_DIR, 'logs/train/runs/2024-11-27/18-10-15/checkpoints/epoch_014.ckpt'),
                 'overrides': [f"model.loss_mode=joint", f"model.pretrained=False", f"model.use_prosody_embeddings=True"]
             },
 
             # Prosody model + CLM loss: training with only CLM loss adding prosodic information
             'gigaspeech-prosody_scratch-gpt2_clm-loss_prosody-embed': {
-                'ckpt_path': os.path.join(MODELS_DIR, 'logs/train/runs/2024-11-01/16-04-33/checkpoints/epoch_013.ckpt'),
+                'ckpt_path': os.path.join(MODELS_DIR, 'logs/train/runs/2024-11-27/10-58-20/checkpoints/epoch_013.ckpt'),
                 'overrides': [f"model.loss_mode=clm", f"model.pretrained=False", f"model.use_prosody_embeddings=True"]
             },
 
             # Baseline model: training with only CLM loss without prosody embeddings
             'gigaspeech-prosody_scratch-gpt2_clm-loss_no-prosody-embed': {
-                'ckpt_path': os.path.join(MODELS_DIR, 'logs/train/runs/2024-11-01/16-04-14/checkpoints/epoch_013.ckpt'), 
+                'ckpt_path': os.path.join(MODELS_DIR, 'logs/train/runs/2024-11-27/10-58-01/checkpoints/epoch_013.ckpt'), 
                 'overrides': [f"model.loss_mode=clm", f"model.pretrained=False", f"model.use_prosody_embeddings=False"]
             }, 
         }
+
+        # ################### GIGASPEECH - S ############
+
+        # 'gigaspeech' : {
+
+        #     # Prosody model + Joint loss: training with both CLM loss & prosody prediction objectives + adding prosodic information
+        #     'gigaspeech-prosody_scratch-gpt2_joint-loss_prosody-embed': {
+        #         'ckpt_path': os.path.join(MODELS_DIR, 'logs/train/runs/2024-11-01/18-06-45/checkpoints/epoch_014.ckpt'),
+        #         'overrides': [f"model.loss_mode=joint", f"model.pretrained=False", f"model.use_prosody_embeddings=True"]
+        #     },
+
+        #     # Prosody model + CLM loss: training with only CLM loss adding prosodic information
+        #     'gigaspeech-prosody_scratch-gpt2_clm-loss_prosody-embed': {
+        #         'ckpt_path': os.path.join(MODELS_DIR, 'logs/train/runs/2024-11-01/16-04-33/checkpoints/epoch_013.ckpt'),
+        #         'overrides': [f"model.loss_mode=clm", f"model.pretrained=False", f"model.use_prosody_embeddings=True"]
+        #     },
+
+        #     # Baseline model: training with only CLM loss without prosody embeddings
+        #     'gigaspeech-prosody_scratch-gpt2_clm-loss_no-prosody-embed': {
+        #         'ckpt_path': os.path.join(MODELS_DIR, 'logs/train/runs/2024-11-01/16-04-14/checkpoints/epoch_013.ckpt'), 
+        #         'overrides': [f"model.loss_mode=clm", f"model.pretrained=False", f"model.use_prosody_embeddings=False"]
+        #     }, 
+        # }
     }
 
     # grab the tasks
@@ -99,8 +121,8 @@ if __name__ == '__main__':
                 f"-overrides {overrides}"
             ))
 
-            if job_num in [14, 32]:
-                all_cmds.append(cmd)
+            # if job_num in [14, 32]:
+            all_cmds.append(cmd)
             job_num += 1
     
     dsq_base_string = f'dsq_prosody_model_predictions'
