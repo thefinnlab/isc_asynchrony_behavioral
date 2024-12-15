@@ -31,34 +31,43 @@ if __name__ == '__main__':
 	# remove practice trial and example trial from the list of tasks
 	task_names = [task for task in task_names if task not in ['nwp_practice_trial', 'example_trial']] 
 
-	task_names = ['howtodraw'] #'howtodraw', 'odetostepfather', 'wheretheressmoke'] #'black'] #['demon'] #, 'keats']
+	task_names = ['black', 'wheretheressmoke', 'howtodraw'] #'black'] #['demon'] #, 'keats']
 
 	# get all MLM models except BERT
 	MLM_MODELS = list(nlp.MLM_MODELS_DICT.keys())[1:]
 	CLM_MODELS = list(nlp.CLM_MODELS_DICT.keys()) 
 	model_names = CLM_MODELS + MLM_MODELS
-	model_names = ['gpt2']
+	# model_names = ['gpt2']
 
 	# model_names = sorted(CLM_MODELS_DICT.keys())
-	window_sizes = [25] #,  100]
-	top_ns = [1] #, 5, 10]
+	window_sizes = [10, 25, 50, 75, 100, 250, 500]
+	top_ns = [1, 5] #, 10]
 
 	all_cmds = []
 	script_fn = os.path.join(os.getcwd(), 'run_get_clm_predictions.py')
 	job_string = f'{DSQ_MODULES} srun python {script_fn}'
 	job_num = 0
 
-	# failed_jobs = [3, 5, 11]
+	failed_jobs = [
+		4, 5,9, 10, 11, 12, 19, 34, 
+		39, 40, 41, 42, 43, 47, 48,
+		54, 55, 57, 58, 60, 62, 64, 
+		66, 68, 74, 75, 76, 77, 85,
+		96, 97, 101, 106, 108, 111, 112, 118, 125, 174, 181, 188
+	]
 
 	for i, (task, model, window) in enumerate(product(task_names, model_names, window_sizes)):
 		
-		# if i not in failed_jobs:
+		# if window in [25, 100]:
 		# 	continue
 
-		# if task == 'wheretheressmoke' and model == 'gpt-neo-x':
-		# 	pass
-		# else:
-		# 	continue
+		if i not in failed_jobs:
+			continue
+
+		if window in [25, 100]:
+			save_logits = 1
+		else:
+			save_logits = 0
 
 		out_dir = os.path.join(BASE_DIR, 'derivatives/model-predictions', task, model, f'window-size-{window}')
 		out_fn = os.path.join(out_dir, f'task-{task}_model-{model}_window-size-{window}_top-{top_ns[0]}.csv')
@@ -66,7 +75,7 @@ if __name__ == '__main__':
 
 		if OVERWRITE or not file_exists:
 			cmd = ''.join([
-				f'{job_string} -t {task} -m {model} -w {window} -n {" ".join(str(v) for v in top_ns)}']
+				f'{job_string} -t {task} -m {model} -w {window} -n {" ".join(str(v) for v in top_ns)} -s {save_logits}']
 			)
 
 			all_cmds.append(cmd)

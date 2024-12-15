@@ -82,8 +82,8 @@ if __name__ == '__main__':
     print (f'Task: {p.task}')
     print (f'Window Size: {p.window_size}')
     
-    out_dir = os.path.join(BASE_DIR, 'derivatives/model-predictions', p.task, 'prosody-models', p.model_name, f'window-size-{p.window_size}')
-    logits_dir = os.path.join(SCRATCH_DIR, 'derivatives/model-predictions', p.task, 'prosody-models', p.model_name, f'window-size-{p.window_size}', 'logits')
+    out_dir = os.path.join(BASE_DIR, 'derivatives/model-predictions', p.task, 'prosody-models', p.model_name, f'window-size-{str(p.window_size).zfill(5)}')
+    logits_dir = os.path.join(SCRATCH_DIR, 'derivatives/model-predictions', p.task, 'prosody-models', p.model_name, f'window-size-{str(p.window_size).zfill(5)}', 'logits')
 
     attempt_makedirs(out_dir)
     attempt_makedirs(logits_dir)
@@ -170,7 +170,7 @@ if __name__ == '__main__':
         # run the inputs through the model, get predictive distribution, and save out the logits
         # if the next word is a prediction word save logits
         if df_preproc.loc[ground_truth_index, 'NWP_Candidate']: # and p.model_name == 'gpt2-xl':
-            logits_fn = os.path.join(logits_dir, f'{p.task}_window-size-{p.window_size}_logits-{str(ground_truth_index).zfill(5)}.pt')
+            logits_fn = os.path.join(logits_dir, f'{p.task}_window-size-{str(p.window_size).zfill(5)}_logits-{str(ground_truth_index).zfill(5)}.pt')
         else:
             logits_fn = None
 

@@ -57,13 +57,13 @@ if __name__ == "__main__":
     df_results = []
 
     for task in p.task_list:
-        df_task = pd.read_csv(os.path.join(results_dir, f'task-{task}_group-analyzed-behavior_window-size-{p.window_size}_human-model-lemmatized.csv'))
+        df_task = pd.read_csv(os.path.join(results_dir, f'task-{task}_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-lemmatized.csv'))
         df_task['task'] = task
         df_results.append(df_task)
 
     # concatenate into one dataframe --> write to file for posterity 
     df_results = pd.concat(df_results).reset_index(drop=True)
-    df_results.to_csv(os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{p.window_size}_human-model-lemmatized.csv'), index=False)
+    df_results.to_csv(os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-lemmatized.csv'), index=False)
 
     # use the accuracy within these results to get the order to plot the models
     ordered_accuracy = utils.get_ordered_accuracy(df_results)
@@ -197,13 +197,13 @@ if __name__ == "__main__":
     df_kl_div = []
 
     for task in p.task_list:
-        df = pd.read_csv(os.path.join(results_dir,  f'task-{task}_group-analyzed-behavior_window-size-{p.window_size}_human-model-distributions-lemmatized.csv'))
+        df = pd.read_csv(os.path.join(results_dir,  f'task-{task}_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-distributions-lemmatized.csv'))
         df['task'] = task
         df_kl_div.append(df)
 
     df_kl_div = pd.concat(df_kl_div).reset_index(drop=True)
     
-    df_kl_div.to_csv(os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{p.window_size}_human-model-distributions-lemmatized.csv'), index=False)
+    df_kl_div.to_csv(os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-distributions-lemmatized.csv'), index=False)
 
     # cmap = create_spoken_written_cmap(continuous=False)
     sns.set(style='white', rc={'figure.figsize':(8,5)})

@@ -6,6 +6,11 @@ import librosa
 from tqdm import tqdm
 from natsort import natsorted
 
+import nltk
+from functools import lru_cache
+from itertools import product as iterprod
+from statsmodels.stats.multitest import multipletests
+
 from scipy import stats
 from scipy.spatial import distance
 import scipy.special as special
@@ -17,7 +22,6 @@ from config import *
 from tommy_utils import nlp
 from preproc_utils import divide_nwp_dataframe, load_model_results
 from text_utils import get_pos_tags, get_lemma, strip_punctuation
-
 
 ###############################################
 ########## Lemmatization functions ############
@@ -280,6 +284,146 @@ def aggregate_participant_responses(results_dir, audio_dir, task, modality, n_or
     return df_results
 
 ###############################################
+########### Phoneme leakage checks ############
+###############################################
+
+try:
+    arpabet = nltk.corpus.cmudict.dict()
+except LookupError:
+    nltk.download('cmudict')
+    arpabet = nltk.corpus.cmudict.dict()
+
+@lru_cache()
+def wordbreak(s):
+    s = s.lower()
+    if s in arpabet:
+        return arpabet[s]
+    middle = len(s)/2
+    partition = sorted(list(range(len(s))), key=lambda x: (x-middle)**2-x)
+    for i in partition:
+        pre, suf = (s[:i], s[i:])
+        if pre in arpabet and wordbreak(suf) is not None:
+            return [x+y for x,y in iterprod(arpabet[pre], wordbreak(suf))]
+    return None
+
+def compare_wrong_phonemes(responses, ground_truth, n_phones=1):
+    '''
+    Find match of first n_phonemes to the ground truth
+    '''
+
+    # Grab ground truth phoneme
+    ground_truth_phoneme = wordbreak(ground_truth)[0][0]
+
+    # Get first phoneme of each response
+    predicted_phoneme = [wordbreak(word) for word in responses]
+    predicted_phoneme = [phone[0][0] if phone is not None else '' for phone in predicted_phoneme]
+    
+    unique, counts = np.unique(predicted_phoneme, return_counts=True)
+
+    # Find accuracy of first letter
+    phoneme_accuracy = np.asarray([phone == ground_truth_phoneme for phone in predicted_phoneme])
+
+    # Focus on wrong responses
+    wrong_responses = np.argwhere(responses != ground_truth)
+
+    # Make sure there is at least 1 wrong response
+    if len(wrong_responses) >= 1:
+
+        # Extract the wrong response phonemes and accompanying accuracy
+        wrong_phonemes = np.asarray(predicted_phoneme)[wrong_responses]
+        wrong_accuracy = phoneme_accuracy[wrong_responses]
+
+        # Get number of correct responses for the wrong response
+        wrong_resp_correct = np.sum(wrong_accuracy)
+        wrong_resp_incorrect = len(wrong_accuracy) - wrong_resp_correct
+        wrong_resp_accuracy = wrong_resp_correct / len(wrong_accuracy)
+    else:
+        wrong_resp_correct = np.nan 
+        wrong_resp_incorrect = np.nan 
+        wrong_resp_accuracy = np.nan
+
+    return wrong_resp_correct, wrong_resp_incorrect, wrong_resp_accuracy
+
+def get_leakage_stats(df_cleaned_behavior, stat_test='barnard', correction='fdr_bh'):
+
+    df_stack = []
+    phone_columns = ['wrong_resp_n_correct', 'wrong_resp_n_incorrect', 'wrong_resp_accuracy']
+    stats_columns = [f'{stat_test}_stat', f'{stat_test}_pvalue']
+
+    # Go through each word index for the current task
+    for word_index, df_index in df_cleaned_behavior.groupby(['word_index']): 
+
+        _df = []
+        contingency = []
+
+        # Get phoneme comparisons for wrong words separately for each modality 
+        for modality, df_modality in df_index.groupby('modality'):
+
+            # Grab ground truth and responses
+            ground_truth = df_modality['ground_truth'].unique()[0]
+            responses = df_modality['response'].to_numpy()
+
+            # # Filter out missing responses
+            # responses = list(filter(None, responses))
+
+            # Compare response phonemes to the ground truth
+            phoneme_match = compare_wrong_phonemes(responses, ground_truth, n_phones=1)
+
+            # Make the contingency table
+            contingency.append(phoneme_match[:-1])
+
+            # Save all phoneme info
+            df_modality.loc[:, phone_columns] = phoneme_match
+            _df.append(df_modality)
+
+        # Conduct stats now that we have both modalities
+        _df = pd.concat(_df).reset_index(drop=True)
+
+        # Create a contingency table
+        contingency = np.stack(contingency)
+
+        ## Now conduct stats on it --> groupby word index within task modality 
+        if not np.isnan(contingency).any():
+            if stat_test == 'barnard':
+                results = stats.barnard_exact(contingency, alternative='greater')
+            elif stat_test == 'fisher':
+                results = stats.fisher_exact(contingency, alternative='greater')
+            elif stat_test == 'chi2':
+                results = stats.chi2_contingency((contingency + 1))
+            statistic, pvalue = results.statistic, results.pvalue
+        else:
+            statistic, pvalue = np.nan, np.nan
+
+        _df.loc[:, stats_columns] = statistic, pvalue
+        df_stack.append(_df)
+
+    df_stack = pd.concat(df_stack).reset_index(drop=True)
+
+    # Correct for multiple comparisons across word indices
+    if correction is not None:
+
+        # Add stat in as modified column
+        _df = []
+        stat_name = stats_columns[-1] + f'_{correction}'
+
+        # Get all unique word indices (operating on subjectwise df, so need to find unique)
+        word_indices = df_stack['word_index'].unique()
+
+        # Grab each unique pvalue 
+        pvalues = np.asarray([df_stack[df_stack['word_index'] == idx][stats_columns[-1]].unique()[0] for idx in word_indices])
+
+        # Filter nans before correcting for multiple comparisons
+        nan_filter = ~np.isnan(pvalues)
+        pvalues[nan_filter] = multipletests(pvalues[nan_filter], method=correction)[1]
+
+        for idx, pval in zip(word_indices, pvalues):
+            df_stack.loc[df_stack['word_index'] == idx, stat_name] = pval
+    
+    df_stack = df_stack.sort_values(by=['modality', 'subject']).reset_index(drop=True)
+    
+    return df_stack
+
+###############################################
 ########### Analysis of human data ############
 ###############################################
 
@@ -483,6 +627,10 @@ def analyze_human_results(df_transcript, df_results, word_model_info, window_siz
         if np.isnan(pred_distances):
             pred_distances = 0
 
+        #############################################
+        ######## Grab phoneme control stats #########
+        #############################################
+
         df_analysis.loc[len(df_analysis)] = {
             'modality': modality,
             'word_index': index,
@@ -521,9 +669,9 @@ def load_logits(model_dir, model_name, task, window_size, word_index):
     '''
 
     if 'prosody' in model_name:
-        model_dir = os.path.join(model_dir, task, 'prosody-models', model_name, f'window-size-{window_size}')
+        model_dir = os.path.join(model_dir, task, 'prosody-models', model_name, f'window-size-{str(p.window_size).zfill(5)}')
     else:
-        model_dir = os.path.join(model_dir, task, model_name, f'window-size-{window_size}')
+        model_dir = os.path.join(model_dir, task, model_name, f'window-size-{str(p.window_size).zfill(5)}')
 
     logits_fns = natsorted(glob.glob(os.path.join(model_dir, 'logits', f'*{str(word_index).zfill(5)}*.pt')))
     
@@ -637,7 +785,8 @@ def compare_human_model_distributions(df_human_results, word_model_info, models_
         'earthmovers_dist',
         'jensenshannon_dist',
         'ks_stat',
-        'human_model_pred_similarity'
+        'human_model_pred_similarity',
+        'human_model_accuracy_diff',
     ])
 
     # Go through each word index in the current modality
@@ -720,6 +869,11 @@ def compare_human_model_distributions(df_human_results, word_model_info, models_
             try:
                 _lemmatized = get_lemma(model_prediction)
                 model_prediction = _lemmatized if _lemmatized is not None else model_prediction
+                
+                # Modify ground truth to include lemma
+                _ground_truth = get_lemma(ground_truth)
+                ground_truth = _ground_truth if _ground_truth is not None else ground_truth
+
             except:
                 pass
         
@@ -727,7 +881,17 @@ def compare_human_model_distributions(df_human_results, word_model_info, models_
         model_vector = word_model[model_prediction]
 
         pred_similarity = 1 - distance.cdist(human_vector[np.newaxis], model_vector[np.newaxis], metric='cosine').squeeze()
-        
+
+        ########################################################
+        ######## Get difference in prediction accuracy #########
+        ########################################################
+
+        # Grab human and model top word accuracy
+        human_top_word_accuracy, _ = nlp.get_word_vector_metrics(word_model, [human_prediction], ground_truth)
+        model_top_word_accuracy, _ = nlp.get_word_vector_metrics(word_model, [model_prediction], ground_truth)
+
+        accuracy_difference = human_top_word_accuracy - model_top_word_accuracy
+
         ########################################################
         ##### Trim model distribution to human predictions #####
         ########################################################
@@ -776,9 +940,8 @@ def compare_human_model_distributions(df_human_results, word_model_info, models_
         ###############################################
         ######### Create dataframe and return #########
         ###############################################
-        
-        # Create a dataframe to store the information
-        df_comparison.loc[len(df_comparison)] = {
+
+        modality_word_index_results = {
             'model_name': model_name,
             'modality': modality,
             'word_index': word_index,
@@ -812,6 +975,10 @@ def compare_human_model_distributions(df_human_results, word_model_info, models_
 
             # Comparison of top prediction
             'human_model_pred_similarity': pred_similarity,
+            'human_model_accuracy_diff': accuracy_difference,
         }
+        
+        # Create a dataframe to store the information
+        df_comparison.loc[len(df_comparison)] = modality_word_index_results
 
     return df_comparison

@@ -149,6 +149,7 @@ df_results <- df_results %>%
 # df_results <- df_results[df_results$human_predictability > 0.02,]
 df_results[df_results$human_predictability == 0,]$human_predictability <- 0.01
 df_results[df_results$human_predictability == 1,]$human_predictability <- 0.99
+
 ```
 
 ### Set up order of factors
@@ -165,28 +166,23 @@ df_results$modality <- factor(df_results$modality, levels = c("audio", "text"))
 df_results$model_type <- factor(df_results$model_type, levels = c("clm", "mlm"))
 
 # df_results <- df_results[df_results$model_type == 'clm',]
+audio_greater_text <- c(1,-1)
+contrasts(df_results$modality) <- cbind(audio_greater_text)
 ```
 
 ## Predictability
 
 ```{r}
 
-audio_greater_text <- c(1,-1)
-contrasts(df_results$modality) <- cbind(audio_greater_text)
-
 df_results$log_model_predictability <- log(df_results$model_predictability)
 df_results$log_human_predictability <- log(df_results$human_predictability)
-# 
+
 df_cleaned <- remove_outliers(df_results, 'log_model_predictability')
 
-# df_cleaned <- df_cleaned[df_cleaned$modality == 'text',]
-# 
 model <- glmmTMB(
   formula = human_predictability ~ modality * log_model_predictability  + (1|word_index:task) + (1|model_name),
-  # ziformula = ~ modality * model_predictability + (1|word_index:task),
   data = df_cleaned,
   family = gaussian(link='log')
-  # family = beta_family()
 )
 
 AIC(model)
@@ -233,20 +229,6 @@ ggsave('human-llm_predictability-relationship.pdf', device = "pdf")
 
 ```
 
-### Plot model predictions + data
-
-```{r}
-#, fig.width=10, fig.height=8}
-
-testDispersion(model)
-simulationOutput <- simulateResiduals(model, plot = F)
-plot(simulationOutput)
-# 
-check_predictions(model)
-
-
-# plot_model(model, type='pred', terms=c('model_predictability', 'modality'))
-```
 ```{r}
 
 predictability_formula <- 'human_predictability ~ modality * model_predictability * prominence_mean + (1|word_index:task)'
@@ -266,16 +248,61 @@ plot_model(model, type='pred', terms=c('log_model_predictability', 'modality', '
 ## KL Divergence
 
 ```{r}
-audio_greater_text <- c(1,-1)
-contrasts(df_results$modality) <- cbind(audio_greater_text)
 
 # df_trimmed <- df_results[df_results$model_type == 'clm', ]
 
-kl_divergence <- 'kl_divergence ~ modality * prominence_mean + (1|word_index:task) + (1|model_name)'
+kl_divergence <- 'kl_divergence ~ modality + (1|word_index:task) + (1|model_name)'
 
 model <- lmer(kl_divergence, data = df_cleaned)
 
 tab_model(model, show.est = TRUE, show.se = TRUE, show.df = TRUE, show.stat = TRUE)
 
-plot_model(model, type='pred',  terms=c('prominence_mean', 'modality' ))
+# plot_model(model, type='pred',  terms=c('prominence_mean', 'modality' ))
+```
+
+# Supplementary analyses
+
+## Leakage filtering stat check
+
+```{r}
+
+# First filter by pvalue less than 0.05 uncorrected --> test absence of effect
+df_results_filtered <- subset(df_results, df_results$barnard_pvalue >= 0.05)
+
+# Test ordered contrast --> audio > 
+contrasts(df_results$model_type, how.many=1) <- contr.poly(length(unique(df_results$model_type)))
+
+```
+
+## Predictability
+
+```{r}
+
+df_cleaned_filtered <- remove_outliers(df_results_filtered, 'log_model_predictability')
+
+model <- glmmTMB(
+  formula = human_predictability ~ modality * log_model_predictability  + (1|word_index:task) + (1|model_name),
+  data = df_cleaned_filtered,
+  family = gaussian(link='log')
+)
+
+AIC(model)
+summary(model)
+tab_model(model, show.df=TRUE, show.se=TRUE, show.stat=TRUE)
+
+```
+
+## KL Divergence
+
+```{r}
+
+kl_divergence <- 'kl_divergence ~ modality + (1|word_index:task) + (1|model_name)'
+
+model <- lmer(
+  kl_divergence, 
+  data = df_cleaned_filtered
+)
+
+tab_model(model, show.est = TRUE, show.se = TRUE, show.df = TRUE, show.stat = TRUE)
+
 ```
