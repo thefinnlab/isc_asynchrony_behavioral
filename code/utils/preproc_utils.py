@@ -28,6 +28,7 @@ from pliers.extractors import PredefinedDictionaryExtractor, merge_results
 # nltk.download('tagsets')
 # nltk.download('stopwords')
 # nltk.download('averaged_perceptron_tagger')
+# nltk.download('averaged_perceptron_tagger_eng')
 # nltk.download('punkt')
 # nltk.download('wordnet')
 # nltk.download('omw-1.4')
@@ -620,9 +621,9 @@ def load_model_results(model_dir, model_name, task, window_size, top_n):
             return []  # or return None, depending on your needs
 
     if 'prosody' in model_name:
-        model_dir = os.path.join(model_dir, task, 'prosody-models', model_name, f'window-size-{window_size}')
+        model_dir = os.path.join(model_dir, task, 'prosody-models', model_name, f'window-size-{str(window_size).zfill(5)}')
     else:
-        model_dir = os.path.join(model_dir, task, model_name, f'window-size-{window_size}')
+        model_dir = os.path.join(model_dir, task, model_name, f'window-size-{str(window_size).zfill(5)}')
 
     results_fn = natsorted(glob.glob(os.path.join(model_dir, f'*top-{top_n}*')))[0]
 

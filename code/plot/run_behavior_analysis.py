@@ -52,7 +52,7 @@ if __name__ == "__main__":
     # average within accuracy by subject within task and modality
     df_subject_accuracy = df_subject_results.groupby(['task', 'modality', 'subject'])['accuracy'].mean().reset_index()
 
-    cmap = utils.create_spoken_written_cmap(continuous=False)
+    cmap = utils.create_colormap(continuous=False)
     ax = utils.plot_bar_results(df_subject_accuracy, x='task', y='accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE)
 
     plt.xlabel('Task')
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     ###################################
 
     # no points for binary since it's 0 or 1
-    cmap = utils.create_spoken_written_cmap(continuous=False)
+    cmap = utils.create_colormap(continuous=False)
     ax = utils.plot_bar_results(df_results, x='task', y='accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE, add_points=False)
     
     plt.xlabel('Task')
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     #######################################
 
     # plot top word accuracy for humans
-    cmap = utils.create_spoken_written_cmap(continuous=False)
+    cmap = utils.create_colormap(continuous=False)
     ax = utils.plot_bar_results(df_results, x='task', y=f'{p.word_model}_top_word_accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE)
 
     plt.xlabel('Task')
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     #######################################
 
     # plot top word accuracy for humans
-    cmap = utils.create_spoken_written_cmap(continuous=False)
+    cmap = utils.create_colormap(continuous=False)
     ax = utils.plot_bar_results(df_results, x='task', y=f'weighted_accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE)
 
     plt.xlabel('Task')
@@ -146,7 +146,7 @@ if __name__ == "__main__":
     ###################################
 
     # plot entropy of human distributions
-    cmap = utils.create_spoken_written_cmap(continuous=False)
+    cmap = utils.create_colormap(continuous=False)
     ax = utils.plot_bar_results(df_results, x='task', y='entropy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE)
 
     plt.xlabel('Task')
@@ -165,7 +165,7 @@ if __name__ == "__main__":
     ##########################################
 
     # plot entropy of human distributions
-    cmap = utils.create_spoken_written_cmap(continuous=False)
+    cmap = utils.create_colormap(continuous=False)
     ax = utils.plot_bar_results(df_results, x='task', y='normalized_entropy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE)
 
     plt.xlabel('Task')
@@ -192,7 +192,7 @@ if __name__ == "__main__":
     df_predictability['colors'] = colors
 
     # get the continuous colormap
-    cmap = utils.create_spoken_written_cmap()
+    cmap = utils.create_colormap()
     sns.set(style='white', rc={'figure.figsize':(5,5)})
 
     # set the color of the individual lines for each task

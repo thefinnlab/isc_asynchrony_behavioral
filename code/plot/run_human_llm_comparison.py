@@ -83,7 +83,7 @@ if __name__ == "__main__":
     fig, axes = plt.subplots(1,3, figsize=(15, 5))
     axes = axes.flatten()
 
-    cmap = utils.create_spoken_written_cmap(continuous=False)
+    cmap = utils.create_colormap(continuous=False)
     variable = f'accuracy'
 
     for ax, (task, df) in zip(axes, df_results.groupby('task')):
@@ -105,7 +105,7 @@ if __name__ == "__main__":
     #######################################################
 
     # plot top word accuracy for humans
-    cmap = utils.create_spoken_written_cmap(continuous=False)
+    cmap = utils.create_colormap(continuous=False)
     ax = utils.plot_bar_results(df_results, x='modality', y='accuracy', hue=None, order=human_models_order, cmap=cmap, figsize=FIGSIZE, add_points=False)
     
     plt.xlabel('Modality/Model')
@@ -149,7 +149,7 @@ if __name__ == "__main__":
     # plot top word accuracy for humans
     variable = f'{p.word_model}_top_word_accuracy'
 
-    cmap = utils.create_spoken_written_cmap(continuous=False)
+    cmap = utils.create_colormap(continuous=False)
     ax = utils.plot_bar_results(df_results, x='modality', y=variable, hue=None, order=human_models_order, cmap=cmap, figsize=FIGSIZE, add_points=False)
 
     plt.xlabel('Task')
@@ -165,51 +165,24 @@ if __name__ == "__main__":
     plt.close('all')
 
     #################################################
-    ####### Plot 3: quadrant plot of accuracy #######
-    #################################################
-
-    # currently plotting over tasks
-    df_all_tasks = []
-
-    for task in p.task_list:
-        model_quadrants = utils.load_model_quadrant_info(preproc_dir, models_dir, task=task, model_name='gpt2-xl')
-        df_task = df_results[df_results['task'] == task]
-
-        df_all_tasks.append((df_task, model_quadrants))
-
-    df_tasks, df_quadrants = [pd.concat(df).reset_index(drop=True) for df in zip(*df_all_tasks)]
-    utils.create_joint_density_plot(df_tasks, df_quadrants, word_model_name=p.word_model, weight_type='human>model', bw_adjust=0.65)
-
-    plt.xlabel('Cosine Similarity')
-    plt.xticks(rotation=45, ha='right')
-
-    plt.ylabel('Entropy')
-    plt.title(f'All task - human-LLM difference')
-    plt.tight_layout()
-
-    plt.savefig(os.path.join(plots_dir, "all-task_human-llm-comparison_quadrant-plot.pdf"), bbox_inches='tight', dpi=600)
-    plt.close('all')
-
-    #################################################
-    #### Plot 4: KL Divergence of model & humans ####
+    #### Plot 3: KL Divergence of model & humans ####
     #################################################
     
-    df_kl_div = []
+    df_distributions = []
 
     for task in p.task_list:
         df = pd.read_csv(os.path.join(results_dir,  f'task-{task}_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-distributions-lemmatized.csv'))
         df['task'] = task
-        df_kl_div.append(df)
+        df_distributions.append(df)
 
-    df_kl_div = pd.concat(df_kl_div).reset_index(drop=True)
-    
-    df_kl_div.to_csv(os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-distributions-lemmatized.csv'), index=False)
+    df_distributions = pd.concat(df_distributions).reset_index(drop=True)
+    df_distributions.to_csv(os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-distributions-lemmatized.csv'), index=False)
 
     # cmap = create_spoken_written_cmap(continuous=False)
     sns.set(style='white', rc={'figure.figsize':(8,5)})
 
-    cmap = utils.create_spoken_written_cmap(continuous=False)
-    ax = utils.plot_bar_results(df, x='model_name', y="kl_divergence", hue="modality", order=models_order, cmap=cmap, figsize=(7,5), add_points=False)
+    cmap = utils.create_colormap(continuous=False)
+    ax = utils.plot_bar_results(df_distributions, x='model_name', y="kl_divergence", hue="modality", order=models_order, cmap=cmap, figsize=(7,5), add_points=False)
 
     plt.xticks(rotation=45, ha='right')
 
@@ -227,15 +200,34 @@ if __name__ == "__main__":
     # plt.ylim([0, 4.5])
 
     #################################################
+    ####### Plot 4: quadrant plot of accuracy #######
+    #################################################
+
+    sns.reset_defaults()
+
+    # Load file with accuracy difference information
+    df_tasks = pd.read_csv(os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-distributions-lemmatized.csv'))
+
+    # Load quadrants across tasks
+    df_quadrants = utils.load_task_model_quadrants(preproc_dir, models_dir, p.task_list, model_names, p.word_model)
+
+    # Create the density plot
+    cmap = utils.create_colormap(dtype='human-model', continuous=True)
+    g = utils.create_joint_density_plot(df_tasks, df_quadrants, cmap=cmap)
+
+    plt.savefig(os.path.join(plots_dir, "all-task_human-llm-comparison_quadrant-plot.pdf"), bbox_inches='tight', dpi=600)
+    plt.close('all')
+
+    #################################################
     ###### Plot 5: Difference of KL Divergence ######
     #################################################
 
     # Define gradient colors
-    cmap = utils.create_spoken_written_cmap()
+    cmap = utils.create_colormap()
 
     df_kl_difference = []
 
-    for (task, model_name), df in df_kl_div.groupby(['task', 'model_name']):
+    for (task, model_name), df in df_distributions.groupby(['task', 'model_name']):
         df_audio = df[df['modality'] == 'audio'].reset_index(drop=True)
         df_text = df[df['modality'] == 'text'].reset_index(drop=True)
 

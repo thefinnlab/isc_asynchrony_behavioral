@@ -29,8 +29,17 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--overwrite', type=int, default=0)
     p = parser.parse_args()
 
-    task_list = ['black', 'wheretheressmoke', 'howtodraw']
-    window_size = 25
+    task_list = ['black'] #, 'wheretheressmoke', 'howtodraw']
+    window_sizes = [5] #, 500]
+
+    # # model_names = sorted(CLM_MODELS_DICT.keys())
+    # window_sizes = [
+    #     2, 3, 4, 5, 10, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300
+    # ]
+
+    # failed_jobs = [
+    #     0, 3, 4, 5, 6, 11, 14, 16, 17
+    # ]
 
     # get all MLM models except BERT
     if p.prosody:
@@ -56,9 +65,13 @@ if __name__ == '__main__':
     job_string = f'{DSQ_MODULES} srun python {script_fn}'
     job_num = 0
 
-    for i, task in enumerate(task_list):
+    for i, (task, window_size) in enumerate(product(task_list, window_sizes)):
+
+        # if i not in failed_jobs:
+        #     continue
+
         cmd = ''.join([
-            f"{job_string} -t {task} -m {model_names} -p {p.prosody}"
+            f"{job_string} -t {task} -m {model_names} -p {p.prosody} -window_size {window_size}"
         ])
 
         all_cmds.append(cmd)

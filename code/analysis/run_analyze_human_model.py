@@ -43,6 +43,9 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--overwrite', type=int, default=0)
     p = parser.parse_args()
 
+    print (f'Task: {p.task}', flush=True)
+    print (f'Window Size: {p.window_size}', flush=True)
+
     ###############################################
     ####### Set paths and directories needed ######
     ###############################################
@@ -108,7 +111,7 @@ if __name__ == '__main__':
 
     for model_name in p.model_names:
         # Load model data and add wrong phoneme information
-        df_model = analysis.analyze_model_accuracy(df_transcript, word_model_info=word_model_info, models_dir=models_dir, model_name=model_name, task=p.task, candidate_rows=candidate_rows, lemmatize=False)
+        df_model = analysis.analyze_model_accuracy(df_transcript, word_model_info=word_model_info, models_dir=models_dir, model_name=model_name, task=p.task, window_size=p.window_size, candidate_rows=candidate_rows, lemmatize=False)
         df_model = add_wrong_phoneme_info(df_results, df_model)
 
         # Add in prosody columns and add to the list
@@ -146,7 +149,7 @@ if __name__ == '__main__':
     df_lemmatized_models = []
 
     for model_name in p.model_names:
-        df_model = analysis.analyze_model_accuracy(df_transcript, word_model_info=word_model_info, models_dir=models_dir, model_name=model_name, task=p.task, candidate_rows=candidate_rows, lemmatize=True)
+        df_model = analysis.analyze_model_accuracy(df_transcript, word_model_info=word_model_info, models_dir=models_dir, model_name=model_name, task=p.task, window_size=p.window_size, candidate_rows=candidate_rows, lemmatize=True)
         df_model = add_wrong_phoneme_info(df_lemmatized_results, df_model)
 
         # Add in prosody columns and add to the list

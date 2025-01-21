@@ -80,7 +80,7 @@ Load data and set factor columns
 ```{r}
 
 # Load the results file
-results_fn<-glue('{results_dir}all-task_group-analyzed-behavior_window-size-25_human-model-lemmatized.csv')
+results_fn<-glue('{results_dir}all-task_group-analyzed-behavior_window-size-00025_human-model-lemmatized.csv')
 df_results <- read.csv(results_fn)
 
 # ADD A COLUMN THAT GROUPS HUMANS/MODELS
@@ -254,16 +254,15 @@ Load data and set factor columns
 ```{r}
 
 # Load the results file
-results_fn<-glue('{results_dir}all-task_group-analyzed-behavior_window-size-25_human-model-distributions-lemmatized.csv')
+results_fn<-glue('{results_dir}all-task_group-analyzed-behavior_window-size-00025_human-model-distributions-lemmatized.csv')
 
 df_accuracy_contrast <- read.csv(results_fn)
 
 # ADD A COLUMN THAT GROUPS HUMANS/MODELS
-df_accuracy_contrast <- df_results %>%
+df_accuracy_contrast <- df_accuracy_contrast %>%
   mutate(model_type = case_when(
     model_name %in% c('roberta', 'electra', 'xlm-prophetnet') ~ "mlm",
     TRUE ~ "clm"  # Default case
-
   ))
 
 # Set the variable types
@@ -311,12 +310,12 @@ ggplot(preds, aes(x=x, y=predicted, color=group)) +
     data = df_accuracy_contrast, 
     aes(x=model_entropy, y=human_model_accuracy_diff, color=modality), 
     stroke=1,
-    alpha=0.05) +
+    alpha=0.075) +
   geom_line(size=1) + 
   geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.3, color=NA) + 
   geom_hline(yintercept = 0, linetype = "dashed", color = "black", size = 1) +
   theme(
-    aspect.ratio = 16/9,
+    aspect.ratio = 6/7,
     axis.line = element_line(colour = "black"),
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
@@ -330,7 +329,7 @@ ggplot(preds, aes(x=x, y=predicted, color=group)) +
     y = "Accuracy Difference",
     title = "Difference of human and model accuracy") 
 
-# ggsave('human-llm_accuracy-difference-entropy.pdf', device = "pdf")
+ggsave('human-llm_accuracy-difference-entropy.pdf', device = "pdf")
 
 ```
 ### Now include prosody

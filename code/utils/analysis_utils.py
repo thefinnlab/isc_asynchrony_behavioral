@@ -509,7 +509,10 @@ def analyze_human_results(df_transcript, df_results, word_model_info, window_siz
         
             print (f'Kept {sum(rt_filter)} responses')
     
-        human_responses = df_index['response']
+        # Responses for the current modality
+        human_responses = df_index['response'].apply(strip_punctuation)
+        human_responses = list(filter(None, human_responses))
+
         rts = df_index['rt']
 
         ####################################################
@@ -589,17 +592,21 @@ def analyze_human_results(df_transcript, df_results, word_model_info, window_siz
         # Make input and calculate contextual embedding for ground truth
         df_substitute.loc[index, 'word'] = ground_truth
         inputs = nlp.transcript_to_input(df_substitute, idxs=current_segment)
-        bert_ground_truth_embedding = nlp.extract_word_embeddings([inputs], tokenizer, model, word_indices=word_index).squeeze()
-        bert_ground_truth_embedding = bert_ground_truth_embedding[-1, :][np.newaxis]
 
-        # Repeat for the predicted word
-        df_substitute.loc[index, 'word'] = top_word
-        inputs = nlp.transcript_to_input(df_substitute, idxs=current_segment)
-        bert_top_word_embedding = nlp.extract_word_embeddings([inputs], tokenizer, model, word_indices=word_index).squeeze()
-        bert_top_word_embedding = bert_top_word_embedding[-1, :][np.newaxis]
+        if window_size < 400:
+            bert_ground_truth_embedding = nlp.extract_word_embeddings([inputs], tokenizer, model, word_indices=word_index).squeeze()
+            bert_ground_truth_embedding = bert_ground_truth_embedding[-1, :][np.newaxis]
 
-        # Calculate cosine similarity between ground truth and prediction   
-        bert_similarity = 1 - distance.cdist(bert_ground_truth_embedding, bert_top_word_embedding, metric='cosine').squeeze()
+            # Repeat for the predicted word
+            df_substitute.loc[index, 'word'] = top_word
+            inputs = nlp.transcript_to_input(df_substitute, idxs=current_segment)
+            bert_top_word_embedding = nlp.extract_word_embeddings([inputs], tokenizer, model, word_indices=word_index).squeeze()
+            bert_top_word_embedding = bert_top_word_embedding[-1, :][np.newaxis]
+
+            # Calculate cosine similarity between ground truth and prediction   
+            bert_similarity = 1 - distance.cdist(bert_ground_truth_embedding, bert_top_word_embedding, metric='cosine').squeeze()
+        else:
+            bert_similarity = np.nan
 
         #############################################
         #### Prediction density metrics          ####
@@ -669,9 +676,9 @@ def load_logits(model_dir, model_name, task, window_size, word_index):
     '''
 
     if 'prosody' in model_name:
-        model_dir = os.path.join(model_dir, task, 'prosody-models', model_name, f'window-size-{str(p.window_size).zfill(5)}')
+        model_dir = os.path.join(model_dir, task, 'prosody-models', model_name, f'window-size-{str(window_size).zfill(5)}')
     else:
-        model_dir = os.path.join(model_dir, task, model_name, f'window-size-{str(p.window_size).zfill(5)}')
+        model_dir = os.path.join(model_dir, task, model_name, f'window-size-{str(window_size).zfill(5)}')
 
     logits_fns = natsorted(glob.glob(os.path.join(model_dir, 'logits', f'*{str(word_index).zfill(5)}*.pt')))
     
@@ -704,7 +711,7 @@ def analyze_model_accuracy(df_transcript, word_model_info, models_dir, model_nam
     # Rows for words used in the next-word prediction experiment
     # Columns of the model predictions that we care about for comparison
     selected_rows = np.where(df_transcript['NWP_Candidate'])[0]
-    selected_columns = ['ground_truth_word', 'top_n_predictions', 'top_prob', 'ground_truth_prob', f'{word_model_name}_max_accuracy', 'entropy']
+    selected_columns = ['ground_truth_word', 'top_n_predictions', 'top_prob', 'ground_truth_prob', f'{word_model_name}_max_accuracy', f'{word_model_name}_avg_accuracy', 'entropy']
 
     # Load results for the specified model -- this is output from the prediction-extraction script
     df_model_results = load_model_results(models_dir, model_name=model_name, task=task, top_n=top_n, window_size=window_size)
@@ -723,7 +730,7 @@ def analyze_model_accuracy(df_transcript, word_model_info, models_dir, model_nam
             'ground_truth_word': 'ground_truth',
             'ground_truth_prob': 'predictability', 
             'top_n_predictions': 'top_pred',
-            f'{word_model_name}_max_accuracy': 'fasttext_top_word_accuracy',
+            f'{word_model_name}_max_accuracy': f'{word_model_name}_top_word_accuracy',
     })
 
     # Add other information to the dataframe
