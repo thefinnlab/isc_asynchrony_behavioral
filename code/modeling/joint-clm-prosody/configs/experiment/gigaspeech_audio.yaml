@@ -1,0 +1,51 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: gigaspeech_audio.yaml
+  - override /model: careful_whisper.yaml
+  - override /callbacks: careful_whisper.yaml
+  - override /logger: wandb.yaml
+  - override /trainer: gpu.yaml
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["careful_whisper", "gigaspeech", "wav2vec2", "gpt2"]
+
+# seed: 12345
+seed: 42
+
+logger:
+  wandb:
+    project: gigaspeech-m-audio
+    # entity: prosody
+    tags: ["careful_whisper", "gigaspeech", "wav2vec2", "gpt2"]
+    name: "run-${now:%Y-%m-%d_%H-%M-%S}-careful-whisper"
+    group: "careful-whisper" # Add this line to override the 'group' parameter
+    log_model: False # Add this line to override the 'log_model' parameter
+
+trainer:
+  min_epochs: 1
+  max_epochs: 15
+  gradient_clip_val: 1
+  accumulate_grad_batches: 4
+
+model:
+  optimizer:
+    lr: 0.000025 #5e-5
+    weight_decay: 0.1
+  scheduler:
+    patience: 2
+
+callbacks:
+  early_stopping:
+    patience: 3
+
+data:
+  num_workers: 8
+  batch_size: 32
+  dataset_name: gigaspeech-m
+  data_dir: ${paths.data_dir}/gigaspeech/m

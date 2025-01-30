@@ -2,6 +2,7 @@ import os, sys
 
 ## primary directories
 BASE_DIR = '/dartfs/rc/lab/F/FinnLab/tommy/isc_asynchrony_behavior/code/modeling/joint-clm-prosody'
+DATASETS_DIR = '/dartfs/rc/lab/F/FinnLab/datasets/'
 
 ## secondary directories
 SUBMIT_DIR = os.path.join(BASE_DIR, 'scripts/submit_scripts')

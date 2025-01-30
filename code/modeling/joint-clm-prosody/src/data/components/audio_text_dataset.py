@@ -1,20 +1,18 @@
 import os
-from typing import Union, Literal
+import gc
 
-from typing import List
+from typing import Union, Literal, List, Dict
 import string
 import numpy as np
+import json
+from tqdm import tqdm
 
 from praatio import textgrid
-
 import torch
 import torchaudio
 from torch.utils.data import Dataset
 from torch.nn import functional as F
 from transformers import AutoProcessor, AutoModel, AutoTokenizer
-
-from concurrent.futures import ThreadPoolExecutor
-import librosa
 
 AUDIO_MODELS = {
    'wav2vec2': "facebook/wav2vec2-large-960h-lv60",
@@ -22,102 +20,313 @@ AUDIO_MODELS = {
 }
 
 class AudioTextDataset(Dataset):
-    def __init__(self, audio_dir, textgrid_dir, cache_dir, audio_model_name='wav2vec2', text_model_name='gpt2', split='test'):
-        self.audio_dir = os.path.join(audio_dir, split)
-        self.textgrid_dir = os.path.join(textgrid_dir, split)
-        self.file_names = os.listdir(self.textgrid_dir)
-        self.cache_dir = os.path.join(cache_dir, split)
+    def __init__(
+        self, 
+        dataset_dir: str, 
+        cache_dir: str, 
+        audio_model_name: str = 'wav2vec2', 
+        text_model_name: str = 'gpt2', 
+        split: str = 'test', 
+        min_words: int = 4,
+        max_words: int = 60, 
+        preload_audio: bool = False
+    ):
+        super().__init__()
         
-        # Make a directory for caching embeddings
+        # Set up directory paths
+        self.dataset_dir = dataset_dir
+        self.audio_dir = os.path.join(dataset_dir, 'audio', split)
+        self.textgrid_dir = os.path.join(dataset_dir, 'textgrids', split)
+
+        # The audio embeddings are based on how the text tokenizer splits the data
+        self.cache_dir = os.path.join(cache_dir, f'{audio_model_name}-{text_model_name}', split)
+
+        # Store split and filenames & keep track of failed samples
+        self.split = split
+        self.file_names = os.listdir(self.textgrid_dir)
+
+        # Set filters for dataset samples --> enforces a minimum and maximum number of words
+        self.min_words = min_words
+        self.max_words = max_words
+        self.failed_samples_count = 0
+        
+        # We cache metadata within the cache directory
+        self.metadata_path = os.path.join(self.cache_dir, 'metadata.json')
+        self.error_metadata_path = os.path.join(self.cache_dir, 'error_metadata.json')
+
+        # Cacheing information
+        self.preload_audio = preload_audio
+        self.audio_cache = {}
+        
+        # Determine if GPU is available
+        self.audio_model_name = audio_model_name
+        self.text_model_name = text_model_name
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        # Make directory for caching embeddings
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir)
-        
-        # Audio tokenization process
-        self.processor = AutoProcessor.from_pretrained(AUDIO_MODELS[audio_model_name])
-        self.audio_model = AutoModel.from_pretrained(AUDIO_MODELS[audio_model_name])
 
-        # Text tokenization process
-        self.text_tokenizer = AutoTokenizer.from_pretrained(text_model_name, use_fast=True, add_prefix_space=True, return_tensors="pt")
+        # Load or create metadata
+        self.metadata = self._load_metadata(self.metadata_path)
+        self.error_metadata = self._load_metadata(self.error_metadata_path)
 
-    def __len__(self):
-        return len(self.file_names)
+        # Preload audio if requested
+        if self.preload_audio:
+            self._preload_audio_tensors()
 
-    def __getitem__(self, idx):
-        file_name = self.file_names[idx]
+    def _load_metadata(self, path):
+        # Load or create metadata
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                return json.load(f)
+        else:
+            return []
 
+    def _save_metadata(self, path, data):
+        """Save both main metadata and error metadata to their respective files."""
+        # Save main metadata
+        with open(path, 'w') as f:
+            json.dump(data, f)
+
+    # def _update_metadata(self, result):
+    #     """Update metadata with new result, removing duplicates."""
+    #     self.metadata = [
+    #         item for item in self.metadata
+    #         if os.path.basename(item['audio_tensor_path']) != os.path.basename(result['audio_tensor_path'])
+    #     ]
+    #     self.metadata.append(result)
+
+    def _preload_audio_tensors(self):
+        """Preload all audio tensors into memory"""
+        print("Preloading audio tensors...", flush=True)
+        for item in tqdm(self.metadata):
+            tensor_path = item['audio_tensor_path']
+            self.audio_cache[tensor_path] = torch.load(tensor_path, map_location=self.device)
+            
+    def _process_single_file(self, file_name: str) -> Dict:
+        """Process a single file"""
+        cache_name = file_name.replace(".TextGrid", ".pt")
         textgrid_path = os.path.join(self.textgrid_dir, file_name)
         audio_path = os.path.join(self.audio_dir, file_name.replace(".TextGrid", ".wav"))
-        cache_path = os.path.join(self.cache_dir, file_name.replace(".TextGrid", ".pt"))
-
+        cache_path = os.path.join(self.cache_dir, cache_name)
+        
         # Load audio and extract word segments
         waveform, sample_rate = load_audio(audio_path)
         words = parse_textgrid(textgrid_path)
 
+        # Filter if there were no words, or if less/more than number of requested words
         if not words:
+            return None
+        elif len(words) < self.min_words or len(words) > self.max_words:
             return None
         
         return self._process_inputs(words, waveform, sample_rate, cache_path)
     
-    def _process_inputs(self, words, waveform, sample_rate, cache_path):
+    def _initialize_models(self):
+
+        print (f'Initializing audio & tokenization models...', flush=True)
+
+        # Audio tokenization process
+        self.processor = AutoProcessor.from_pretrained(AUDIO_MODELS[self.audio_model_name])
+        self.audio_model = AutoModel.from_pretrained(AUDIO_MODELS[self.audio_model_name])
+        
+        # Move models to GPU if available
+        self.audio_model = self.audio_model.to(self.device)
+
+        # Text tokenization process
+        self.text_tokenizer = AutoTokenizer.from_pretrained(self.text_model_name, use_fast=True, 
+                                                          add_prefix_space=True, return_tensors="pt")
+        
+    def _remove_models(self):
+        print (f'Removing audio & text tokenization models...', flush=True)
+         # Move models off GPU and remove from memory
+        self.audio_model = self.audio_model.to('cpu')
+        del self.processor
+        del self.audio_model
+        del self.text_tokenizer
+
+    def _cleanup_text_files(self):
+        """Load text tokens and attention mask from files, then delete the files."""
+        for item in self.metadata:
+            if 'text_tokens_path' in item and 'text_attention_mask_path' in item:
+                text_tokens_path = item['text_tokens_path']
+                text_attention_mask_path = item['text_attention_mask_path']
+
+                try:
+                    item['text_tokens'] = torch.load(text_tokens_path) #.tolist()
+                    item['text_attention_mask'] = torch.load(text_attention_mask_path) #.tolist()
+                    os.remove(text_tokens_path)
+                    os.remove(text_attention_mask_path)
+                    del item['text_tokens_path']
+                    del item['text_attention_mask_path']
+                except FileNotFoundError as e:
+                    print(f"Warning: File not found for {text_tokens_path} or {text_attention_mask_path}. Skipping cleanup.")
+
+    def preprocess_data(self, force_reprocess=False):
+        """
+        Preprocess all data and save audio tensors to cache.
+        Args:
+            force_reprocess (bool): If True, reprocess all files even if they exist in metadata
+        """
+
+        # Load error metadata
+        error_files = set(self.error_metadata)
+
+        # Determine which files to process
+        if not force_reprocess and self.metadata:
+            print("Metadata already exists. Processing only new files...", flush=True)
+            existing_files = {os.path.basename(item['audio_tensor_path']) for item in self.metadata}
+            files_to_process = [
+                f for f in self.file_names
+                if f.replace(".TextGrid", ".pt") not in existing_files and f not in error_files
+            ]
+        else:
+            self.metadata = []
+            self.error_metadata = []
+            files_to_process = self.file_names
+
+        # Exit if no files to process
+        if not files_to_process:
+            print("No new files to process", flush=True)
+            return
+            
+        # Initialize models if needed
+        self._initialize_models()
+        print(f"Processing {len(files_to_process)} files...", flush=True)
+
+        # Track new files that cause errors during processing
+        new_error_files = []
+
+        for file_name in tqdm(files_to_process):
+
+            result = self._process_single_file(file_name)
+
+            if result:
+                self.metadata.append(result)
+                # self._update_metadata(result)
+            else:
+                new_error_files.append(file_name)
+                self.failed_samples_count += 1
+
+            gc.collect()  # Free up memory
+        
+        print(f"Split {self.split} failed samples: {self.failed_samples_count}", flush=True)
+
+        # Update error metadata
+        if new_error_files:
+            error_files.update(new_error_files)
+            self.error_metadata = list(error_files)
+            self._save_metadata(self.error_metadata_path, self.error_metadata)
+
+        # Clean up text tokens and attention mask files
+        self._cleanup_text_files()
+        
+        # Save metadata
+        self._save_metadata(self.metadata_path, self.metadata)
+
+        self._remove_models()
+
+    @torch.no_grad()  # Disable gradient computation for inference
+    def _process_inputs(self, words: List[Dict], waveform: np.ndarray, 
+                       sample_rate: int, cache_path: str) -> Dict:
         # Join the words together into a sentence
         text = " ".join([word['text'] for word in words])
 
-        # Tokenize the words
-        text_tokens = self.text_tokenizer(text)
+        # Define paths for text tokens and attention mask
+        text_tokens_path = cache_path.replace(".pt", "_text_tokens.pt")
+        text_attention_mask_path = cache_path.replace(".pt", "_text_attention_mask.pt")
 
-        # If we have the audio inputs cached, load them
+        # Check if text tokens and attention mask already exist
+        if not (os.path.exists(text_tokens_path) and os.path.exists(text_attention_mask_path)):
+            # Tokenize the words if files don't exist
+            text_tokens = self.text_tokenizer(text)
+            
+            # Save text tokens and attention mask to files
+            torch.save(text_tokens['input_ids'], text_tokens_path)
+            torch.save(text_tokens['attention_mask'], text_attention_mask_path)
+
+        # Check if audio tensor already exists
         if os.path.exists(cache_path):
-            print('Loading from cache')
-            audio_inputs = torch.load(cache_path)
-        else:
-            # Find number of counts for each word (e.g., number of tokens each word is broken into)
-            word_ids, token_counts = np.unique(text_tokens.word_ids(), return_counts=True)
+            return {
+                'text': text,
+                'text_tokens_path': text_tokens_path,
+                'text_attention_mask_path': text_attention_mask_path,
+                'audio_tensor_path': cache_path
+            }
 
-            assert (len(word_ids) == len(words))
+        # Process audio
+        word_ids, token_counts = np.unique(text_tokens.word_ids(), return_counts=True)
+        assert (len(word_ids) == len(words))
 
-            segments = []
-            
-            # Ensure we get the right number of audio segments for each word (e.g., for each token)
-            for word, idx, n_tokens in zip(words, word_ids, token_counts):
+        segments = []
+        for word, idx, n_tokens in zip(words, word_ids, token_counts):
+            if n_tokens > 1:
+                ratios = torch.tensor([len(x) for x in self.text_tokenizer.batch_decode(
+                    text_tokens['input_ids'][idx:idx+n_tokens])])
+                ratios = ratios / ratios.sum()
+                word_segments = extract_word_segment(waveform, sample_rate, 
+                                                  word["start"], word["end"], ratios=ratios)
+            else:
+                word_segments = extract_word_segment(waveform, sample_rate, 
+                                                  word["start"], word["end"])
+            segments.extend(word_segments)
+        
+        # Process all segments simultaneously
+        features = self.processor(segments, sampling_rate=sample_rate, 
+                                padding=True, return_attention_mask=True, 
+                                return_tensors="pt")
+        
+        # Move features to GPU if available
+        features = {k: v.to(self.device) for k, v in features.items()}
 
-                # If there is more than one token, we need to divide the audio into segments
-                if n_tokens > 1:
-                    ratios = torch.tensor([len(x) for x in self.text_tokenizer.batch_decode(text_tokens['input_ids'][idx:idx+n_tokens])])
-                    ratios = ratios / ratios.sum()
-                    word_segments = extract_word_segment(waveform, sample_rate, word["start"], word["end"], ratios=ratios)
-                else:
-                    word_segments = extract_word_segment(waveform, sample_rate, word["start"], word["end"])
+        audio_inputs = self.audio_model(**features).last_hidden_state
 
-                segments.extend(word_segments)
-            
-            # Process all segments simultaneously
-            features = self.processor(segments, sampling_rate=sample_rate, padding=True, return_attention_mask=True, return_tensors="pt")
+        # Get the attention mask for the hidden states
+        attention_mask = self.audio_model._get_feature_vector_attention_mask(
+            audio_inputs.shape[1], 
+            features['attention_mask']
+        )
 
-            with torch.no_grad():
-                audio_inputs = self.audio_model(**features).last_hidden_state
+        # Perform pooling over the embeddings while accounting for attention mask
+        audio_inputs = pool_embeddings(audio_inputs, attention_mask)
+        
+        # Move back to CPU for saving
+        audio_inputs = audio_inputs.cpu()
+        
+        # Save the audio inputs to cache
+        torch.save(audio_inputs, cache_path)
 
-            # Get the attention mask for the hidden states
-            attention_mask = self.audio_model._get_feature_vector_attention_mask(
-                audio_inputs.shape[1], 
-                features['attention_mask']
-            )
-
-            # Perform pooling over the embeddings while accounting for attention mask
-            audio_inputs = pool_embeddings(audio_inputs, attention_mask)
-
-            # Save the audio inputs to cache if a cache path is provided
-            if cache_path:
-                torch.save(audio_inputs, cache_path)
-
-        data = {
+        return {
             'text': text,
-            'text_tokens': text_tokens['input_ids'],
-            'text_attention_mask': text_tokens['attention_mask'],
-            'audio_inputs': cache_path
+            'text_tokens_path': text_tokens_path,
+            'text_attention_mask_path': text_attention_mask_path,
+            'audio_tensor_path': cache_path
         }
 
-        return data
-    
+    def __len__(self):
+        return len(self.metadata)
+
+    def __getitem__(self, idx):
+        data = self.metadata[idx]
+        
+        # Convert lists back to tensors
+        text_tokens = torch.tensor(data['text_tokens'])
+        text_attention_mask = torch.tensor(data['text_attention_mask'])
+        
+        # Load audio tensor from cache or memory
+        if self.preload_audio:
+            audio_inputs = self.audio_cache[data['audio_tensor_path']]
+        else:
+            audio_inputs = torch.load(data['audio_tensor_path'])
+        
+        return {
+            'text': data['text'],
+            'text_tokens': text_tokens,
+            'text_attention_mask': text_attention_mask,
+            'audio_inputs': audio_inputs
+        }
+
 ######################################################
 ############## Utility for the dataset ###############
 ######################################################
@@ -137,7 +346,9 @@ def parse_textgrid(file_path):
 
     # things to remove from the textgrid (indicates laughing, chewing, pauses etc)
     REMOVE_CHARACTERS = ['sp', 'br', 'lg', 'cg', 'ls', 'ns', 'sl', 'ig',
-                         '{sp}', '{br}', '{lg}', '{cg}', '{ls}', '{ns}', '{sl}', '{ig}', 'pause', '[bracketed]']
+                         '{sp}', '{br}', '{lg}', '{cg}', '{ls}', '{ns}', '{sl}', '{ig}', 
+                         'pause', '[bracketed]', '<unk>'
+                         ]
 
     tg = textgrid.openTextgrid(file_path, False)
     words = []

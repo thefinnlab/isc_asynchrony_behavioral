@@ -130,7 +130,7 @@ human_v_model_formula <- 'accuracy ~ model_type + (1|modality) + (1|word_index:t
 model <- glmer(human_v_model_formula, data=df_results, family=binomial(link="logit"))
 
 tab_model(model, show.se=TRUE, show.stat=TRUE, show.est=TRUE, show.df=TRUE)
-report(model)
+summary(model)
 
 ```
 

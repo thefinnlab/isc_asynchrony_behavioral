@@ -7,6 +7,38 @@ import numbers
 from typing import List, Tuple
 from omegaconf import DictConfig, OmegaConf
 
+def audio_text_collator(batch, pad_token=-999):
+    
+    # Unpack the batch
+    texts = [item["text"] for item in batch]
+    text_tokens = [item["text_tokens"].squeeze(0) for item in batch]  # Remove batch dimension for padding
+    attention_masks = [item["text_attention_mask"].squeeze(0) for item in batch]  # Remove batch dimension for padding
+    audio_inputs = [item["audio_inputs"].squeeze(0) for item in batch]  # Remove batch dimension for padding
+
+    # Pad text_tokens and attention_masks
+    padded_text_tokens = pad_sequence(text_tokens, batch_first=True, padding_value=pad_token)
+    padded_attention_masks = pad_sequence(attention_masks, batch_first=True, padding_value=0)
+
+    # Pad audio_inputs with zero vectors
+    max_audio_length = max(audio.shape[0] for audio in audio_inputs)
+    embed_dim = audio_inputs[0].shape[1]  # Get the embedding dimension
+    padded_audio_inputs = torch.zeros(len(audio_inputs), max_audio_length, embed_dim)
+
+    for i, audio in enumerate(audio_inputs):
+        padded_audio_inputs[i, :audio.shape[0], :] = audio
+
+    # Re-add the batch dimension (1, length) for text_tokens and attention_masks
+    padded_text_tokens = padded_text_tokens
+    padded_attention_masks = padded_attention_masks.to(padded_audio_inputs.dtype)
+
+    # Return the padded batch
+    return {
+        "text": texts,
+        "text_tokens": padded_text_tokens,
+        "text_attention_mask": padded_attention_masks,
+        "audio_inputs": padded_audio_inputs
+    }
+
 
 def encode_and_pad_batch(
     batch: List[Tuple[str, List[numbers.Number]]],

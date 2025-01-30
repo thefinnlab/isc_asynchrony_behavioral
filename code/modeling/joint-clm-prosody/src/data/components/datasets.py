@@ -93,7 +93,7 @@ def assign_labels(input_string, labels):
 
 #     # Create list of tuples where each word is matched to a label and each punctuation is matched to None
 #     words_with_labels = []
-#     for token in words_with_punctuation:
+#     foken in words_with_punctuation:
 #         if re.match(r"\w+'?\w*", token):
 #             words_with_labels.append(next(word_label_pairs))
 #         else:
