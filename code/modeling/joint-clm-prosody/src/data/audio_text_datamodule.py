@@ -69,6 +69,15 @@ class AudioTextDataModule(LightningDataModule):
         )
         self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 
+        if self.hparams.dataset_name == 'libritts-r':
+            train_split = 'train-clean-360'
+            val_split = 'dev-clean'
+            test_split = 'test-clean'
+        else:
+            train_split = 'train'
+            val_split = 'validation'
+            test_split = 'test'
+
     def prepare_data(self):
         """
         We should not assign anything here, so this function simply ensures
@@ -107,7 +116,7 @@ class AudioTextDataModule(LightningDataModule):
                 cache_dir=self.hparams.cache_dir,
                 audio_model_name=self.hparams.audio_model_name, 
                 text_model_name=self.hparams.text_model_name, 
-                split='train', 
+                split=train_split, 
                 min_words=self.hparams.min_words,
                 max_words=self.hparams.max_words,
                 preload_audio=self.hparams.preload_audio,
@@ -125,7 +134,7 @@ class AudioTextDataModule(LightningDataModule):
                 cache_dir=self.hparams.cache_dir,
                 audio_model_name=self.hparams.audio_model_name, 
                 text_model_name=self.hparams.text_model_name, 
-                split='validation', 
+                split=val_split, 
                 min_words=self.hparams.min_words,
                 max_words=self.hparams.max_words,
                 preload_audio=self.hparams.preload_audio,
@@ -141,7 +150,7 @@ class AudioTextDataModule(LightningDataModule):
                 cache_dir=self.hparams.cache_dir,
                 audio_model_name=self.hparams.audio_model_name, 
                 text_model_name=self.hparams.text_model_name, 
-                split='test', 
+                split=test_split, 
                 min_words=self.hparams.min_words,
                 max_words=self.hparams.max_words,
                 preload_audio=self.hparams.preload_audio,

@@ -11,6 +11,8 @@ import glob
 import ast
 from scipy import stats
 
+from tqdm import tqdm
+
 import string
 import nltk
 from nltk import pos_tag
@@ -37,60 +39,64 @@ from pliers.extractors import PredefinedDictionaryExtractor, merge_results
 ##### Functions for cutting audio files ####
 ############################################
 
-def get_cut_times(df, start_idx, end_idx):
-    
-    onset = df.iloc[start_idx]['Onset']
-    offset = df.iloc[end_idx]['Onset']
-    
-    duration = offset - onset
-    
-    return onset, offset, duration
+def cut_audio_segments(df_preproc, task, audio_fn, audio_out_dir, segment_indices):
+    """
+    Cut audio segments based on a nested list of indices.
 
-def cut_audio_segments(df_preproc, task, audio_fn, audio_out_dir):
-
-    # load the stimulus and fine the length in time
+    :param df_preproc: DataFrame containing preprocessed data.
+    :param task: Task identifier (used in naming output files).
+    :param audio_fn: Path to the input audio file.
+    :param audio_out_dir: Directory to save the output audio segments.
+    :param segment_indices: Nested list of indices where each sublist contains [start_idx, end_idx].
+    :return: List of output filenames and a DataFrame with segment information.
+    """
+    # Load the stimulus and find the length in time
     stim_length = librosa.get_duration(path=audio_fn)
 
+    # Initialize DataFrame to store segment information
     df_segments = pd.DataFrame(columns=['filename', 'word_index', 'critical_word', 'checked', 'adjusted'])
-    prediction_idxs = np.where(df_preproc['NWP_Candidate'])[0]
     out_fns = []
 
-    for i in range(len(prediction_idxs) + 1):
+    for i, (start_idx, end_idx) in enumerate(tqdm(segment_indices, desc="Cutting audio segments")):
+        # Calculate onset and duration based on the segment indices
+        onset, _, duration = get_cut_times(df_preproc, start_idx, end_idx)
 
-        if i == 0: 
-            # get the index we want to cut before
-            curr_idx = prediction_idxs[i]
-            _, offset, _ = get_cut_times(df_preproc, 0, curr_idx)
-            onset = 0
-            duration = offset
-        elif i == len(prediction_idxs):
-            # there is no current index as we've reached the end of the file
-            # we calculate duration as the length from the previous index to the end of the file
-            prev_idx = prediction_idxs[i-1]
-            onset, _, _ = get_cut_times(df_preproc, prev_idx, prev_idx)
+        # Ensure the duration does not exceed the remaining audio length
+        if onset + duration > stim_length:
             duration = stim_length - onset
-        else:
-            # get the previous index --> cut between previous and current index
-            curr_idx = prediction_idxs[i]
-            prev_idx = prediction_idxs[i-1]
-            onset, _, duration = get_cut_times(df_preproc, prev_idx, curr_idx)
 
+        # Generate output filename
         out_fn = os.path.join(audio_out_dir, f'{task}_segment-{str(i+1).zfill(5)}.wav')
         out_fns.append(out_fn)
 
+        # Use ffmpeg to cut the audio segment
         cmd = f'ffmpeg -hide_banner -loglevel error -y -ss {onset} -t {duration} -i {audio_fn} {out_fn}'
         subprocess.run(cmd, shell=True)
 
-        # if the segments file does not exist
+        # Store segment information in the DataFrame
         df_segments.loc[len(df_segments)] = {
             'filename': out_fn,
-            'word_index': curr_idx if i != len(prediction_idxs) else None,
-            'critical_word': df_preproc.loc[curr_idx]['Word_Written'] if i != len(prediction_idxs) else None,
+            'word_index': end_idx,
+            'critical_word': df_preproc.loc[end_idx]['Word_Written'] if end_idx < len(df_preproc) else None,
             'checked': 0,
             'adjusted': 0
         }
-    
+
     return out_fns, df_segments
+
+def get_cut_times(df_preproc, start_idx, end_idx):
+    """
+    Calculate the onset, offset, and duration for a segment.
+
+    :param df_preproc: DataFrame containing preprocessed data.
+    :param start_idx: Start index of the segment.
+    :param end_idx: End index of the segment.
+    :return: Onset, offset, and duration of the segment.
+    """
+    onset = df_preproc.loc[start_idx]['Onset']
+    offset = df_preproc.loc[end_idx]['Offset']
+    duration = offset - onset
+    return onset, offset, duration
 
 ############################################
 ##### Functions for editing transcripts ####

@@ -80,8 +80,14 @@ if __name__ == '__main__':
 	df_preproc_fn = os.path.join(presentation_orders_dir, 'preproc', f'{p.subject}_task-{p.task}.csv')
 	df_preproc = pd.read_csv(df_preproc_fn)
 
+	# Create sequential pairs
+	candidate_idxs = np.where(df_preproc['NWP_Candidate'].to_numpy())[0] # First get indices
+	candidate_idxs = np.concatenate([[0], candidate_idxs], axis=0) # Add the first item for the first cut
+	segments = np.vstack((candidate_idxs[:-1], candidate_idxs[1:]-1)).T # Stack and make pairs
+	segment_indices = segments.tolist()
+	
 	# perform audio segmenting for the current subject
-	out_fns, df_segments = cut_audio_segments(df_preproc, task=p.task, audio_fn=audio_fn, audio_out_dir=audio_out_dir)
+	out_fns, df_segments = cut_audio_segments(df_preproc, task=p.task, audio_fn=audio_fn, audio_out_dir=audio_out_dir, segment_indices=segment_indices)
 	df_participant = create_participant_df(df_preproc, df_segments)
 
 	# now write the file for jspsych to use
