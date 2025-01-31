@@ -17,10 +17,11 @@ if __name__ == '__main__':
 	p = parser.parse_args()
 
 	if p.dataset == 'gigaspeech':
-		dataset_dir = os.path.join(DATASETS_DIR, p.dataset, 'm')
-		cache_dir = os.path.join(SCRATCH_DIR, p.dataset, 'm')
+		dataset_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', p.dataset, 'm')
+		cache_dir = os.path.join(SCRATCH_DIR, 'nlp-datasets', p.dataset, 'm')
 	else:
-		sys.exit(0)
+		dataset_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', p.dataset)
+		cache_dir = os.path.join(SCRATCH_DIR, 'nlp-datasets', p.dataset)
 
 	# create datasets
 	dataset = AudioTextDataset(

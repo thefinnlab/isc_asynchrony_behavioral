@@ -129,8 +129,8 @@ def dataframe_to_textgrid(df, audio_fn):
     for ix, word in df.iterrows():
 
         # if word['Case'] == 'success' or word['Case'] == 'assumed':
-        word_ons = np.round(word['Onset'], 3)
-        word_off = np.round(word['Offset'], 3)
+        word_ons = word['Onset']#, 3)
+        word_off = word['Offset']#, 3)
 
         target = word['Word_Written']
         rearranged_words.append((word_ons, word_off, target))

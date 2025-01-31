@@ -207,18 +207,18 @@ def transcript_to_input(df_transcript, idxs, add_punctuation=False):
 
         if add_punctuation:
             item = row['word'] + row['punctuation'].replace('’', "'")
-            prosody = row['prominence']
+            # prosody = row['prominence']
         else:
             item = row['word']
-            prosody = row['prominence']
+            # prosody = row['prominence']
 
-        inputs.append((str(item).strip(), prosody))
+        inputs.append(str(item).strip()) #, prosody))
     
     # join together into the sentence to submit
-    inputs, prosody = zip(*inputs)
+    # inputs, prosody = zip(*inputs)
     inputs = ' '.join(inputs)
 
-    return inputs, prosody
+    return inputs, df_transcript.iloc[idxs]
 
 def get_word_prob(tokenizer, word, logits, softmax=True):
     

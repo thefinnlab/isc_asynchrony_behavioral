@@ -49,6 +49,7 @@ class AudioTextDataset(Dataset):
         self.min_words = min_words
         self.max_words = max_words
         self.failed_samples_count = 0
+        self.edge_case_count = 0
         
         # We cache metadata within the cache directory
         self.metadata_path = os.path.join(self.cache_dir, 'metadata.json')
@@ -89,14 +90,6 @@ class AudioTextDataset(Dataset):
         with open(path, 'w') as f:
             json.dump(data, f)
 
-    # def _update_metadata(self, result):
-    #     """Update metadata with new result, removing duplicates."""
-    #     self.metadata = [
-    #         item for item in self.metadata
-    #         if os.path.basename(item['audio_tensor_path']) != os.path.basename(result['audio_tensor_path'])
-    #     ]
-    #     self.metadata.append(result)
-
     def _preload_audio_tensors(self):
         """Preload all audio tensors into memory"""
         print("Preloading audio tensors...", flush=True)
@@ -135,8 +128,7 @@ class AudioTextDataset(Dataset):
         self.audio_model = self.audio_model.to(self.device)
 
         # Text tokenization process
-        self.text_tokenizer = AutoTokenizer.from_pretrained(self.text_model_name, use_fast=True, 
-                                                          add_prefix_space=True, return_tensors="pt")
+        self.text_tokenizer = AutoTokenizer.from_pretrained(self.text_model_name, use_fast=True, add_prefix_space=True)
         
     def _remove_models(self):
         print (f'Removing audio & text tokenization models...', flush=True)
@@ -237,8 +229,11 @@ class AudioTextDataset(Dataset):
         text_tokens_path = cache_path.replace(".pt", "_text_tokens.pt")
         text_attention_mask_path = cache_path.replace(".pt", "_text_attention_mask.pt")
 
-        # Check if text tokens and attention mask already exist
-        if not (os.path.exists(text_tokens_path) and os.path.exists(text_attention_mask_path)):
+        # If any of the paths do not exist
+        text_paths_not_exist = [not os.path.exists(path) for path in [text_tokens_path, text_attention_mask_path]]
+        
+        # Paths don't exist
+        if text_paths_not_exist:
             # Tokenize the words if files don't exist
             text_tokens = self.text_tokenizer(text)
             
@@ -257,9 +252,15 @@ class AudioTextDataset(Dataset):
 
         # Process audio
         word_ids, token_counts = np.unique(text_tokens.word_ids(), return_counts=True)
-        assert (len(word_ids) == len(words))
+
+        # There are weird edge cases with things like "20th"
+        if (len(word_ids) != len(words)):
+            self.edge_case_count += 1
+            print (f"Edge case #{self.edge_case_count}", flush=True)
+            return None
 
         segments = []
+
         for word, idx, n_tokens in zip(words, word_ids, token_counts):
             if n_tokens > 1:
                 ratios = torch.tensor([len(x) for x in self.text_tokenizer.batch_decode(
@@ -352,9 +353,11 @@ def parse_textgrid(file_path):
 
     tg = textgrid.openTextgrid(file_path, False)
     words = []
+
+    tier = 'words' if 'words' in tg.tierNames else 'word'
     
-    for interval in tg.getTier("words"):
-        if interval.label in REMOVE_CHARACTERS:
+    for interval in tg.getTier(tier):
+        if interval.label.lower() in REMOVE_CHARACTERS:
             continue
         
         words.append({
