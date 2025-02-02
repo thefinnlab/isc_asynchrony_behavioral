@@ -21,6 +21,8 @@ channels:
 dependencies:
   - pytorch=2.*
   - torchvision=0.*
+  - torchaudio
+  - einops
   - lightning=2.*
   - torchmetrics=0.*
   - hydra-core=1.*
@@ -29,6 +31,7 @@ dependencies:
   - pytest=7.*
   - huggingface_hub
   - transformers
+  - datasets
   - tqdm
   - nltk
   - scikit-learn
@@ -36,6 +39,7 @@ dependencies:
   - jupyter
   - seaborn
   - matplotlib
+  - librosa
   
   # --------- loggers --------- #
   - wandb

@@ -30,6 +30,10 @@ if __name__ == '__main__':
 		audio_model_name=p.audio_model_name, 
 		text_model_name=p.text_model_name, 
 		split=p.split,
+		
+		# only sort moth stories --> the rest order doesn't matter
+		sorted=True if p.dataset == 'pfka-moth-stories' else False,
+		# buffer_missing_samples = True if p.dataset == 'pfka-moth-stories' else False
 	)
 
 	dataset.preprocess_data()

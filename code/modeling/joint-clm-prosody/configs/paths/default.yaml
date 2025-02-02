@@ -16,3 +16,6 @@ output_dir: ${hydra:runtime.output_dir}
 
 # path to working directory
 work_dir: ${hydra:runtime.cwd}
+
+# ADDING PATH TO SCRATCH DIRECTORY
+cache_dir: /dartfs-hpc/scratch/f003rjw/

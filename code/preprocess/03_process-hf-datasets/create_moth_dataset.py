@@ -9,6 +9,7 @@ from praatio import textgrid as tgio
 sys.path.append('../../utils/')
 
 from config import *
+import dataset_utils as utils
 import prosody_utils as prosody
 from preproc_utils import dataframe_to_textgrid, cut_audio_segments
 
@@ -23,8 +24,11 @@ if __name__ == "__main__":
     stim_dir = os.path.join(BASE_DIR, 'stimuli')
     out_dir = os.path.join(DATASETS_DIR, 'nlp-datasets/pfka-moth-stories/')
 
-    audio_out_dir = os.path.join(out_dir, 'audio')
-    textgrid_out_dir = os.path.join(out_dir, 'textgrids')
+    audio_out_dir = os.path.join(out_dir, 'audio', p.task)
+    textgrid_out_dir = os.path.join(out_dir, 'textgrids', p.task)
+
+    utils.attempt_makedirs(audio_out_dir)
+    utils.attempt_makedirs(textgrid_out_dir)
 
     # Grab the preprocessed data in CSV form (has casing)
     df_preproc = pd.read_csv(os.path.join(BASE_DIR, 'stimuli/preprocessed/', p.task, f'{p.task}_transcript-preprocessed.csv'))
@@ -35,7 +39,7 @@ if __name__ == "__main__":
 
     # Cut all audio segments
     base_audio_fn = glob.glob(os.path.join(stim_dir, 'audio', f'*{p.task}*.wav'))[0]
-    audio_fns, df_segments = cut_audio_segments(df_preproc, p.task, base_audio_fn, audio_out_dir, segment_idxs)
+    audio_fns, df_segments = cut_audio_segments(df_preproc, p.task, base_audio_fn, audio_out_dir, segment_idxs, target_sr=16000)
 
     print (f'Starting processing for {p.task}', flush=True)
 

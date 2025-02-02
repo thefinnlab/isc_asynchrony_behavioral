@@ -21,7 +21,7 @@ MEM_PER_CPU = '8G'
 
 if __name__ == '__main__':
 
-    task_list = ['black', 'wheretheressmoke', 'howtodraw']
+    task_list = ['black'] #, 'wheretheressmoke', 'howtodraw']
     window_size = 25
 
     # grab the tasks

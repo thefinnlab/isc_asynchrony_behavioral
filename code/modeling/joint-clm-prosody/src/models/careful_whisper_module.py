@@ -46,7 +46,8 @@ class CarefulWhisperModule(LightningModule):
         logits = self.model(
             x=batch['text_tokens'],
             xa=batch['audio_inputs'],
-            mask=batch['text_attention_mask']
+            mask=batch['text_attention_mask'],
+            context_mask=batch['text_attention_mask']
         )
         return logits
     

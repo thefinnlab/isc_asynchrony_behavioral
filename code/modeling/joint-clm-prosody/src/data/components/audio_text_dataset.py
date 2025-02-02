@@ -29,7 +29,9 @@ class AudioTextDataset(Dataset):
         split: str = 'test', 
         min_words: int = 4,
         max_words: int = 60, 
-        preload_audio: bool = False
+        preload_audio: bool = False,
+        sorted: bool = False,
+        buffer_missing_samples: bool = False,
     ):
         super().__init__()
         
@@ -45,7 +47,11 @@ class AudioTextDataset(Dataset):
         self.split = split
         self.file_names = os.listdir(self.textgrid_dir)
 
+        if sorted:
+            self.file_names.sort()
+
         # Set filters for dataset samples --> enforces a minimum and maximum number of words
+        self.buffer_missing_samples = buffer_missing_samples
         self.min_words = min_words
         self.max_words = max_words
         self.failed_samples_count = 0
@@ -197,6 +203,13 @@ class AudioTextDataset(Dataset):
             if result:
                 self.metadata.append(result)
                 # self._update_metadata(result)
+            elif self.buffer_missing_samples:
+                self.metadata.append({
+                    'text': [],
+                    'text_tokens': [],
+                    'text_attention_mask': [],
+                    'audio_tensor_path': [],
+                })
             else:
                 new_error_files.append(file_name)
                 self.failed_samples_count += 1
@@ -369,6 +382,11 @@ def parse_textgrid(file_path):
 
 def load_audio(file_path):
     waveform, sample_rate = torchaudio.load(file_path)
+
+    # Average channels if 2 channeled
+    if waveform.shape[0] == 2:
+        waveform = waveform.mean(0).unsqueeze(0)
+    
     return waveform.numpy(), sample_rate
 
 def extract_word_segment(waveform, sample_rate, onset, offset, ratios=None):

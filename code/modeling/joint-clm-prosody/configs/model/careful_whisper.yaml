@@ -10,6 +10,7 @@ config:
   num_layers: 12
   pad_token_id: 50256 # Padding in GPT2 space
   cross_attention: False
+  bidirectional_cross_attention: False
   use_causal_cross_attention: False
   use_text_control: False
 

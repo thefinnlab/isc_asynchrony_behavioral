@@ -1,0 +1,11 @@
+_target_: src.data.audio_text_datamodule.AudioTextDataModule
+dataset_name: None
+data_dir: ${paths.data_dir}/
+cache_dir: ${paths.cache_dir}/
+
+batch_size: 32
+audio_model_name: wav2vec2
+text_model_name: gpt2
+
+num_workers: 0
+pin_memory: False

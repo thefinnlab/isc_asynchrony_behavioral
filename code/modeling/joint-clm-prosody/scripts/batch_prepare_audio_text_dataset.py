@@ -10,7 +10,8 @@ DATASET_INFO = {
 	'gigaspeech': ['train', 'validation', 'test'],
 	'libritts-r': ['train-clean-360', 'dev-clean', 'test-clean'],
 	'tedlium': ['train', 'validation', 'test'],
-	'peoples-speech': ['train', 'validation', 'test']
+	'peoples-speech': ['train', 'validation', 'test'],
+	'pfka-moth-stories': ['black', 'wheretheressmoke', 'howtodraw']
 }
 
 PARTITION='preemptable'
@@ -27,7 +28,7 @@ CPUS_PER_TASK = 8
 MEM_PER_CPU = '16G'
 PARTITION = 'a100'
 GPU_INFO = '--gres=gpu:1'
-ACCOUNT = 'test_a100' #dbic
+ACCOUNT = 'test_a100'
 
 if __name__ == "__main__":
 

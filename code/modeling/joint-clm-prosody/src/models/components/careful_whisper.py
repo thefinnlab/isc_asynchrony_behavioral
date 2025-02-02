@@ -5,6 +5,17 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
+from .bidirectional_cross_attention import BidirectionalCrossAttention
+
+def _check_cross_attention(x, y):
+    assert not (x and y), \
+    "Error: Only one of cross_attention or bidirectional_cross_attention can be True at a time."
+
+def exists(val):
+    return val is not None
+
+def default(val, d):
+    return val if exists(val) else d
 
 @dataclass
 class CarefulWhisperConfig:
@@ -19,9 +30,35 @@ class CarefulWhisperConfig:
     resid_dropout: float = 0.1
     dropout: float = 0.1
     cross_attention: bool = True # Allows specification of cross attention or not --> if not, architecture is essentially GPT2
+    context_dim: int = None
+    bidirectional_cross_attention: bool = False,
     use_causal_cross_attention: bool = False
     use_text_control: bool = False
     init_std: float = 0.02
+
+class FeedForward(nn.Module):
+    def __init__(
+        self,
+        embed_dim,
+        n_mlp,
+        dropout=0.
+    ):
+        super().__init__()
+
+        # Define the MLP out projection here so as to have the initialization applied
+        self.mlp_ln = nn.LayerNorm(embed_dim)
+        self.out_proj = nn.Linear(n_mlp, embed_dim)
+        
+        self.mlp = nn.Sequential(
+            self.mlp_ln,
+            nn.Linear(embed_dim, n_mlp), 
+            nn.GELU(), 
+            self.out_proj,
+            nn.Dropout(dropout)
+        )
+
+    def forward(self, x: Tensor):
+        return self.mlp(x)
 
 class MultiheadAttentionBlock(nn.Module):
     '''
@@ -32,6 +69,9 @@ class MultiheadAttentionBlock(nn.Module):
     def __init__(self, embed_dim: int, num_heads: int, attn_dropout: float = 0., resid_dropout: float = 0., is_causal: bool = False):
         super().__init__()
         self.num_heads = num_heads
+
+        self.norm = nn.LayerNorm(embed_dim)
+
         self.query = nn.Linear(embed_dim, embed_dim)
         self.key = nn.Linear(embed_dim, embed_dim, bias=False)
         self.value = nn.Linear(embed_dim, embed_dim)
@@ -63,6 +103,7 @@ class MultiheadAttentionBlock(nn.Module):
         mask: Optional[Tensor] = None,
         kv_cache: Optional[dict] = None,
     ):
+        x = self.norm(x)
         q = self.query(x)
 
         # Within pytorch, we expect masked values to be -inf and tokens as 0
@@ -94,40 +135,46 @@ class ResidualAttentionBlock(nn.Module):
         self, 
         embed_dim: int, 
         num_heads: int, 
+        dim_head: int = None,
         attn_dropout: float = 0., 
         resid_dropout: float = 0., 
+        context_dim: int = None,
         cross_attention: bool = False,
+        bidirectional_cross_attention: bool = False,
         use_causal_cross_attention: bool = False,
     ):
         super().__init__()
 
-        self.attn_ln = nn.LayerNorm(embed_dim)
+        # Cannot have both cross attention and bidirectional cross attn
+        _check_cross_attention(cross_attention, bidirectional_cross_attention)
+
         self.attn = MultiheadAttentionBlock(embed_dim, num_heads, attn_dropout=attn_dropout, resid_dropout=resid_dropout, is_causal=True)
+        self.ff = FeedForward(embed_dim=embed_dim, n_mlp=embed_dim * 4, dropout=resid_dropout)
 
-        self.cross_attn_ln = nn.LayerNorm(embed_dim) if cross_attention else None
-        self.cross_attn = (
-            MultiheadAttentionBlock(embed_dim, num_heads, attn_dropout=attn_dropout, resid_dropout=resid_dropout, is_causal=use_causal_cross_attention) if cross_attention else None
-        )
+        # Either instantiate cross_attn
+        self.cross_attn = MultiheadAttentionBlock(
+            embed_dim, num_heads, attn_dropout=attn_dropout, resid_dropout=resid_dropout, is_causal=use_causal_cross_attention
+        ) if cross_attention else None
 
-        n_mlp = embed_dim * 4
-        
-        self.mlp_ln = nn.LayerNorm(embed_dim)
+        # If we want bidirectional
+        dim_head = default(dim_head, embed_dim // num_heads)
 
-        # Define the MLP out projection here so as to have the initialization applied
-        self.out_proj = nn.Linear(n_mlp, embed_dim)
+        self.bi_cross_attn = BidirectionalCrossAttention(
+            dim=embed_dim, context_dim=context_dim, num_heads=num_heads, dim_head=dim_head, 
+            attn_dropout=attn_dropout, resid_dropout=resid_dropout, is_causal=use_causal_cross_attention
+        ) if bidirectional_cross_attention else None
 
-        self.mlp = nn.Sequential(
-            nn.Linear(embed_dim, n_mlp), 
-            nn.GELU(), 
-            self.out_proj,
-            nn.Dropout(resid_dropout)
-        )
+        # Context MLP
+        self.context_ff = FeedForward(
+            embed_dim=embed_dim, n_mlp=embed_dim * 4, dropout=resid_dropout
+        ) if bidirectional_cross_attention else None
 
     def forward(
         self,
         x: Tensor,
         xa: Optional[Tensor] = None,
         mask: Optional[Tensor] = None,
+        context_mask: Optional[Tensor] = None,
         kv_cache: Optional[dict] = None,
     ):
         
@@ -136,17 +183,23 @@ class ResidualAttentionBlock(nn.Module):
         #    1. Pre-Attn LayerNorm of hidden_states
         #    2. self attn + attn_dropout
         #    3. out projection of linear layer + resid_dropout
-        x = x + self.attn(self.attn_ln(x), mask=mask, kv_cache=kv_cache)[0]
+        x = x + self.attn(x, mask=mask, kv_cache=kv_cache)[0]
 
         # x (text) attends to xa (audio)
-        if self.cross_attn:
-            # Changing cross_attention to accept a context mask (e.g., masking )
-            x = x + self.cross_attn(self.cross_attn_ln(x), xa, mask=mask, kv_cache=kv_cache)[0]
-        
-        # LayerNorm before MLP + MLP + MLP dropout
-        x = x + self.mlp(self.mlp_ln(x))
+        if self.bi_cross_attn:
+            x, xa = self.bi_cross_attn(x, xa, mask, context_mask, return_attn=False)
 
-        return x    
+            x = x + self.ff(x)
+            xa = x + self.context_ff(xa)
+
+            return x, xa
+        
+        elif self.cross_attn:
+            # Changing cross_attention to accept a context mask (e.g., masking )
+            x = x + self.cross_attn(x, xa, mask=mask, kv_cache=kv_cache)[0]
+        
+        x = x + self.ff(x)
+        return x
 
 class CarefulWhisper(nn.Module):
     def __init__(
@@ -161,8 +214,12 @@ class CarefulWhisper(nn.Module):
             - AttentionDropout --> dropout of attn_weights within MHA 
             - ResidualDropout -->
         '''
+        
 
         self.config = config
+
+        _check_cross_attention(self.config.cross_attention, self.config.bidirectional_cross_attention)
+
         self.token_embedding = nn.Embedding(self.config.n_vocab, self.config.embed_dim, self.config.pad_token_id)
         self.positional_embedding = nn.Embedding(self.config.max_length, self.config.embed_dim)
 
@@ -176,6 +233,7 @@ class CarefulWhisper(nn.Module):
                     attn_dropout = self.config.attn_dropout, 
                     resid_dropout = self.config.resid_dropout, 
                     cross_attention=self.config.cross_attention,
+                    bidirectional_cross_attention=self.config.bidirectional_cross_attention,
                     use_causal_cross_attention=self.config.use_causal_cross_attention
                 )
                 for _ in range(self.config.num_layers)
@@ -218,7 +276,7 @@ class CarefulWhisper(nn.Module):
         #   >   -- GPT-2 :: https://openai.com/blog/better-language-models/
 
         for name, p in module.named_parameters():
-            if name == "out_proj.weight":
+            if name == "out_proj.weight" or name == "context_out_proj.weight":
                 # Special Scaled Initialization --> There are 2 Layer Norms per Transformer Block
                 p.data.normal_(mean=0.0, std=(std / np.sqrt(2 * self.config.num_layers)))
 
@@ -231,6 +289,7 @@ class CarefulWhisper(nn.Module):
         x: Tensor, 
         xa: Tensor, 
         mask: Optional[Tensor] = None,
+        context_mask: Optional[Tensor] = None,
         kv_cache: Optional[dict] = None,
         return_hidden_states: bool = False,
     ):
@@ -259,12 +318,17 @@ class CarefulWhisper(nn.Module):
 
         # Pass through each attention block
         for block in self.blocks:
-            if self.config.use_text_control:
-                # Pass text into itself --> functions as a parameter control
-                x = block(x, x, mask=mask, kv_cache=kv_cache)
-            else:
-                # Normal cross attention
+            # Have sequences attend to each other
+            if self.config.bidirectional_cross_attention:
+                x, xa = block(x, xa, mask=mask, context_mask=context_mask, kv_cache=kv_cache)
+
+            # x attends to self then xa
+            elif self.config.cross_attention:
                 x = block(x, xa, mask=mask, kv_cache=kv_cache)
+            
+            # x attends to x (can be twice)
+            elif self.config.use_text_control:
+                x = block(x, x, mask=mask, kv_cache=kv_cache)
 
         # Out normalization
         x = self.ln(x)

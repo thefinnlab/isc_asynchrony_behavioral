@@ -55,6 +55,15 @@ class AudioTextDataModule(LightningDataModule):
     ):
         super().__init__()
 
+        if dataset_name == 'libritts-r':
+            self.hparams.train_split = 'train-clean-360'
+            self.hparams.val_split = 'dev-clean'
+            self.hparams.test_split = 'test-clean'
+        else:
+            self.hparams.train_split = 'train'
+            self.hparams.val_split = 'validation'
+            self.hparams.test_split = 'test'
+
         # this line allows to access init params with 'self.hparams' attribute
         # it also ensures init params will be stored in ckpt
         self.save_hyperparameters(logger=False)
@@ -68,15 +77,6 @@ class AudioTextDataModule(LightningDataModule):
             self.hparams.text_model_name, add_prefix_space=False, use_fast=True
         )
         self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
-
-        if self.hparams.dataset_name == 'libritts-r':
-            train_split = 'train-clean-360'
-            val_split = 'dev-clean'
-            test_split = 'test-clean'
-        else:
-            train_split = 'train'
-            val_split = 'validation'
-            test_split = 'test'
 
     def prepare_data(self):
         """
@@ -116,13 +116,15 @@ class AudioTextDataModule(LightningDataModule):
                 cache_dir=self.hparams.cache_dir,
                 audio_model_name=self.hparams.audio_model_name, 
                 text_model_name=self.hparams.text_model_name, 
-                split=train_split, 
+                split=self.hparams.train_split, 
                 min_words=self.hparams.min_words,
                 max_words=self.hparams.max_words,
                 preload_audio=self.hparams.preload_audio,
             )
 
             self.train_dataset.preprocess_data()
+
+            print (f"Train samples: {len(self.train_dataset)}", flush=True)
 
             ####################################
             ######### EXTRACT VAL DATA #########
@@ -134,13 +136,15 @@ class AudioTextDataModule(LightningDataModule):
                 cache_dir=self.hparams.cache_dir,
                 audio_model_name=self.hparams.audio_model_name, 
                 text_model_name=self.hparams.text_model_name, 
-                split=val_split, 
+                split=self.hparams.val_split, 
                 min_words=self.hparams.min_words,
                 max_words=self.hparams.max_words,
                 preload_audio=self.hparams.preload_audio,
             )
 
             self.val_dataset.preprocess_data()
+
+            print (f"Validation samples: {len(self.val_dataset)}", flush=True)
 
         if stage == "test":
 
@@ -150,13 +154,15 @@ class AudioTextDataModule(LightningDataModule):
                 cache_dir=self.hparams.cache_dir,
                 audio_model_name=self.hparams.audio_model_name, 
                 text_model_name=self.hparams.text_model_name, 
-                split=test_split, 
+                split=self.hparams.test_split, 
                 min_words=self.hparams.min_words,
                 max_words=self.hparams.max_words,
                 preload_audio=self.hparams.preload_audio,
             )
 
             self.test_dataset.preprocess_data()
+
+            print (f"Test samples: {len(self.test_dataset)}", flush=True)
 
     def collate(self, batch):
         return audio_text_collator(batch, pad_token=self.tokenizer.pad_token_id)

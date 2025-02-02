@@ -39,7 +39,7 @@ from pliers.extractors import PredefinedDictionaryExtractor, merge_results
 ##### Functions for cutting audio files ####
 ############################################
 
-def cut_audio_segments(df_preproc, task, audio_fn, audio_out_dir, segment_indices):
+def cut_audio_segments(df_preproc, task, audio_fn, audio_out_dir, segment_indices, target_sr=''):
     """
     Cut audio segments based on a nested list of indices.
 
@@ -50,6 +50,9 @@ def cut_audio_segments(df_preproc, task, audio_fn, audio_out_dir, segment_indice
     :param segment_indices: Nested list of indices where each sublist contains [start_idx, end_idx].
     :return: List of output filenames and a DataFrame with segment information.
     """
+    if target_sr:
+        target_sr = f'-ar {target_sr}'
+
     # Load the stimulus and find the length in time
     stim_length = librosa.get_duration(path=audio_fn)
 
@@ -70,7 +73,7 @@ def cut_audio_segments(df_preproc, task, audio_fn, audio_out_dir, segment_indice
         out_fns.append(out_fn)
 
         # Use ffmpeg to cut the audio segment
-        cmd = f'ffmpeg -hide_banner -loglevel error -y -ss {onset} -t {duration} -i {audio_fn} {out_fn}'
+        cmd = f'ffmpeg -hide_banner -loglevel error -y -ss {onset} -t {duration} -i {audio_fn} {target_sr} {out_fn}'
         subprocess.run(cmd, shell=True)
 
         # Store segment information in the DataFrame
