@@ -149,7 +149,19 @@ class ResidualAttentionBlock(nn.Module):
         _check_cross_attention(cross_attention, bidirectional_cross_attention)
 
         self.attn = MultiheadAttentionBlock(embed_dim, num_heads, attn_dropout=attn_dropout, resid_dropout=resid_dropout, is_causal=True)
-        self.ff = FeedForward(embed_dim=embed_dim, n_mlp=embed_dim * 4, dropout=resid_dropout)
+        # self.ff = FeedForward(embed_dim=embed_dim, n_mlp=embed_dim * 4, dropout=resid_dropout)
+
+        # Define the MLP out projection here so as to have the initialization applied
+        self.mlp_ln = nn.LayerNorm(embed_dim)
+        self.out_proj = nn.Linear(n_mlp, embed_dim)
+        
+        self.mlp = nn.Sequential(
+            # self.mlp_ln,
+            nn.Linear(embed_dim, n_mlp), 
+            nn.GELU(), 
+            self.out_proj,
+            nn.Dropout(dropout)
+        )
 
         # Either instantiate cross_attn
         self.cross_attn = MultiheadAttentionBlock(
