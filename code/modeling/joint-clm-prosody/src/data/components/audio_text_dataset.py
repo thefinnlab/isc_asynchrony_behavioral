@@ -39,16 +39,14 @@ class AudioTextDataset(Dataset):
         self.dataset_dir = dataset_dir
         self.audio_dir = os.path.join(dataset_dir, 'audio', split)
         self.textgrid_dir = os.path.join(dataset_dir, 'textgrids', split)
+        self.prosody_dir = os.path.join(dataset_dir, 'prosody', split)
 
         # The audio embeddings are based on how the text tokenizer splits the data
         self.cache_dir = os.path.join(cache_dir, f'{audio_model_name}-{text_model_name}', split)
 
         # Store split and filenames & keep track of failed samples
         self.split = split
-        self.file_names = os.listdir(self.textgrid_dir)
-
-        if sorted:
-            self.file_names.sort()
+        self.file_names = sorted(os.listdir(self.textgrid_dir))
 
         # Set filters for dataset samples --> enforces a minimum and maximum number of words
         self.buffer_missing_samples = buffer_missing_samples
@@ -379,6 +377,77 @@ def parse_textgrid(file_path):
             "end": interval.end
         })
     return words
+
+
+######################################################
+################# Prosody utilities ##################
+######################################################
+
+def process_wavelet_file(filename: str) -> List[Dict[str, Any]]:
+    """
+    Processes a wavelet prosody toolkit .prom file and returns a list of words.
+    Output format is a list of individual words and their prosody values
+        [
+            {'text': 'word',
+            'prominence': float,  # From prominence strength
+            'boundary': float,  # From boundary strength
+            'start': float,
+            'end': float},
+        ]
+    """
+    words = []
+
+    with open(filename, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+                
+            parts = line.split()
+            if len(parts) >= 6:  # Ensure we have all required columns
+                file_name, start_time, end_time, unit, prom_strength, bound_strength = parts[:6]
+                
+                # Skip bracketed units
+                if "[" in unit and "]" in unit:
+                    continue
+                
+                prom_strength = float(prom_strength)
+                bound_strength = float(bound_strength)
+                
+                # Add word to current utterance
+                word = {
+                    "text": unit,
+                    "prominence": prom_strength if prom_strength >= 0 else 0, # adding to align with Helsinki dataset
+                    "boundary": bound_strength if bound_strength >= 0 else 0,
+                    "start": float(start_time),
+                    "end": float(end_time)
+                }
+
+                words.append(word)
+
+    return words
+
+def interpolate_prosody_values(current_value: float, next_value: float, num_tokens: int) -> List[float]:
+    """
+    Interpolate prosody values across multiple tokens.
+    
+    Args:
+        current_value: Prosody value for the current word
+        next_value: Prosody value for the next word
+        num_tokens: Number of tokens to interpolate across
+        
+    Returns:
+        List of interpolated values
+    """
+    if num_tokens == 1:
+        return [current_value]
+    
+    step = (next_value - current_value) / num_tokens
+    return [current_value + (step * i) for i in range(num_tokens)]
+
+######################################################
+################# Audio utilities ####################
+######################################################
 
 def load_audio(file_path):
     waveform, sample_rate = torchaudio.load(file_path)

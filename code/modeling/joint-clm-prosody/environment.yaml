@@ -47,6 +47,10 @@ dependencies:
   # - mlflow
   # - comet-ml
 
+  - pycwt
+  - pyyaml
+  - pysoundfile
+
   - pip>=23
   - pip:
       - praatio
@@ -57,3 +61,12 @@ dependencies:
       - pyphen
       - g2p_en
       - peft
+
+      # Prosody stuff
+      - pycwt
+      - pyyaml
+      - pysoundfile
+      - wavio
+      - tgt
+      - PyQt5
+      - pyreaper

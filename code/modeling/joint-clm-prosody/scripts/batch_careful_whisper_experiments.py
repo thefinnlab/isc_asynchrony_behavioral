@@ -59,20 +59,31 @@ if __name__ == "__main__":
 
 	MODEL_CONFIGS = {
 	
-		# General GPT2-esque model
-		'careful-whisper_no-xattn': [
-			f"model.config.cross_attention=False",
-			f"model.config.use_causal_cross_attention=False",
-		],
+		# # General GPT2-esque model
+		# 'careful-whisper_no-xattn': [
+		# 	f"model.config.cross_attention=False",
+		# 	f"model.config.use_causal_cross_attention=False",
+		# ],
 
-		# Whisper w/ CLM integration
-		'careful-whisper_causal-xattn': [
-			f"model.config.cross_attention=True",
-			f"model.config.use_causal_cross_attention=True",
-		],
+		# # Whisper w/ CLM integration
+		# 'careful-whisper_causal-xattn': [
+		# 	f"model.config.cross_attention=True",
+		# 	f"model.config.use_causal_cross_attention=True",
+		# ],
 
 		# # Whisper w/ CLM integration
 		# 'careful-whisper_bi-xattn': [
+		# 	f"model.config.bidirectional_cross_attention=True",
+		# 	f"model.config.use_causal_cross_attention=False",
+		# ],
+
+		# Whisper w/ CLM integration
+		'careful-whisper_no-xattn_parameter-control': [
+			f"model.config.num_layers=18",
+		],
+
+		# # Whisper w/ CLM integration
+		# 'careful-whisper_causal-bi-xattn': [
 		# 	f"model.config.bidirectional_cross_attention=True",
 		# 	f"model.config.use_causal_cross_attention=True",
 		# ],
