@@ -14,6 +14,13 @@ config:
   use_causal_cross_attention: False
   use_text_control: False
 
+  # Defaults for context
+  context_type: 'audio_inputs' # Default use audio inputs
+  context_dim: null
+  context_embed_dim: null 
+  context_embed_dropout: 0.
+  context_pos_embed: null
+
 optimizer:
   _target_: torch.optim.AdamW
   _partial_: true

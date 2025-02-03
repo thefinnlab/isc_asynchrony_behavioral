@@ -64,12 +64,15 @@ class AudioTextDataModule(LightningDataModule):
             self.hparams.val_split = 'validation'
             self.hparams.test_split = 'test'
 
-        # Ensure subsets are within the range we expect
-        assert (self.hparams.subset_percentage > 0. and self.hparams.subset_percentage <= 1.0)
-
         # this line allows to access init params with 'self.hparams' attribute
         # it also ensures init params will be stored in ckpt
         self.save_hyperparameters(logger=False)
+
+        # Ensure subsets are within the range we expect
+        print (self.hparams.subset_percentage)
+        print (type(self.hparams.subset_percentage))
+        if self.hparams.subset_percentage:
+            assert (self.hparams.subset_percentage > 0. and self.hparams.subset_percentage <= 1.0)
 
         self.dataset = None
         self.collator_fn = None

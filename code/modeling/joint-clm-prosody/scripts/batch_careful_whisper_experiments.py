@@ -33,7 +33,6 @@ DATASET_INFO = {
 		'data.dataset_name=libritts-r',
 		'data.data_dir=\${paths.data_dir}/libritts-r',
 		'data.cache_dir=\${paths.cache_dir}/nlp-datasets/libritts-r',
-		# 'data.batch_size=8'
 	],
 	'tedlium': [
 		'data.dataset_name=tedlium',
@@ -59,17 +58,21 @@ if __name__ == "__main__":
 
 	MODEL_CONFIGS = {
 	
-		# # General GPT2-esque model
-		# 'careful-whisper_no-xattn': [
-		# 	f"model.config.cross_attention=False",
-		# 	f"model.config.use_causal_cross_attention=False",
-		# ],
+		# General GPT2-esque model
+		'careful-whisper_no-xattn': [
+			f"model.config.cross_attention=False",
+			f"model.config.use_causal_cross_attention=False",
+		],
 
-		# # Whisper w/ CLM integration
-		# 'careful-whisper_causal-xattn': [
-		# 	f"model.config.cross_attention=True",
-		# 	f"model.config.use_causal_cross_attention=True",
-		# ],
+		# Whisper w/ CLM integration
+		'careful-whisper_causal-xattn': [
+			f"model.config.cross_attention=True",
+			f"model.config.use_causal_cross_attention=True",
+
+			# Add in dropout and position embedding
+			f"model.config.context_embed_dropout=0.1",
+			f"model.config.context_pos_embed=True",
+		],
 
 		# # Whisper w/ CLM integration
 		# 'careful-whisper_bi-xattn': [
@@ -78,9 +81,23 @@ if __name__ == "__main__":
 		# ],
 
 		# Whisper w/ CLM integration
-		'careful-whisper_no-xattn_parameter-control': [
-			f"model.config.num_layers=18",
+		'prosody-whisper_causal-xattn': [
+			f"model.config.cross_attention=True",
+			f"model.config.use_causal_cross_attention=True",
+
+			# Prosody embedding information
+			f"model.config.context_type=prominence",
+			f"model.config.context_dim=1",
+			f"model.config.context_embed_dropout=0.1",
+			f"model.config.context_pos_embed=True",
+
 		],
+
+
+		# # Whisper w/ CLM integration
+		# 'careful-whisper_no-xattn_parameter-control': [
+		# 	f"model.config.num_layers=18",
+		# ],
 
 		# # Whisper w/ CLM integration
 		# 'careful-whisper_causal-bi-xattn': [

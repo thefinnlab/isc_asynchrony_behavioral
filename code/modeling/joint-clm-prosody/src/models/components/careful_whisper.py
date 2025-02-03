@@ -29,12 +29,26 @@ class CarefulWhisperConfig:
     attn_dropout: float = 0.1
     resid_dropout: float = 0.1
     dropout: float = 0.1
+    init_std: float = 0.02
+
+    #######################################
+    ##### Cross attention arguments #######
+    #######################################
+
     cross_attention: bool = True # Allows specification of cross attention or not --> if not, architecture is essentially GPT2
-    context_dim: int = None
-    bidirectional_cross_attention: bool = False,
+    bidirectional_cross_attention: bool = False
     use_causal_cross_attention: bool = False
     use_text_control: bool = False
-    init_std: float = 0.02
+
+    #######################################
+    ##### Context specific arguments ###### 
+    #######################################
+
+    context_type: str = 'audio_inputs' # Key used when accessing context
+    context_dim: int = None # Size of context being projected
+    context_embed_dim: int = None # What the context dimensions are projected to
+    context_embed_dropout: float = None
+    context_pos_embed: bool = None
 
 class FeedForward(nn.Module):
     def __init__(
@@ -139,7 +153,7 @@ class ResidualAttentionBlock(nn.Module):
         dim_head: int = None,
         attn_dropout: float = 0., 
         resid_dropout: float = 0., 
-        context_dim: int = None,
+        context_embed_dim: int = None,
         cross_attention: bool = False,
         bidirectional_cross_attention: bool = False,
         use_causal_cross_attention: bool = False,
@@ -161,7 +175,7 @@ class ResidualAttentionBlock(nn.Module):
         dim_head = default(dim_head, embed_dim // num_heads)
 
         self.bi_cross_attn = (
-            BidirectionalCrossAttention(dim=embed_dim, num_heads=num_heads, dim_head=dim_head, context_dim=context_dim, attn_dropout=attn_dropout, resid_dropout=resid_dropout, prenorm=True, is_causal=use_causal_cross_attention) if bidirectional_cross_attention else None
+            BidirectionalCrossAttention(dim=embed_dim, num_heads=num_heads, dim_head=dim_head, context_dim=context_embed_dim, attn_dropout=attn_dropout, resid_dropout=resid_dropout, prenorm=True, is_causal=use_causal_cross_attention) if bidirectional_cross_attention else None
         )
 
         # Context MLP
@@ -226,6 +240,13 @@ class CarefulWhisper(nn.Module):
         self.positional_embedding = nn.Embedding(self.config.max_length, self.config.embed_dim)
 
         self.dropout = nn.Dropout(self.config.embed_dropout)
+
+        # Context embedding information --> 
+        context_embed_dim = default(self.config.context_embed_dim, self.config.embed_dim)
+
+        self.context_embed = nn.Linear(self.config.context_dim, context_embed_dim, bias=False) if self.config.context_dim else nn.Identity()
+        self.context_positional_embedding = nn.Embedding(self.config.max_length, self.config.embed_dim) if self.config.context_pos_embed else None
+        self.context_embed_dropout = nn.Dropout(self.config.embed_dropout) if self.config.context_embed_dropout else nn.Identity()
 
         self.blocks: Iterable[ResidualAttentionBlock] = nn.ModuleList(
             [
@@ -318,7 +339,24 @@ class CarefulWhisper(nn.Module):
         # Embedding dropout
         x = self.dropout(x).to(xa.dtype)
 
-        # Pass through each attention block
+        ####################################
+        ######## Context embedding #########
+        ####################################
+
+        xa = self.context_embed(xa) # Embed if specified otherwise returns Identity
+
+        # Optional position embedding
+        if self.context_positional_embedding:
+            xa_position_ids = torch.arange(xa.shape[-2], dtype=torch.long, device=xa.device)
+            xa = + xa + self.context_positional_embedding(xa_position_ids)
+
+        # Optional context dropout
+        xa = self.context_embed_dropout(xa)
+
+        ####################################
+        ######## Attention blocks ##########
+        ####################################
+
         for block in self.blocks:
             # Have sequences attend to each other
             if self.config.bidirectional_cross_attention:

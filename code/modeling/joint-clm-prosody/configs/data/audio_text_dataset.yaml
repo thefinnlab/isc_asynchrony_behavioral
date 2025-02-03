@@ -6,6 +6,7 @@ cache_dir: ${paths.cache_dir}/
 batch_size: 32
 audio_model_name: wav2vec2
 text_model_name: gpt2
+subset_percentage: null
 
 num_workers: 0
 pin_memory: False

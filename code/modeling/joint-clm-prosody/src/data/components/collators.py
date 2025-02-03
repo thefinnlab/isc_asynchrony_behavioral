@@ -15,8 +15,18 @@ def audio_text_collator(batch, pad_token=-999):
     attention_masks = [item["text_attention_mask"].squeeze(0) for item in batch]  # Remove batch dimension for padding
     audio_inputs = [item["audio_inputs"].squeeze(0) for item in batch]  # Remove batch dimension for padding
 
+    prominence = [item["prominence"].squeeze(0) for item in batch]  # Remove batch dimension for padding
+    boundary = [item["boundary"].squeeze(0) for item in batch]  # Remove batch dimension for padding
+
     # Pad text_tokens and attention_masks
     padded_text_tokens = pad_sequence(text_tokens, batch_first=True, padding_value=pad_token)
+    padded_attention_masks = pad_sequence(attention_masks, batch_first=True, padding_value=0)
+
+    # Pad prominence + boundary
+    padded_prominence = pad_sequence(prominence, batch_first=True, padding_value=0).unsqueeze(-1)
+    padded_boundary = pad_sequence(boundary, batch_first=True, padding_value=0).unsqueeze(-1)
+
+    # Pad prominence
     padded_attention_masks = pad_sequence(attention_masks, batch_first=True, padding_value=0)
 
     # Pad audio_inputs with zero vectors
@@ -36,6 +46,8 @@ def audio_text_collator(batch, pad_token=-999):
         "text": texts,
         "text_tokens": padded_text_tokens,
         "text_attention_mask": padded_attention_masks,
+        "prominence": padded_prominence,
+        "boundary": padded_boundary,
         "audio_inputs": padded_audio_inputs
     }
 

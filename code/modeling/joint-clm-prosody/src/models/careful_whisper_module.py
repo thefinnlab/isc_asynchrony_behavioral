@@ -45,7 +45,7 @@ class CarefulWhisperModule(LightningModule):
         # forward pass
         logits = self.model(
             x=batch['text_tokens'],
-            xa=batch['audio_inputs'],
+            xa=batch[self.hparams.config.context_type],
             mask=batch['text_attention_mask'],
             context_mask=batch['text_attention_mask']
         )
