@@ -26,15 +26,16 @@ GPU_INFO = ''
 TIME = '1-00:00:00'
 CPUS_PER_TASK = 8
 MEM_PER_CPU = '16G'
-PARTITION = 'a100'
+PARTITION = 'gpuq'
 GPU_INFO = '--gres=gpu:1'
-ACCOUNT = 'test_a100'
+ACCOUNT = 'dbic' #'test_a100'
 
 if __name__ == "__main__":
 
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-d', '--dataset', type=str)
 	parser.add_argument('-s', '--split', type=str, default=None)
+	parser.add_argument('-o', '--overwrite', type=int, default=0)
 	p = parser.parse_args()
 
 	# DATASETS = ['libritts-r']
@@ -61,7 +62,7 @@ if __name__ == "__main__":
 	print (splits)
 		
 	for split in splits:
-		cmd = f"{job_string} -d {p.dataset} -s {split}"
+		cmd = f"{job_string} -d {p.dataset} -s {split} -o {p.overwrite}"
 		all_cmds.append(cmd)
 		job_num += 1
 

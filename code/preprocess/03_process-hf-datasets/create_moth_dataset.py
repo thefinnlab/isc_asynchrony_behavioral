@@ -59,6 +59,6 @@ if __name__ == "__main__":
         textgrid_fn = os.path.join(textgrid_out_dir, textgrid_fn)
 
         # Use the written audio file to make the text grid times and save
-        tg = dataframe_to_textgrid(df, audio_fn)
+        tg = dataframe_to_textgrid(df, audio_fn, tier_name='words')
         tg.save(textgrid_fn, 'long_textgrid', True)
     # sys.exit(0)

@@ -23,7 +23,7 @@ from src.utils.torch_metrics import (
     MeanMetric, MaskedAccuracy
 )
 
-class CarefulWhisperModule(LightningModule):
+class ProsodyWhisperModule(LightningModule):
     def __init__(
             self,
             config: CarefulWhisperConfig,
@@ -39,18 +39,23 @@ class CarefulWhisperModule(LightningModule):
             self.loss_fn = clm_loss
 
             # Add prosody information
-            self.use_prosody_embeddings = use_prosody_embeddings
-            self.prosody_embed = nn.Linear(num_labels, self.model.config.hidden_size, bias=False)
+            self.prosody_embed = nn.Linear(num_labels, self.model.config.embed_dim, bias=False)
+
+            # Consider adding dropouts to xa
+            # self.prosody_dropout = nn.Dropout(self.config.embed_dropout)
             self.model._init_weights(self.prosody_embed)
 
             self._init_metrics()
 
     def forward(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
+        
+        # Tokenized labels are prosody values
+        xa = self.prosody_embed(batch['prominence'])
 
         # forward pass
         logits = self.model(
             x=batch['text_tokens'],
-            xa=batch['audio_inputs'],
+            xa=xa,
             mask=batch['text_attention_mask'],
             context_mask=batch['text_attention_mask']
         )

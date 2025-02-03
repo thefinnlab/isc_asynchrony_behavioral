@@ -14,6 +14,7 @@ if __name__ == '__main__':
 	parser.add_argument('-s', '--split', type=str)
 	parser.add_argument('-audio_model_name', '--audio_model_name', type=str, default='wav2vec2')
 	parser.add_argument('-text_model_name', '--text_model_name', type=str, default='gpt2')
+	parser.add_argument('-o', '--overwrite', type=int, default=0)
 	p = parser.parse_args()
 
 	if p.dataset == 'gigaspeech':
@@ -30,10 +31,6 @@ if __name__ == '__main__':
 		audio_model_name=p.audio_model_name, 
 		text_model_name=p.text_model_name, 
 		split=p.split,
-		
-		# only sort moth stories --> the rest order doesn't matter
-		sorted=True if p.dataset == 'pfka-moth-stories' else False,
-		# buffer_missing_samples = True if p.dataset == 'pfka-moth-stories' else False
 	)
 
-	dataset.preprocess_data()
+	dataset.preprocess_data(force_reprocess=p.overwrite)

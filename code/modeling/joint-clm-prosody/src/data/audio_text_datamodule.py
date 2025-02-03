@@ -8,7 +8,7 @@ from lightning import LightningDataModule
 from transformers import AutoTokenizer
 
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 
 from src.data.components.audio_text_dataset import AudioTextDataset
 # from src.data.components.datasets import TokenTaggingDataset
@@ -50,7 +50,7 @@ class AudioTextDataModule(LightningDataModule):
         num_workers: int = 0,
         pin_memory: bool = False,
         # train_val_test_split: Tuple[int, int, int] = (0.8, 0.1, 0.1),
-
+        subset_percentage: float = None, 
         debug: bool = False,
     ):
         super().__init__()
@@ -63,6 +63,9 @@ class AudioTextDataModule(LightningDataModule):
             self.hparams.train_split = 'train'
             self.hparams.val_split = 'validation'
             self.hparams.test_split = 'test'
+
+        # Ensure subsets are within the range we expect
+        assert (self.hparams.subset_percentage > 0. and self.hparams.subset_percentage <= 1.0)
 
         # this line allows to access init params with 'self.hparams' attribute
         # it also ensures init params will be stored in ckpt
@@ -123,6 +126,20 @@ class AudioTextDataModule(LightningDataModule):
             )
 
             self.train_dataset.preprocess_data()
+
+            # If specified sample a subset of the data
+            if self.hparams.subset_percentage:
+
+                # Calculate size of the subset
+                subset_size = int(self.hparams.subset_percentage * len(self.train_dataset))
+
+                # Randomly split the dataset
+                indices = torch.randperm(len(self.train_dataset)).tolist()
+                subset_indices = indices[:subset_size]
+
+                # Copy over for reference and create a subset
+                self.full_train_dataset = self.train_dataset
+                self.train_dataset = Subset(self.train_dataset, subset_indices)
 
             print (f"Train samples: {len(self.train_dataset)}", flush=True)
 

@@ -119,7 +119,7 @@ def update_dataframe_from_praat(df, textgrid):
         
     return df
 
-def dataframe_to_textgrid(df, audio_fn):
+def dataframe_to_textgrid(df, audio_fn, tier_name='word'):
     """
     Take a filename and its associated transcription and fill in all the gaps
     """
@@ -175,7 +175,7 @@ def dataframe_to_textgrid(df, audio_fn):
 
 
     tg = tgio.Textgrid()
-    tg.addTier(tgio.IntervalTier('word', rearranged_words))
+    tg.addTier(tgio.IntervalTier(tier_name, rearranged_words))
     return tg
 
 def gentle_to_textgrid(alignment_fn, path):

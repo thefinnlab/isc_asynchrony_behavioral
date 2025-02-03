@@ -1,7 +1,7 @@
 import os
 import gc
 
-from typing import Union, Literal, List, Dict
+from typing import Union, Literal, List, Dict, Optional, Any
 import string
 import numpy as np
 import json
@@ -30,7 +30,6 @@ class AudioTextDataset(Dataset):
         min_words: int = 4,
         max_words: int = 60, 
         preload_audio: bool = False,
-        sorted: bool = False,
         buffer_missing_samples: bool = False,
     ):
         super().__init__()
@@ -41,12 +40,15 @@ class AudioTextDataset(Dataset):
         self.textgrid_dir = os.path.join(dataset_dir, 'textgrids', split)
         self.prosody_dir = os.path.join(dataset_dir, 'prosody', split)
 
-        # The audio embeddings are based on how the text tokenizer splits the data
+        # Setup cache directories
         self.cache_dir = os.path.join(cache_dir, f'{audio_model_name}-{text_model_name}', split)
+        self.temp_dir = os.path.join(self.cache_dir, 'temp')
+        os.makedirs(self.temp_dir, exist_ok=True)
 
         # Store split and filenames & keep track of failed samples
         self.split = split
-        self.file_names = sorted(os.listdir(self.textgrid_dir))
+        self.file_names = os.listdir(self.textgrid_dir)
+        self.file_names.sort()
 
         # Set filters for dataset samples --> enforces a minimum and maximum number of words
         self.buffer_missing_samples = buffer_missing_samples
@@ -55,30 +57,26 @@ class AudioTextDataset(Dataset):
         self.failed_samples_count = 0
         self.edge_case_count = 0
         
-        # We cache metadata within the cache directory
+        # Metadata paths
         self.metadata_path = os.path.join(self.cache_dir, 'metadata.json')
         self.error_metadata_path = os.path.join(self.cache_dir, 'error_metadata.json')
-
-        # Cacheing information
+        
+        # Caching information
         self.preload_audio = preload_audio
         self.audio_cache = {}
         
-        # Determine if GPU is available
+        # Model configuration
         self.audio_model_name = audio_model_name
         self.text_model_name = text_model_name
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
-        # Make directory for caching embeddings
-        if not os.path.exists(self.cache_dir):
-            os.makedirs(self.cache_dir)
-
         # Load or create metadata
         self.metadata = self._load_metadata(self.metadata_path)
         self.error_metadata = self._load_metadata(self.error_metadata_path)
 
-        # Preload audio if requested
-        if self.preload_audio:
-            self._preload_audio_tensors()
+    #############################################
+    ############ Metadata functions #############
+    #############################################
 
     def _load_metadata(self, path):
         # Load or create metadata
@@ -94,31 +92,36 @@ class AudioTextDataset(Dataset):
         with open(path, 'w') as f:
             json.dump(data, f)
 
-    def _preload_audio_tensors(self):
-        """Preload all audio tensors into memory"""
-        print("Preloading audio tensors...", flush=True)
-        for item in tqdm(self.metadata):
-            tensor_path = item['audio_tensor_path']
-            self.audio_cache[tensor_path] = torch.load(tensor_path, map_location=self.device)
-            
-    def _process_single_file(self, file_name: str) -> Dict:
-        """Process a single file"""
-        cache_name = file_name.replace(".TextGrid", ".pt")
-        textgrid_path = os.path.join(self.textgrid_dir, file_name)
-        audio_path = os.path.join(self.audio_dir, file_name.replace(".TextGrid", ".wav"))
-        cache_path = os.path.join(self.cache_dir, cache_name)
-        
-        # Load audio and extract word segments
-        waveform, sample_rate = load_audio(audio_path)
-        words = parse_textgrid(textgrid_path)
+    def _get_temp_json_path(self, file_name: str) -> str:
+        """Get path for temporary JSON file."""
+        base_name = os.path.splitext(file_name)[0]
+        return os.path.join(self.temp_dir, f"{base_name}_processed.json")
 
-        # Filter if there were no words, or if less/more than number of requested words
-        if not words:
-            return None
-        elif len(words) < self.min_words or len(words) > self.max_words:
-            return None
-        
-        return self._process_inputs(words, waveform, sample_rate, cache_path)
+    def _check_exists(self, paths: List) -> bool:
+        return not all([os.path.exists(path) for path in paths])
+        # [not os.path.exists(path) for path in [text_tokens_path, text_attention_mask_path]]
+
+    def _finish_data_preproc(self, path):
+
+        data = self._load_metadata(path)
+
+        mapping = {
+            'text_tokens_path': 'text_tokens',
+            'text_attention_mask_path': 'text_attention_mask',
+            'prominence_path': 'prominence',
+            'boundary_path': 'boundary'
+        }
+
+        # Load in the data from the path and then delete the path
+        for k, v in mapping.items():
+            data[v] = list(torch.load(data[k]))
+            del data[k]
+
+        return data
+
+    #############################################
+    ############ Feature extraction #############
+    #############################################
     
     def _initialize_models(self):
 
@@ -142,134 +145,237 @@ class AudioTextDataset(Dataset):
         del self.audio_model
         del self.text_tokenizer
 
-    def _cleanup_text_files(self):
-        """Load text tokens and attention mask from files, then delete the files."""
-        for item in self.metadata:
-            if 'text_tokens_path' in item and 'text_attention_mask_path' in item:
-                text_tokens_path = item['text_tokens_path']
-                text_attention_mask_path = item['text_attention_mask_path']
-
-                try:
-                    item['text_tokens'] = torch.load(text_tokens_path) #.tolist()
-                    item['text_attention_mask'] = torch.load(text_attention_mask_path) #.tolist()
-                    os.remove(text_tokens_path)
-                    os.remove(text_attention_mask_path)
-                    del item['text_tokens_path']
-                    del item['text_attention_mask_path']
-                except FileNotFoundError as e:
-                    print(f"Warning: File not found for {text_tokens_path} or {text_attention_mask_path}. Skipping cleanup.")
+    #############################################
+    ############# Data processing ###############
+    #############################################
 
     def preprocess_data(self, force_reprocess=False):
-        """
-        Preprocess all data and save audio tensors to cache.
-        Args:
-            force_reprocess (bool): If True, reprocess all files even if they exist in metadata
-        """
-
-        # Load error metadata
+        """Preprocess all data with temporary file handling."""
         error_files = set(self.error_metadata)
-
-        # Determine which files to process
+        
         if not force_reprocess and self.metadata:
-            print("Metadata already exists. Processing only new files...", flush=True)
-            existing_files = {os.path.basename(item['audio_tensor_path']) for item in self.metadata}
+            print("Metadata exists. Processing only new files...", flush=True)
+            # Find which files exist based on the audio tensors
+            existing_files = {item['base_name'] for item in self.metadata}
+            
             files_to_process = [
                 f for f in self.file_names
-                if f.replace(".TextGrid", ".pt") not in existing_files and f not in error_files
+                if os.path.splitext(f)[0] not in existing_files and os.path.splitext(f)[0] not in error_files
             ]
         else:
             self.metadata = []
             self.error_metadata = []
             files_to_process = self.file_names
-
-        # Exit if no files to process
+        
         if not files_to_process:
             print("No new files to process", flush=True)
             return
-            
-        # Initialize models if needed
+        
         self._initialize_models()
-        print(f"Processing {len(files_to_process)} files...", flush=True)
 
-        # Track new files that cause errors during processing
+        print(f"Processing {len(files_to_process)} files...", flush=True)
+        
         new_error_files = []
+        new_json_files = []
 
         for file_name in tqdm(files_to_process):
 
-            result = self._process_single_file(file_name)
-
-            if result:
-                self.metadata.append(result)
-                # self._update_metadata(result)
-            elif self.buffer_missing_samples:
-                self.metadata.append({
-                    'text': [],
-                    'text_tokens': [],
-                    'text_attention_mask': [],
-                    'audio_tensor_path': [],
-                })
+            # Process one file and save temporary json
+            json_path = self._process_single_file(file_name)
+            
+            if json_path:
+                new_json_files.append(json_path)
+            # elif self.buffer_missing_samples:
+            #     temp_json_path = self._get_temp_json_path(file_name)
+            #     empty_data = {
+            #         'base_name': os.path.splitext(file_name)[0],
+            #         'text': [],
+            #         'text_tokens': [],
+            #         'text_attention_mask': [],
+            #         'audio_tensor_path': [],
+            #         'prosody_prominence': [],
+            #         'prosody_boundary': []
+            #     }
+            #     with open(temp_json_path, 'w') as f:
+            #         json.dump(empty_data, f)
+            #     self.metadata.append(temp_json_path)
             else:
-                new_error_files.append(file_name)
+                base_name = os.path.splitext(file_name)[0]
+                new_error_files.append(base_name)
                 self.failed_samples_count += 1
-
-            gc.collect()  # Free up memory
+            
+            gc.collect()
         
         print(f"Split {self.split} failed samples: {self.failed_samples_count}", flush=True)
-
+        
         # Update error metadata
         if new_error_files:
             error_files.update(new_error_files)
             self.error_metadata = list(error_files)
             self._save_metadata(self.error_metadata_path, self.error_metadata)
 
-        # Clean up text tokens and attention mask files
-        self._cleanup_text_files()
+        # Compile new json files, add to metadata and save out
+        for fn in new_json_files:
+            data = self._finish_data_preproc(fn)
+            self.metadata.append(data)
         
-        # Save metadata
+        # Save final metadata (just the JSON paths)
         self._save_metadata(self.metadata_path, self.metadata)
-
         self._remove_models()
 
-    @torch.no_grad()  # Disable gradient computation for inference
-    def _process_inputs(self, words: List[Dict], waveform: np.ndarray, 
-                       sample_rate: int, cache_path: str) -> Dict:
-        # Join the words together into a sentence
-        text = " ".join([word['text'] for word in words])
+    def _process_single_file(self, file_name: str) -> Dict:
+        """Process a single file with temporary JSON caching."""
+        temp_json_path = self._get_temp_json_path(file_name)
+        
+        # Check if temporary processing file exists
+        if os.path.exists(temp_json_path):
+            return temp_json_path
 
-        # Define paths for text tokens and attention mask
+        # Load and validate all file data
+        file_data = self._load_file_data(file_name)
+
+        if file_data is None:
+            return None
+
+        ##########################################
+        ########## Create path names #############
+        ##########################################
+
+        cache_name = f"{file_data['base_name']}.pt"
+        cache_path = os.path.join(self.cache_dir, cache_name)
+
         text_tokens_path = cache_path.replace(".pt", "_text_tokens.pt")
         text_attention_mask_path = cache_path.replace(".pt", "_text_attention_mask.pt")
 
+        prominence_path = cache_path.replace(".pt", "_prominence.pt")
+        boundary_path = cache_path.replace(".pt", "_boundary.pt")
+
         # If any of the paths do not exist
-        text_paths_not_exist = [not os.path.exists(path) for path in [text_tokens_path, text_attention_mask_path]]
+        text_paths_not_exist = self._check_exists([text_tokens_path, text_attention_mask_path])
+        prosody_paths_not_exist = self._check_exists([prominence_path, boundary_path])
+        audio_not_exists = self._check_exists([cache_path])
+
+        ##########################################
+        ############## Process text ##############
+        ##########################################
+
+        # Process text through tokenizer and get token information
+        text = " ".join([word['text'] for word in file_data['words']])
+        text_tokens = self.text_tokenizer(text)
         
         # Paths don't exist
         if text_paths_not_exist:
-            # Tokenize the words if files don't exist
-            text_tokens = self.text_tokenizer(text)
-            
-            # Save text tokens and attention mask to files
             torch.save(text_tokens['input_ids'], text_tokens_path)
             torch.save(text_tokens['attention_mask'], text_attention_mask_path)
-
-        # Check if audio tensor already exists
-        if os.path.exists(cache_path):
-            return {
-                'text': text,
-                'text_tokens_path': text_tokens_path,
-                'text_attention_mask_path': text_attention_mask_path,
-                'audio_tensor_path': cache_path
-            }
-
-        # Process audio
+        
+        # Get token counts and associated word ids
         word_ids, token_counts = np.unique(text_tokens.word_ids(), return_counts=True)
-
+        
         # There are weird edge cases with things like "20th"
-        if (len(word_ids) != len(words)):
+        if len(word_ids) != len(file_data['words']):
             self.edge_case_count += 1
             print (f"Edge case #{self.edge_case_count}", flush=True)
             return None
 
+        ##########################################
+        ############ Process prosody #############
+        ##########################################
+
+        if prosody_paths_not_exist:
+            # Stack together --> transpose going in and then separate
+            prominence_boundary = np.stack((file_data['prominence'], file_data['boundary'])).T
+            prominence, boundary = interpolate_prosody(prominence_boundary, token_counts).T
+
+            torch.save(prominence, prominence_path)
+            torch.save(boundary, boundary_path)
+
+        ##########################################
+        ############# Process audio ##############
+        ##########################################
+
+        if audio_not_exists:
+            # Process audio and save to cache
+            audio_inputs = self._process_audio(file_data['words'], file_data['waveform'], file_data['sample_rate'], text_tokens)
+            torch.save(audio_inputs, cache_path)
+
+        ##########################################
+        ###### Format results and save json ######
+        ##########################################
+
+        result = {
+            'base_name': file_data['base_name'],
+            'text': text,
+            'text_tokens_path': text_tokens_path,
+            'text_attention_mask_path': text_attention_mask_path,
+            'audio_tensor_path': cache_path,
+            'prominence_path': prominence_path,
+            'boundary_path': boundary_path, 
+        }
+        
+        # Save temporary processing file
+        with open(temp_json_path, 'w') as f:
+            json.dump(result, f)
+        
+        return temp_json_path
+
+    #############################################
+    ######### Data proc helper functions ########
+    #############################################
+
+    def _load_file_data(self, file_name: str) -> Optional[Dict]:
+        """Load all necessary data for a single file."""
+        base_name = os.path.splitext(file_name)[0]
+        
+        textgrid_path = os.path.join(self.textgrid_dir, file_name)
+        audio_path = os.path.join(self.audio_dir, f"{base_name}.wav")
+        prosody_path = os.path.join(self.prosody_dir, f"{base_name}.prom")
+        
+        try:
+            # Load audio
+            waveform, sample_rate = load_audio(audio_path)
+            
+            # Load textgrid words
+            words = parse_textgrid(textgrid_path)
+            
+            # Load prosody data
+            prosody_data = process_wavelet_file(prosody_path)
+
+            # Ensure the data is matched
+            assert (len(prosody_data) == len(words))
+
+            # Extract prominence / boundary
+            prominence = np.array([word['prominence'] for word in prosody_data])
+            boundary = np.array([word['boundary'] for word in prosody_data])
+            
+            if not words:
+                return None
+            elif len(words) < self.min_words or len(words) > self.max_words:
+                return None
+                
+            return {
+                'base_name': base_name,
+                'words': words,
+                'prominence': prominence,
+                'boundary': boundary,
+                'waveform': waveform,
+                'sample_rate': sample_rate
+            }
+            
+        except Exception as e:
+            print(f"Error processing {file_name}: {str(e)}")
+            return None
+
+    @torch.no_grad() 
+    def _process_audio(self, words: List[Dict], waveform: np.ndarray,
+                      sample_rate: int, text_tokens: Dict) -> Optional[bool]:
+        """Process audio data and save embeddings"""
+
+        word_ids, token_counts = np.unique(text_tokens.word_ids(), return_counts=True)
+        
+        if len(word_ids) != len(words):
+            self.edge_case_count += 1
+            return None
+            
         segments = []
 
         for word, idx, n_tokens in zip(words, word_ids, token_counts):
@@ -283,7 +389,6 @@ class AudioTextDataset(Dataset):
                 word_segments = extract_word_segment(waveform, sample_rate, 
                                                   word["start"], word["end"])
             segments.extend(word_segments)
-        
         # Process all segments simultaneously
         features = self.processor(segments, sampling_rate=sample_rate, 
                                 padding=True, return_attention_mask=True, 
@@ -305,16 +410,221 @@ class AudioTextDataset(Dataset):
         
         # Move back to CPU for saving
         audio_inputs = audio_inputs.cpu()
-        
-        # Save the audio inputs to cache
-        torch.save(audio_inputs, cache_path)
 
-        return {
-            'text': text,
-            'text_tokens_path': text_tokens_path,
-            'text_attention_mask_path': text_attention_mask_path,
-            'audio_tensor_path': cache_path
-        }
+        return audio_inputs
+
+    # def _cleanup_text_files(self):
+    #     """Load text tokens and attention mask from files, then delete the files."""
+    #     for item in self.metadata:
+    #         if 'text_tokens_path' in item and 'text_attention_mask_path' in item:
+    #             text_tokens_path = item['text_tokens_path']
+    #             text_attention_mask_path = item['text_attention_mask_path']
+
+    #             try:
+    #                 item['text_tokens'] = torch.load(text_tokens_path) #.tolist()
+    #                 item['text_attention_mask'] = torch.load(text_attention_mask_path) #.tolist()
+    #                 os.remove(text_tokens_path)
+    #                 os.remove(text_attention_mask_path)
+    #                 del item['text_tokens_path']
+    #                 del item['text_attention_mask_path']
+    #             except FileNotFoundError as e:
+    #                 print(f"Warning: File not found for {text_tokens_path} or {text_attention_mask_path}. Skipping cleanup.")
+
+    # def preprocess_data(self, force_reprocess=False):
+    #     """
+    #     Preprocess all data and save audio tensors to cache.
+    #     Args:
+    #         force_reprocess (bool): If True, reprocess all files even if they exist in metadata
+    #     """
+
+    #     # Load error metadata
+    #     error_files = set(self.error_metadata)
+
+    #     # Determine which files to process
+    #     if not force_reprocess and self.metadata:
+    #         print("Metadata already exists. Processing only new files...", flush=True)
+    #         existing_files = {os.path.basename(item['audio_tensor_path']) for item in self.metadata}
+    #         files_to_process = [
+    #             f for f in self.file_names
+    #             if f.replace(".TextGrid", ".pt") not in existing_files and f not in error_files
+    #         ]
+    #     else:
+    #         self.metadata = []
+    #         self.error_metadata = []
+    #         files_to_process = self.file_names
+
+    #     # Exit if no files to process
+    #     if not files_to_process:
+    #         print("No new files to process", flush=True)
+    #         return
+            
+    #     # Initialize models if needed
+    #     self._initialize_models()
+    #     print(f"Processing {len(files_to_process)} files...", flush=True)
+
+    #     # Track new files that cause errors during processing
+    #     new_error_files = []
+
+    #     for file_name in tqdm(files_to_process):
+
+    #         result = self._process_single_file(file_name)
+
+    #         if result:
+    #             self.metadata.append(result)
+    #             # self._update_metadata(result)
+    #         elif self.buffer_missing_samples:
+    #             self.metadata.append({
+    #                 'text': [],
+    #                 'text_tokens': [],
+    #                 'text_attention_mask': [],
+    #                 'audio_tensor_path': [],
+    #             })
+    #         else:
+    #             new_error_files.append(file_name)
+    #             self.failed_samples_count += 1
+
+    #         gc.collect()  # Free up memory
+        
+    #     print(f"Split {self.split} failed samples: {self.failed_samples_count}", flush=True)
+
+    #     # Update error metadata
+    #     if new_error_files:
+    #         error_files.update(new_error_files)
+    #         self.error_metadata = list(error_files)
+    #         self._save_metadata(self.error_metadata_path, self.error_metadata)
+
+    #     # Clean up text tokens and attention mask files
+    #     self._cleanup_text_files()
+        
+    #     # Save metadata
+    #     self._save_metadata(self.metadata_path, self.metadata)
+
+    #     self._remove_models()
+
+    # @torch.no_grad()  # Disable gradient computation for inference
+    # def _process_inputs(self, words: List[Dict], waveform: np.ndarray, 
+    #                    sample_rate: int, cache_path: str) -> Dict:
+    #     # Join the words together into a sentence
+    #     text = " ".join([word['text'] for word in words])
+
+    #     # Define paths for text tokens and attention mask
+    #     text_tokens_path = cache_path.replace(".pt", "_text_tokens.pt")
+    #     text_attention_mask_path = cache_path.replace(".pt", "_text_attention_mask.pt")
+
+    #     # If any of the paths do not exist
+    #     text_paths_not_exist = [not os.path.exists(path) for path in [text_tokens_path, text_attention_mask_path]]
+        
+    #     # Paths don't exist
+    #     if text_paths_not_exist:
+    #         # Tokenize the words if files don't exist
+    #         text_tokens = self.text_tokenizer(text)
+            
+    #         # Save text tokens and attention mask to files
+    #         torch.save(text_tokens['input_ids'], text_tokens_path)
+    #         torch.save(text_tokens['attention_mask'], text_attention_mask_path)
+
+    #     # Check if audio tensor already exists
+    #     if os.path.exists(cache_path):
+    #         return {
+    #             'text': text,
+    #             'text_tokens_path': text_tokens_path,
+    #             'text_attention_mask_path': text_attention_mask_path,
+    #             'audio_tensor_path': cache_path
+    #         }
+
+    #     # Process audio
+    #     word_ids, token_counts = np.unique(text_tokens.word_ids(), return_counts=True)
+
+    #     # There are weird edge cases with things like "20th"
+    #     if (len(word_ids) != len(words)):
+    #         self.edge_case_count += 1
+    #         print (f"Edge case #{self.edge_case_count}", flush=True)
+    #         return None
+
+    #     segments = []
+
+    #     for word, idx, n_tokens in zip(words, word_ids, token_counts):
+    #         if n_tokens > 1:
+    #             ratios = torch.tensor([len(x) for x in self.text_tokenizer.batch_decode(
+    #                 text_tokens['input_ids'][idx:idx+n_tokens])])
+    #             ratios = ratios / ratios.sum()
+    #             word_segments = extract_word_segment(waveform, sample_rate, 
+    #                                               word["start"], word["end"], ratios=ratios)
+    #         else:
+    #             word_segments = extract_word_segment(waveform, sample_rate, 
+    #                                               word["start"], word["end"])
+    #         segments.extend(word_segments)
+        
+    #     # Process all segments simultaneously
+    #     features = self.processor(segments, sampling_rate=sample_rate, 
+    #                             padding=True, return_attention_mask=True, 
+    #                             return_tensors="pt")
+        
+    #     # Move features to GPU if available
+    #     features = {k: v.to(self.device) for k, v in features.items()}
+
+    #     audio_inputs = self.audio_model(**features).last_hidden_state
+
+    #     # Get the attention mask for the hidden states
+    #     attention_mask = self.audio_model._get_feature_vector_attention_mask(
+    #         audio_inputs.shape[1], 
+    #         features['attention_mask']
+    #     )
+
+    #     # Perform pooling over the embeddings while accounting for attention mask
+    #     audio_inputs = pool_embeddings(audio_inputs, attention_mask)
+        
+    #     # Move back to CPU for saving
+    #     audio_inputs = audio_inputs.cpu()
+        
+    #     # Save the audio inputs to cache
+    #     torch.save(audio_inputs, cache_path)
+
+    #     return {
+    #         'text': text,
+    #         'text_tokens_path': text_tokens_path,
+    #         'text_attention_mask_path': text_attention_mask_path,
+    #         'audio_tensor_path': cache_path
+    #     }
+
+
+    # def _process_audio(self, words: List[Dict], waveform: np.ndarray, 
+    #         sample_rate: int, text_tokens: Dict, cache_path: str) -> Optional[bool]:
+    #     """Process audio data and save embeddings"""
+
+    #     word_ids, token_counts = np.unique(text_tokens.word_ids(), return_counts=True)
+        
+    #     if len(word_ids) != len(words):
+    #         self.edge_case_count += 1
+    #         return None
+            
+    #     segments = []
+    #     for word, idx, n_tokens in zip(words, word_ids, token_counts):
+    #         if n_tokens > 1:
+    #             ratios = torch.tensor([len(x) for x in self.text_tokenizer.batch_decode(
+    #                 text_tokens['input_ids'][idx:idx+n_tokens])])
+    #             ratios = ratios / ratios.sum()
+    #             word_segments = extract_word_segment(waveform, sample_rate, 
+    #                                               word["start"], word["end"], ratios=ratios)
+    #         else:
+    #             word_segments = extract_word_segment(waveform, sample_rate, 
+    #                                               word["start"], word["end"])
+    #         segments.extend(word_segments)
+
+    #     features = self.processor(segments, sampling_rate=sample_rate, 
+    #                             padding=True, return_attention_mask=True, 
+    #                             return_tensors="pt")
+        
+    #     features = {k: v.to(self.device) for k, v in features.items()}
+    #     audio_inputs = self.audio_model(**features).last_hidden_state
+    #     attention_mask = self.audio_model._get_feature_vector_attention_mask(
+    #         audio_inputs.shape[1], 
+    #         features['attention_mask']
+    #     )
+        
+    #     audio_inputs = pool_embeddings(audio_inputs, attention_mask)
+    #     audio_inputs = audio_inputs.cpu()
+    #     torch.save(audio_inputs, cache_path)
 
     def __len__(self):
         return len(self.metadata)
@@ -325,6 +635,8 @@ class AudioTextDataset(Dataset):
         # Convert lists back to tensors
         text_tokens = torch.tensor(data['text_tokens'])
         text_attention_mask = torch.tensor(data['text_attention_mask'])
+        prominence = torch.tensor(data['prominence'])
+        boundary = torch.tensor(data['boundary'])
         
         # Load audio tensor from cache or memory
         if self.preload_audio:
@@ -336,6 +648,8 @@ class AudioTextDataset(Dataset):
             'text': data['text'],
             'text_tokens': text_tokens,
             'text_attention_mask': text_attention_mask,
+            'prominence': prominence,
+            'boundary': boundary,
             'audio_inputs': audio_inputs
         }
 
@@ -427,23 +741,44 @@ def process_wavelet_file(filename: str) -> List[Dict[str, Any]]:
 
     return words
 
-def interpolate_prosody_values(current_value: float, next_value: float, num_tokens: int) -> List[float]:
+def interpolate_prosody(current_values: np.array, token_counts: np.array) -> np.ndarray:
     """
-    Interpolate prosody values across multiple tokens.
+    Matrix-based interpolation across multiple tokens.
     
     Args:
-        current_value: Prosody value for the current word
-        next_value: Prosody value for the next word
-        num_tokens: Number of tokens to interpolate across
+        current_values: 2D array of current prosody values for each word (shape: [num_words, num_features])
+        token_counts: 1D array or list of token counts for each word (shape: [num_words])
         
     Returns:
-        List of interpolated values
+        2D array of interpolated prosody values (shape: [total_tokens, num_features])
     """
-    if num_tokens == 1:
-        return [current_value]
     
-    step = (next_value - current_value) / num_tokens
-    return [current_value + (step * i) for i in range(num_tokens)]
+    # Check that the number of words matches
+    num_words = current_values.shape[0]
+    if len(token_counts) != num_words:
+        raise ValueError(f"Mismatch in number of words: current_values has {num_words} words, but token_counts has {len(token_counts)} words.")
+
+    # Calculate the next values for interpolation
+    next_values = np.roll(current_values, -1, axis=0)
+    next_values[-1] = current_values[-1]  # Handle the last word
+
+    # Compute the steps for each word (shape: [num_words, num_features])
+    steps = (next_values - current_values) / token_counts[:, None]
+
+    # Create a matrix of token indices for each word (shape: [num_words, max_token_count])
+    max_token_count = np.max(token_counts)
+    token_indices = np.tile(np.arange(max_token_count), (num_words, 1))
+
+    # Mask out indices that exceed the token count for each word
+    mask = token_indices < token_counts[:, None]
+
+    # Compute interpolated values for all tokens (shape: [num_words, max_token_count, num_features])
+    interpolated = current_values[:, None, :] + steps[:, None, :] * token_indices[:, :, None]
+
+    # Flatten the result and apply the mask to remove invalid tokens
+    interpolated = interpolated[mask]
+
+    return interpolated
 
 ######################################################
 ################# Audio utilities ####################
