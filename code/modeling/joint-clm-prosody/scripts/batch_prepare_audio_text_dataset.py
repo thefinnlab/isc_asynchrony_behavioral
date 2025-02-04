@@ -9,8 +9,8 @@ import utils
 DATASET_INFO = {
 	'gigaspeech': ['train', 'validation', 'test'],
 	'libritts-r': ['train-clean-360', 'dev-clean', 'test-clean'],
-	'tedlium': ['train', 'validation', 'test'],
-	'peoples-speech': ['train', 'validation', 'test'],
+	'tedlium': ['train'], #, 'validation', 'test'],
+	'peoples-speech': ['train'], #, 'validation', 'test'],
 	'pfka-moth-stories': ['black', 'wheretheressmoke', 'howtodraw']
 }
 
@@ -26,7 +26,7 @@ GPU_INFO = ''
 TIME = '1-00:00:00'
 CPUS_PER_TASK = 8
 MEM_PER_CPU = '16G'
-PARTITION = 'gpuq'
+PARTITION = 'v100_preemptable'
 GPU_INFO = '--gres=gpu:1'
 ACCOUNT = 'dbic' #'test_a100'
 

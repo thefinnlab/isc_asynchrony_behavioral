@@ -244,7 +244,15 @@ class CarefulWhisper(nn.Module):
         # Context embedding information --> 
         context_embed_dim = default(self.config.context_embed_dim, self.config.embed_dim)
 
-        self.context_embed = nn.Linear(self.config.context_dim, context_embed_dim, bias=False) if self.config.context_dim else nn.Identity()
+        if self.config.context_dim:
+
+            # Context projection layer --> not learnable
+            self.context_embed = nn.Linear(self.config.context_dim, context_embed_dim, bias=False)
+            self.context_embed.weight.requires_grad = False
+
+        else:
+            self.context_embed = nn.Identity()
+
         self.context_positional_embedding = nn.Embedding(self.config.max_length, self.config.embed_dim) if self.config.context_pos_embed else None
         self.context_embed_dropout = nn.Dropout(self.config.embed_dropout) if self.config.context_embed_dropout else nn.Identity()
 
@@ -343,7 +351,9 @@ class CarefulWhisper(nn.Module):
         ######## Context embedding #########
         ####################################
 
-        xa = self.context_embed(xa) # Embed if specified otherwise returns Identity
+        # Embed if specified into a static embedding (e.g., prosody is 1D but needs to be projected)
+        # Otherwise takes the identity
+        xa = self.context_embed(xa) 
 
         # Optional position embedding
         if self.context_positional_embedding:

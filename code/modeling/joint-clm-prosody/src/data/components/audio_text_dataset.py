@@ -225,6 +225,7 @@ class AudioTextDataset(Dataset):
 
     def _process_single_file(self, file_name: str) -> Dict:
         """Process a single file with temporary JSON caching."""
+        
         temp_json_path = self._get_temp_json_path(file_name)
         
         # Check if temporary processing file exists
@@ -723,6 +724,9 @@ def process_wavelet_file(filename: str) -> List[Dict[str, Any]]:
                 
                 # Skip bracketed units
                 if "[" in unit and "]" in unit:
+                    continue
+
+                if "<unk>" in unit:
                     continue
                 
                 prom_strength = float(prom_strength)

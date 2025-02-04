@@ -14,8 +14,6 @@ sys.path.append('../modeling/joint-clm-prosody/')
 
 from config import *
 from src import utils
-from src.data.components.audio_text_dataset import AudioTextDataset
-from src.data.components.collators import audio_text_collator
 
 def load_model(config_path, ckpt_path, overrides):
     
@@ -48,6 +46,16 @@ def get_model_results(model, dataloader):
         metrics = {}
 
         for metric_name, value in outputs.items():
+            if metric_name in ['mae', 'pearson', 'r2']:
+                # NEED TO SOLVE MORE THAN 2 VALUES PROBLEM --> SHOULD WE AGGREGATE OVER ALL SAMPLES?
+
+                # metric = getattr(model, f'test_{metric_name}')
+                # metric(*value)
+                # value = metric.compute()
+                # metric.reset()
+
+                continue
+
 
             # cast to numpy
             metrics[metric_name] = value.numpy()
@@ -66,8 +74,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # type of analysis we're running --> linked to the name of the regressors
-    parser.add_argument('-d', '--dataset', type=str)
-    parser.add_argument('-s', '--split', type=str)
     parser.add_argument('-model_name', '--model_name', type=str)
     parser.add_argument('-ckpt_path', '--ckpt_path', type=str)
     parser.add_argument('-overrides', '--overrides', type=str, nargs='+')
@@ -75,15 +81,7 @@ if __name__ == "__main__":
     p = parser.parse_args()
 
     modeling_dir = os.path.join(BASE_DIR, 'code/modeling/joint-clm-prosody/')
-
-    if p.dataset == 'gigaspeech':
-        results_dir = os.path.join(BASE_DIR, f'derivatives/careful-whisper/{p.dataset}-m/')
-        dataset_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', p.dataset, 'm')
-        cache_dir = os.path.join(SCRATCH_DIR, 'nlp-datasets', p.dataset, 'm')
-    else:
-        results_dir = os.path.join(BASE_DIR, f'derivatives/careful-whisper/{p.dataset}/')
-        dataset_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', p.dataset)
-        cache_dir = os.path.join(SCRATCH_DIR, 'nlp-datasets', p.dataset)
+    results_dir = os.path.join(BASE_DIR, 'derivatives/careful-whisper/')
 
     pyrootutils.setup_root(modeling_dir, indicator=".project-root", pythonpath=True)
 
@@ -101,43 +99,17 @@ if __name__ == "__main__":
 
     # We set the batch size to 1 because we want an accuracy for each sample
     cfg, model = load_model(config_path, p.ckpt_path, p.overrides)
-    # cfg.data['batch_size'] = 1
+    cfg.data['batch_size'] = 1
 
-    ####################################
-    ###### Initialize dataloader #######
-    ####################################
+    datamodule: LightningDataModule = hydra.utils.instantiate(cfg.data)
 
-    # create dataset for the test split
-    dataset = AudioTextDataset(
-        dataset_dir=dataset_dir,
-        cache_dir=cache_dir,
-        audio_model_name=audio_model_name, 
-        text_model_name=text_model_name, 
-        split=split,
-    )
-
-    dataset.preprocess_data()
-
-    dataloader = DataLoader(
-        dataset=dataset,
-        batch_size=1,
-        num_workers=0,
-        pin_memory=False,
-        collate_fn=audio_text_collator,
-        shuffle=False,
-    )
-
-    # datamodule: LightningDataModule = hydra.utils.instantiate(cfg.data)
-
-    # # Get test set for the prosodic prominence dataset
-    # datamodule.setup(stage="test")
-    # dataloader = datamodule.test_dataloader()
+    # Get test set for the prosodic prominence dataset
+    datamodule.setup(stage="test")
+    dataloader = datamodule.test_dataloader()
 
     #########################################
     ### Load model and calculate accuracy ###
     #########################################
-    
-    for i, batch in enumerate(dataloader):
 
     df_results = get_model_results(model, dataloader)
     df_results['model_name'] = p.model_name

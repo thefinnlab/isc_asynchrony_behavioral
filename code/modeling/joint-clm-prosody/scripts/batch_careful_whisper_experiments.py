@@ -18,10 +18,10 @@ GPU_INFO = ''
 TIME = '2-12:00:00'
 CPUS_PER_TASK = 8
 MEM_PER_CPU = '8G'
-PARTITION = 'a100'
+PARTITION = 'v100_preemptable'
 GPU_INFO = '--gres=gpu:1'
 NODE_LIST = ''#--nodelist=a03,a04'
-ACCOUNT = 'test_a100' #dbic
+ACCOUNT = 'dbic' #dbic
 
 DATASET_INFO = {
 	'gigaspeech-m': [
@@ -58,30 +58,25 @@ if __name__ == "__main__":
 
 	MODEL_CONFIGS = {
 	
-		# General GPT2-esque model
-		'careful-whisper_no-xattn': [
-			f"model.config.cross_attention=False",
-			f"model.config.use_causal_cross_attention=False",
-		],
-
-		# Whisper w/ CLM integration
-		'careful-whisper_causal-xattn': [
-			f"model.config.cross_attention=True",
-			f"model.config.use_causal_cross_attention=True",
-
-			# Add in dropout and position embedding
-			f"model.config.context_embed_dropout=0.1",
-			f"model.config.context_pos_embed=True",
-		],
-
-		# # Whisper w/ CLM integration
-		# 'careful-whisper_bi-xattn': [
-		# 	f"model.config.bidirectional_cross_attention=True",
+		# # General GPT2-esque model
+		# 'careful-whisper_no-xattn': [
+		# 	f"model.config.cross_attention=False",
 		# 	f"model.config.use_causal_cross_attention=False",
 		# ],
 
+		# # Whisper w/ CLM integration
+		# 'careful-whisper_causal-xattn': [
+		# 	f"model.config.cross_attention=True",
+		# 	f"model.config.use_causal_cross_attention=True",
+
+		# 	# Add in dropout and position embedding
+		# 	f"model.config.context_embed_dropout=0.1",
+		# 	f"model.config.context_pos_embed=True",
+		# ],
+
+
 		# Whisper w/ CLM integration
-		'prosody-whisper_causal-xattn': [
+		'prosody-whisper_causal-xattn_non-learnable': [
 			f"model.config.cross_attention=True",
 			f"model.config.use_causal_cross_attention=True",
 
@@ -92,6 +87,20 @@ if __name__ == "__main__":
 			f"model.config.context_pos_embed=True",
 
 		],
+
+
+		# # Whisper w/ CLM integration
+		# 'prosody-whisper_causal-xattn': [
+		# 	f"model.config.cross_attention=True",
+		# 	f"model.config.use_causal_cross_attention=True",
+
+		# 	# Prosody embedding information
+		# 	f"model.config.context_type=prominence",
+		# 	f"model.config.context_dim=1",
+		# 	f"model.config.context_embed_dropout=0.1",
+		# 	f"model.config.context_pos_embed=True",
+
+		# ],
 
 
 		# # Whisper w/ CLM integration

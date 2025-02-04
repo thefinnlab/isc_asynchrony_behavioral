@@ -69,8 +69,6 @@ class AudioTextDataModule(LightningDataModule):
         self.save_hyperparameters(logger=False)
 
         # Ensure subsets are within the range we expect
-        print (self.hparams.subset_percentage)
-        print (type(self.hparams.subset_percentage))
         if self.hparams.subset_percentage:
             assert (self.hparams.subset_percentage > 0. and self.hparams.subset_percentage <= 1.0)
 
