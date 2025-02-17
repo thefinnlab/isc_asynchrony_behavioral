@@ -25,6 +25,7 @@ class CarefulWhisperConfig:
     num_heads: int
     num_layers: int
     pad_token_id: int
+    embed_type: str = 'text_tokens'
     embed_dropout: float = 0.1
     attn_dropout: float = 0.1
     resid_dropout: float = 0.1
@@ -35,10 +36,13 @@ class CarefulWhisperConfig:
     ##### Cross attention arguments #######
     #######################################
 
+    token_fusion: bool = False
     cross_attention: bool = True # Allows specification of cross attention or not --> if not, architecture is essentially GPT2
     bidirectional_cross_attention: bool = False
     use_causal_cross_attention: bool = False
     use_text_control: bool = False
+    inverse_audio_text: bool = False
+    shuffle_context: bool = False
 
     #######################################
     ##### Context specific arguments ###### 
@@ -73,7 +77,6 @@ class FeedForward(nn.Module):
 
     def forward(self, x: Tensor):
         return self.mlp(x)
-
 
 class MultiheadAttentionBlock(nn.Module):
     '''
@@ -344,9 +347,6 @@ class CarefulWhisper(nn.Module):
             + self.positional_embedding(position_ids)
         )
 
-        # Embedding dropout
-        x = self.dropout(x).to(xa.dtype)
-
         ####################################
         ######## Context embedding #########
         ####################################
@@ -359,6 +359,16 @@ class CarefulWhisper(nn.Module):
         if self.context_positional_embedding:
             xa_position_ids = torch.arange(xa.shape[-2], dtype=torch.long, device=xa.device)
             xa = + xa + self.context_positional_embedding(xa_position_ids)
+
+        ####################################
+        ####### Dropouts and fusion ########
+        ####################################
+
+        if self.config.token_fusion:
+            x = x + xa
+
+        # Embedding dropout
+        x = self.dropout(x).to(xa.dtype)
 
         # Optional context dropout
         xa = self.context_embed_dropout(xa)
@@ -379,7 +389,6 @@ class CarefulWhisper(nn.Module):
             # x attends to x (can be twice)
             elif self.config.use_text_control:
                 x = block(x, x, mask=mask, kv_cache=kv_cache)
-
             # normal attention
             else:
                 x = block(x, mask=mask, kv_cache=kv_cache)

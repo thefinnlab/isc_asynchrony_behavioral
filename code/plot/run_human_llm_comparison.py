@@ -1,4 +1,5 @@
 import os, sys
+import glob
 import argparse
 import pandas as pd
 import numpy as np
@@ -17,6 +18,47 @@ import plotting_utils as utils
 
 FIGSIZE = (6,5)
 
+def split_model_name(df, input_col, dataset_col='dataset', model_col='model_name'):
+    """
+    Split a column's strings on the first underscore into two columns.
+    
+    Args:
+        df: pandas DataFrame
+        input_col: str, name of column to split
+        dataset_col: str, name for the new dataset column (default: 'dataset')
+        model_col: str, name for the remaining text column (default: 'model_name')
+    
+    Returns:
+        DataFrame with new columns added
+    """
+    # Create a mask for rows that contain underscore
+    has_underscore = df[input_col].str.contains('_', na=False)
+    
+    # Initialize new columns
+    df[dataset_col] = None
+    df[model_col] = df[input_col]
+    
+    # Only split for rows that have underscore
+    split_data = df.loc[has_underscore, input_col].str.split('_', n=1, expand=True)
+    
+    # Update values only for rows with underscore
+    df.loc[has_underscore, dataset_col] = split_data[0]
+    df.loc[has_underscore, model_col] = split_data[1]
+    
+    # Drop input column if it's different from model_col
+    if input_col != model_col:
+        df = df.drop(input_col, axis=1)
+    
+    return df
+
+MODEL_NAME_MAPPING = {
+    'careful-whisper_audio-token-fusion': 'AudioFusion',
+    'careful-whisper_causal-xattn': 'AudioXAttn',
+    'prosody-whisper_token-fusion': 'ProsodyFusion',
+    'prosody-whisper_causal-xattn': 'ProsodyXAttn',
+    'careful-whisper_no-xattn': 'NoXAttn',
+}
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -26,14 +68,19 @@ if __name__ == "__main__":
     parser.add_argument('-word_model', '--word_model', type=str, default='fasttext')
     parser.add_argument('-m', '--model_name', type=str, default='gpt2-xl')
     parser.add_argument('-window', '--window_size', type=int, default=25)
+    parser.add_argument('-careful_whisper', '--careful_whisper', type=int, default=0)
     parser.add_argument('-o', '--overwrite', type=int, default=0)
     p = parser.parse_args()
 
     preproc_dir = os.path.join(BASE_DIR, 'stimuli/preprocessed')
-    models_dir = os.path.join(BASE_DIR, 'derivatives/model-predictions')
-
     results_dir = os.path.join(BASE_DIR, 'derivatives/results/behavioral/')
-    plots_dir = os.path.join(BASE_DIR, 'derivatives/plots/final/human-llm-comparison/')
+
+    if p.careful_whisper:
+        plots_dir = os.path.join(BASE_DIR, 'derivatives/plots/final/human-careful-whisper-comparison/')
+        models_dir = os.path.join(BASE_DIR, 'derivatives/model-predictions/careful-whisper/')
+    else:
+        models_dir = os.path.join(BASE_DIR, 'derivatives/model-predictions/')
+        plots_dir = os.path.join(BASE_DIR, 'derivatives/plots/final/human-llm-comparison/')
 
     attempt_makedirs(plots_dir)
 
@@ -42,13 +89,21 @@ if __name__ == "__main__":
     ###################################
 
     # Load model names
-    MLM_MODELS = list(nlp.MLM_MODELS_DICT.keys())[1:]
-    CLM_MODELS = list(nlp.CLM_MODELS_DICT.keys()) 
-    model_names = CLM_MODELS + MLM_MODELS
+    if p.careful_whisper:
+        models = sorted(glob.glob(os.path.join(BASE_DIR, f'derivatives/model-predictions/{p.task_list[0]}/careful-whisper/*')))
+        models = [os.path.basename(model) for model in models]
+        model_names = ' '.join(models)
 
-    print (f'Loading the following models')
-    print (f'MLM models: {MLM_MODELS}')
-    print (f'CLM models: {CLM_MODELS}')
+        print (f'Loading the following models')
+        print (f'Careful Whisper models: {models}')
+    else:
+        MLM_MODELS = list(nlp.MLM_MODELS_DICT.keys())[1:]
+        CLM_MODELS = list(nlp.CLM_MODELS_DICT.keys()) 
+        model_names = CLM_MODELS + MLM_MODELS
+
+        print (f'Loading the following models')
+        print (f'MLM models: {MLM_MODELS}')
+        print (f'CLM models: {CLM_MODELS}')
 
     ###################################
     ### Load results from task list ###
@@ -57,13 +112,25 @@ if __name__ == "__main__":
     df_results = []
 
     for task in p.task_list:
-        df_task = pd.read_csv(os.path.join(results_dir, f'task-{task}_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-lemmatized.csv'))
+        if p.careful_whisper:
+            results_fn = os.path.join(results_dir, f'task-{task}_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-careful-whisper-lemmatized.csv')
+        else:
+            results_fn = os.path.join(results_dir, f'task-{task}_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-lemmatized.csv')
+        df_task = pd.read_csv(results_fn)
         df_task['task'] = task
         df_results.append(df_task)
 
     # concatenate into one dataframe --> write to file for posterity 
     df_results = pd.concat(df_results).reset_index(drop=True)
-    df_results.to_csv(os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-lemmatized.csv'), index=False)
+
+    if p.careful_whisper:
+        df_results = split_model_name(df_results, input_col='modality', dataset_col='dataset', model_col='modality')
+        df_results['modality'] = df_results['modality'].map(MODEL_NAME_MAPPING).fillna(df_results['modality'])
+        out_fn = os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-careful-whisper-lemmatized.csv')
+    else:
+        out_fn = os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-lemmatized.csv')
+    
+    df_results.to_csv(out_fn, index=False)
 
     # use the accuracy within these results to get the order to plot the models
     ordered_accuracy = utils.get_ordered_accuracy(df_results)
@@ -71,8 +138,11 @@ if __name__ == "__main__":
     # always put humans first (audio, text) then CLM models, then MLM models
     human_conditions = ['audio', 'text']
 
-    models_order = [item for item in ordered_accuracy if item not in ['audio', 'text', *MLM_MODELS]]
-    models_order = models_order + MLM_MODELS
+    if p.careful_whisper:
+        models_order = [item for item in ordered_accuracy if item not in ['audio', 'text']]
+    else:
+        models_order = [item for item in ordered_accuracy if item not in ['audio', 'text', *MLM_MODELS]]
+        models_order = models_order + MLM_MODELS
 
     human_models_order = human_conditions + models_order
 
@@ -171,12 +241,27 @@ if __name__ == "__main__":
     df_distributions = []
 
     for task in p.task_list:
-        df = pd.read_csv(os.path.join(results_dir,  f'task-{task}_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-distributions-lemmatized.csv'))
+        if p.careful_whisper:
+            results_fn = os.path.join(results_dir,  f'task-{task}_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-careful-whisper-distributions-lemmatized.csv')
+        else:
+            results_fn = os.path.join(results_dir,  f'task-{task}_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-distributions-lemmatized.csv')
+        
+        df = pd.read_csv(results_fn)
         df['task'] = task
         df_distributions.append(df)
 
     df_distributions = pd.concat(df_distributions).reset_index(drop=True)
-    df_distributions.to_csv(os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-distributions-lemmatized.csv'), index=False)
+
+    if p.careful_whisper:
+        df_distributions = split_model_name(df_distributions, input_col='model_name', dataset_col='dataset', model_col='model_name')
+
+        # Map values using dictionary, keeping original value if no mapping exists
+        df_distributions['model_name'] = df_distributions['model_name'].map(MODEL_NAME_MAPPING).fillna(df_distributions['model_name'])
+        out_fn = os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-careful-whisper-distributions-lemmatized.csv')
+    else:
+        out_fn = os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-distributions-lemmatized.csv')
+
+    df_distributions.to_csv(out_fn, index=False)
 
     # cmap = create_spoken_written_cmap(continuous=False)
     sns.set(style='white', rc={'figure.figsize':(8,5)})
@@ -206,7 +291,12 @@ if __name__ == "__main__":
     sns.reset_defaults()
 
     # Load file with accuracy difference information
-    df_tasks = pd.read_csv(os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-distributions-lemmatized.csv'))
+    if p.careful_whisper:
+        results_fn = os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-careful-whisper-distributions-lemmatized.csv')
+    else:
+        results_fn = os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-distributions-lemmatized.csv')
+
+    df_tasks = pd.read_csv(out_fn)
 
     # Load quadrants across tasks
     df_quadrants = utils.load_task_model_quadrants(preproc_dir, models_dir, p.task_list, model_names, p.word_model)

@@ -9,13 +9,19 @@ config:
   num_heads: 16
   num_layers: 12
   pad_token_id: 50256 # Padding in GPT2 space
+  embed_type: text_tokens
+
+  # Experiment switches
+  token_fusion: False
   cross_attention: False
   bidirectional_cross_attention: False
   use_causal_cross_attention: False
   use_text_control: False
+  inverse_audio_text: False
+  shuffle_context: False
 
   # Defaults for context
-  context_type: 'audio_inputs' # Default use audio inputs
+  context_type: audio_inputs # Default use audio inputs
   context_dim: null
   context_embed_dim: null 
   context_embed_dropout: 0.

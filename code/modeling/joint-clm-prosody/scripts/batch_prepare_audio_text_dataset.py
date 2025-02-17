@@ -7,7 +7,7 @@ from config import *
 import utils
 
 DATASET_INFO = {
-	'gigaspeech': ['train', 'validation', 'test'],
+	'gigaspeech': ['train'], #, 'validation', 'test'],
 	'libritts-r': ['train-clean-360', 'dev-clean', 'test-clean'],
 	'tedlium': ['train'], #, 'validation', 'test'],
 	'peoples-speech': ['train'], #, 'validation', 'test'],
@@ -23,7 +23,7 @@ CPUS_PER_TASK = 8
 MEM_PER_CPU = '8G'
 GPU_INFO = ''
 
-TIME = '1-00:00:00'
+# TIME = '1-00:00:00'
 CPUS_PER_TASK = 8
 MEM_PER_CPU = '16G'
 PARTITION = 'v100_preemptable'

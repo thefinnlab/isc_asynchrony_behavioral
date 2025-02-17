@@ -31,6 +31,7 @@ if __name__ == '__main__':
 		audio_model_name=p.audio_model_name, 
 		text_model_name=p.text_model_name, 
 		split=p.split,
+		min_words=1 if p.dataset == 'pfka-moth-stories' else 4
 	)
 
 	dataset.preprocess_data(force_reprocess=p.overwrite)

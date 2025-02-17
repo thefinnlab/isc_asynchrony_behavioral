@@ -629,13 +629,13 @@ def load_model_results(model_dir, model_name, task, window_size, top_n):
         except (ValueError, SyntaxError):
             return []  # or return None, depending on your needs
 
-    if 'prosody' in model_name:
-        model_dir = os.path.join(model_dir, task, 'prosody-models', model_name, f'window-size-{str(window_size).zfill(5)}')
+    if 'whisper' in model_name:
+        model_dir = os.path.join(model_dir, task, 'careful-whisper', model_name, f'window-size-{str(window_size).zfill(5)}')
     else:
         model_dir = os.path.join(model_dir, task, model_name, f'window-size-{str(window_size).zfill(5)}')
 
     results_fn = natsorted(glob.glob(os.path.join(model_dir, f'*top-{top_n}*')))[0]
-
+    
     # load the data, remove nans
     df_model_results = pd.read_csv(results_fn)
     df_model_results.loc[1:, 'top_n_predictions'] = df_model_results.loc[1:, 'top_n_predictions'].apply(safe_eval)

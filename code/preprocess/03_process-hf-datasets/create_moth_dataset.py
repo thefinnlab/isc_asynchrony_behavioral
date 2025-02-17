@@ -11,6 +11,7 @@ sys.path.append('../../utils/')
 from config import *
 import dataset_utils as utils
 import prosody_utils as prosody
+from text_utils import strip_punctuation
 from preproc_utils import dataframe_to_textgrid, cut_audio_segments
 
 if __name__ == "__main__":
@@ -26,15 +27,30 @@ if __name__ == "__main__":
 
     audio_out_dir = os.path.join(out_dir, 'audio', p.task)
     textgrid_out_dir = os.path.join(out_dir, 'textgrids', p.task)
+    prosody_out_dir = os.path.join(out_dir, 'prosody', p.task)
 
     utils.attempt_makedirs(audio_out_dir)
     utils.attempt_makedirs(textgrid_out_dir)
 
     # Grab the preprocessed data in CSV form (has casing)
     df_preproc = pd.read_csv(os.path.join(BASE_DIR, 'stimuli/preprocessed/', p.task, f'{p.task}_transcript-preprocessed.csv'))
+    df_transcript = df_preproc.copy().rename(columns={'Word_Written': 'word', 'Punctuation': 'punctuation'})
+
+    # Grab the prosody .prom file data
+    prosody_columns = ['stim', 'start', 'end', 'word', 'prominence', 'boundary']
+    df_prosody = pd.read_csv(os.path.join(stim_dir, 'prosody', f'{p.task}.prom'), sep='\t', names=prosody_columns)
+    df_prosody = df_prosody[~df_prosody['word'].isin(prosody.REMOVE_WORDS)].reset_index(drop=True) # emove non-words
+
+    # Make sure words match between the transcript and prosody dataframes
+    words_transcript = df_transcript['word'].str.lower().apply(strip_punctuation)
+    words_prosody =  df_prosody['word'].str.lower().apply(strip_punctuation)
+
+    assert all(words_transcript == words_prosody)
+
+    df_prosody['word'] = df_transcript['word']
 
     # Get all segments except the first (which can't be cut) and the last (which isn't a word in the transcript)
-    segments = prosody.get_segment_indices(n_words=len(df_preproc), window_size=p.window_size)[1:-1]
+    segments = prosody.get_segment_indices(n_words=len(df_preproc), window_size=p.window_size)[:-1]
     segment_idxs = [[min(segment), max(segment)]for segment in segments]
 
     # Cut all audio segments
@@ -42,9 +58,6 @@ if __name__ == "__main__":
     audio_fns, df_segments = cut_audio_segments(df_preproc, p.task, base_audio_fn, audio_out_dir, segment_idxs, target_sr=16000)
 
     print (f'Starting processing for {p.task}', flush=True)
-
-    # Rename the preproc dataframe
-    df_transcript = df_preproc.rename(columns={'Word_Written': 'word', 'Punctuation': 'punctuation'})
 
     for segment, audio_fn in tqdm(zip(segments, audio_fns), desc=f"Making TextGrid files"):
 
@@ -61,4 +74,11 @@ if __name__ == "__main__":
         # Use the written audio file to make the text grid times and save
         tg = dataframe_to_textgrid(df, audio_fn, tier_name='words')
         tg.save(textgrid_fn, 'long_textgrid', True)
+
+        # Make prosody files 
+        segment_prosody = df_prosody.iloc[segment] 
+
+        prosody_fn = os.path.basename(audio_fn).replace('.wav', '.prom')
+        prosody_fn = os.path.join(prosody_out_dir, prosody_fn)
+        segment_prosody.to_csv(prosody_fn, header=False, sep='\t', index=False)
     # sys.exit(0)

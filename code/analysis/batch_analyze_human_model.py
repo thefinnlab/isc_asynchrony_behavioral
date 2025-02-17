@@ -25,12 +25,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # type of analysis we're running --> linked to the name of the regressors
-    parser.add_argument('-prosody', '--prosody', type=int, default=0)
+    parser.add_argument('-careful_whisper', '--careful_whisper', type=int, default=0)
     parser.add_argument('-o', '--overwrite', type=int, default=0)
     p = parser.parse_args()
 
-    task_list = ['black'] #, 'wheretheressmoke', 'howtodraw']
-    window_sizes = [5] #, 500]
+    task_list = ['black', 'wheretheressmoke', 'howtodraw']
+    window_sizes = [25]
 
     # # model_names = sorted(CLM_MODELS_DICT.keys())
     # window_sizes = [
@@ -42,13 +42,13 @@ if __name__ == '__main__':
     # ]
 
     # get all MLM models except BERT
-    if p.prosody:
-        PROSODY_MODELS = sorted(glob.glob(os.path.join(BASE_DIR, f'derivatives/model-predictions/{task_list[0]}/prosody-models/*')))
-        PROSODY_MODELS = [os.path.basename(model) for model in PROSODY_MODELS]
-        model_names = ' '.join(PROSODY_MODELS)
+    if p.careful_whisper:
+        models = sorted(glob.glob(os.path.join(BASE_DIR, f'derivatives/model-predictions/{task_list[0]}/careful-whisper/*')))
+        models = [os.path.basename(model) for model in models]
+        model_names = ' '.join(models)
 
         print (f'Loading the following models')
-        print (f'Prosody models: {PROSODY_MODELS}')
+        print (f'Careful Whisper models: {models}')
     else:
         MLM_MODELS = list(MLM_MODELS_DICT.keys())[1:]
         CLM_MODELS = list(CLM_MODELS_DICT.keys()) 
@@ -71,7 +71,7 @@ if __name__ == '__main__':
         #     continue
 
         cmd = ''.join([
-            f"{job_string} -t {task} -m {model_names} -p {p.prosody} -window_size {window_size}"
+            f"{job_string} -t {task} -m {model_names} -careful_whisper {p.careful_whisper} -window_size {window_size} -o {p.overwrite}"
         ])
 
         all_cmds.append(cmd)

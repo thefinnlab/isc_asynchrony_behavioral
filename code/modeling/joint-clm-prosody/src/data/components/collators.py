@@ -11,30 +11,38 @@ def audio_text_collator(batch, pad_token=-999):
     
     # Unpack the batch
     texts = [item["text"] for item in batch]
-    text_tokens = [item["text_tokens"].squeeze(0) for item in batch]  # Remove batch dimension for padding
-    attention_masks = [item["text_attention_mask"].squeeze(0) for item in batch]  # Remove batch dimension for padding
-    audio_inputs = [item["audio_inputs"].squeeze(0) for item in batch]  # Remove batch dimension for padding
 
-    prominence = [item["prominence"].squeeze(0) for item in batch]  # Remove batch dimension for padding
-    boundary = [item["boundary"].squeeze(0) for item in batch]  # Remove batch dimension for padding
+    keys = ['text_tokens', 'text_attention_mask', 'audio_inputs', 'prominence', 'boundary']
+
+    store = {k: [] for k in keys}
+
+    for item in batch:
+        for k in keys:
+            # Go through each key, remove batch dimension from padding
+            value = item[k].squeeze(0) if item[k].size(0) > 1 else item[k]
+            store[k].append(value)
+
+    # text_tokens = [item["text_tokens"].squeeze(0) if item["text_tokens"].size(0) > 1 else item for item in batch]  # Remove batch dimension for padding
+    # attention_masks = [item["text_attention_mask"].squeeze(0) if item["text_attention_mask"].size(0) > 1 else item for item in batch]  # Remove batch dimension for padding
+    # audio_inputs = [item["audio_inputs"].squeeze(0) if item["audio_inputs"].size(0) > 1 else item for item in batch]  # Remove batch dimension for padding
+
+    # prominence = [item["prominence"].squeeze(0) if item["prominence"].size(0) > 1 else item for item in batch]  # Remove batch dimension for padding
+    # boundary = [item["boundary"].squeeze(0) if item["boundary"].size(0) > 1 else item for item in batch]  # Remove batch dimension for padding
 
     # Pad text_tokens and attention_masks
-    padded_text_tokens = pad_sequence(text_tokens, batch_first=True, padding_value=pad_token)
-    padded_attention_masks = pad_sequence(attention_masks, batch_first=True, padding_value=0)
+    padded_text_tokens = pad_sequence(store['text_tokens'], batch_first=True, padding_value=pad_token)
+    padded_attention_masks = pad_sequence(store['text_attention_mask'], batch_first=True, padding_value=0)
 
     # Pad prominence + boundary
-    padded_prominence = pad_sequence(prominence, batch_first=True, padding_value=0).unsqueeze(-1)
-    padded_boundary = pad_sequence(boundary, batch_first=True, padding_value=0).unsqueeze(-1)
-
-    # Pad prominence
-    padded_attention_masks = pad_sequence(attention_masks, batch_first=True, padding_value=0)
+    padded_prominence = pad_sequence(store['prominence'], batch_first=True, padding_value=0).unsqueeze(-1)
+    padded_boundary = pad_sequence(store['boundary'], batch_first=True, padding_value=0).unsqueeze(-1)
 
     # Pad audio_inputs with zero vectors
-    max_audio_length = max(audio.shape[0] for audio in audio_inputs)
-    embed_dim = audio_inputs[0].shape[1]  # Get the embedding dimension
-    padded_audio_inputs = torch.zeros(len(audio_inputs), max_audio_length, embed_dim)
+    max_audio_length = max(audio.shape[0] for audio in store['audio_inputs'])
+    embed_dim = store['audio_inputs'][0].shape[1]  # Get the embedding dimension
+    padded_audio_inputs = torch.zeros(len(store['audio_inputs']), max_audio_length, embed_dim)
 
-    for i, audio in enumerate(audio_inputs):
+    for i, audio in enumerate(store['audio_inputs']):
         padded_audio_inputs[i, :audio.shape[0], :] = audio
 
     # Re-add the batch dimension (1, length) for text_tokens and attention_masks

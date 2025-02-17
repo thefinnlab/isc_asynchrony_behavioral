@@ -164,7 +164,7 @@ if __name__ == '__main__':
 
     for i, batch in enumerate(dataloader):
 
-        ground_truth_index = segments[i][-1] + 1
+        ground_truth_index = segments[i] + 1
         ground_truth_word = df_preproc.loc[ground_truth_index, 'word']
 
         # run the inputs through the model, get predictive distribution, and save out the logits

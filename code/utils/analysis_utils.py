@@ -675,8 +675,8 @@ def load_logits(model_dir, model_name, task, window_size, word_index):
     Loads model data from directory
     '''
 
-    if 'prosody' in model_name:
-        model_dir = os.path.join(model_dir, task, 'prosody-models', model_name, f'window-size-{str(window_size).zfill(5)}')
+    if 'whisper' in model_name:
+        model_dir = os.path.join(model_dir, task, 'careful-whisper', model_name, f'window-size-{str(window_size).zfill(5)}')
     else:
         model_dir = os.path.join(model_dir, task, model_name, f'window-size-{str(window_size).zfill(5)}')
 
@@ -765,7 +765,7 @@ def compare_human_model_distributions(df_human_results, word_model_info, models_
 
     # Load the tokenizer 
     tokenizer, _ = nlp.load_clm_model(
-        model_name='gpt2' if 'prosody' in model_name else model_name, 
+        model_name='gpt2' if 'whisper' in model_name else model_name, 
         cache_dir=CACHE_DIR
     )
 

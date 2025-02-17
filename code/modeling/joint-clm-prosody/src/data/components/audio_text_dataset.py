@@ -223,13 +223,13 @@ class AudioTextDataset(Dataset):
         self._save_metadata(self.metadata_path, self.metadata)
         self._remove_models()
 
-    def _process_single_file(self, file_name: str) -> Dict:
+    def _process_single_file(self, file_name: str, force_reprocess: bool = False) -> Dict:
         """Process a single file with temporary JSON caching."""
         
         temp_json_path = self._get_temp_json_path(file_name)
         
         # Check if temporary processing file exists
-        if os.path.exists(temp_json_path):
+        if os.path.exists(temp_json_path) and not force_reprocess:
             return temp_json_path
 
         # Load and validate all file data
@@ -265,7 +265,7 @@ class AudioTextDataset(Dataset):
         text_tokens = self.text_tokenizer(text)
         
         # Paths don't exist
-        if text_paths_not_exist:
+        if text_paths_not_exist or force_reprocess:
             torch.save(text_tokens['input_ids'], text_tokens_path)
             torch.save(text_tokens['attention_mask'], text_attention_mask_path)
         
@@ -282,7 +282,7 @@ class AudioTextDataset(Dataset):
         ############ Process prosody #############
         ##########################################
 
-        if prosody_paths_not_exist:
+        if prosody_paths_not_exist or force_reprocess:
             # Stack together --> transpose going in and then separate
             prominence_boundary = np.stack((file_data['prominence'], file_data['boundary'])).T
             prominence, boundary = interpolate_prosody(prominence_boundary, token_counts).T
@@ -294,7 +294,7 @@ class AudioTextDataset(Dataset):
         ############# Process audio ##############
         ##########################################
 
-        if audio_not_exists:
+        if audio_not_exists or force_reprocess:
             # Process audio and save to cache
             audio_inputs = self._process_audio(file_data['words'], file_data['waveform'], file_data['sample_rate'], text_tokens)
             torch.save(audio_inputs, cache_path)

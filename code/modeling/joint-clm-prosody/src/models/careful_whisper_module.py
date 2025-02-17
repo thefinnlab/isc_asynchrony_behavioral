@@ -42,13 +42,22 @@ class CarefulWhisperModule(LightningModule):
 
     def forward(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
 
+        if self.hparams.config.shuffle_context:
+            xa = shuffle_masked_values(
+                labels=batch[self.hparams.config.context_type],
+                mask=batch['text_attention_mask'],
+                )
+        else:
+            xa = batch[self.hparams.config.context_type]
+        
         # forward pass
         logits = self.model(
-            x=batch['text_tokens'],
-            xa=batch[self.hparams.config.context_type],
+            x=batch[self.hparams.config.embed_type],
+            xa=xa,
             mask=batch['text_attention_mask'],
             context_mask=batch['text_attention_mask']
         )
+
         return logits
     
     def step(self, batch: Dict[str, torch.Tensor]):
@@ -207,3 +216,20 @@ class CarefulWhisperModule(LightningModule):
                 },
             }
         return {"optimizer": optimizer}
+
+def shuffle_masked_values(labels, mask):
+    _labels = labels.clone()
+    mask = mask.to(bool)
+    
+    # For each batch
+    for b in range(labels.shape[0]):
+        # Get masked positions for this batch
+        batch_mask = mask[b]  # Shape: [68]
+        masked_indices = torch.where(batch_mask)[0]
+        
+        if len(masked_indices) > 0:
+            # Shuffle only within this batch's sequence
+            shuffled_indices = masked_indices[torch.randperm(len(masked_indices))]
+            _labels[b, masked_indices] = _labels[b, shuffled_indices]
+    
+    return _labels
