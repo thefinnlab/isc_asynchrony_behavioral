@@ -10,18 +10,12 @@ EXPERIMENT_NAME = "next-word-prediction"
 
 URL_BASE = "https://rcweb.dartmouth.edu/~f003rjw/jspsych_experiments/experiments/isc_asynchrony_behavior/"
 
-## SETUP EXPERIMENT PARAMETERS
-MODALITY_LIST = [
-	'audio',
-	'text',
-	# 'audio-text'
-]
-
 if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-n', '--experiment_version', type=str)
 	parser.add_argument('-t', '--task', type=str)
+	parser.add_argument('-modality_list', '--modality_list', type=str, nargs='+', default=['video', 'audio', 'text'])
 	p = parser.parse_args()
 
 	# set directories
@@ -44,18 +38,23 @@ if __name__ == '__main__':
 	}
 	
 	# get list of directories
-	# tasks = [ item for item in os.listdir(orders_dir) if os.path.isdir(os.path.join(orders_dir, item)) ]
-
-	fns = []
-
-	sub_counter = 1
-	task_parameter_files = sorted(glob.glob(os.path.join(orders_dir, p.task, 'jspsych', '*.json')))
+	# tasks = [ item for item in os.listdir(orders_dir) if os.path.isdir(os.path.join(orders_dir, item)) 
+	if p.modality_list[0] == 'video':
+		json_file_dir = 'jspsych-video'
+	else:
+		json_file_dir = 'jspsych'
 	
+	fns = []
+	sub_counter = 1
+
+	task_parameter_files = sorted(glob.glob(os.path.join(orders_dir, p.task, json_file_dir, '*.json')))
+
 	for fn in task_parameter_files:
 
 		fn = os.path.basename(fn)
 
-		for modality in MODALITY_LIST:
+		for modality in p.modality_list:
+
 			experiment_info_dir = os.path.join(base_dir, 'experiments', EXPERIMENT_NAME, 'experiment_orders', p.experiment_version, p.task, modality)
 
 			if not os.path.exists(experiment_info_dir):
@@ -65,9 +64,9 @@ if __name__ == '__main__':
 			
 			if 'json' not in fn:
 				continue
-			
+
 			sub_parameters.update({
-				"stimulus_info": os.path.join(URL_BASE, 'stimuli/presentation_orders/', p.experiment_version, p.task, 'jspsych', fn),
+				"stimulus_info": os.path.join(URL_BASE, 'stimuli/presentation_orders/', p.experiment_version, p.task, json_file_dir, fn),
 				"stimulus_modality": modality,
 				"practice_info": os.path.join(URL_BASE, 'stimuli/presentation_orders/', p.experiment_version, "nwp_practice_trial/jspsych/practice_task-nwp_practice_trial.json"),
 			})
@@ -85,4 +84,5 @@ if __name__ == '__main__':
 	df = pd.DataFrame(fns, columns=['subject_fns'])
 	df['used'] = pd.Series(dtype='str')
 
-	df.to_csv(os.path.join(experiment_dir, EXPERIMENT_NAME, f'{p.experiment_version}-{p.task}.csv'), index=False)
+	modalities = '-'.join(p.modality_list)
+	df.to_csv(os.path.join(experiment_dir, EXPERIMENT_NAME, f'{p.experiment_version}-{p.task}_{modalities}.csv'), index=False)

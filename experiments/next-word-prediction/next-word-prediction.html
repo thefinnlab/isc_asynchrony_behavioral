@@ -45,6 +45,8 @@
 
     var disqualified = false;
 
+    var TRIAL_DURATION = 5000; // 15 seconds in milliseconds
+
     ///////////////////////////////////////////
     /////// GLOBAL EXPERIMENT FUNCTIONS ///////
     ///////////////////////////////////////////
@@ -112,11 +114,11 @@
       'Click next to do a practice trial!<br><br>'
       ];
 
-    var audio_text_instructions = [
+    var video_instructions = [
       'Welcome to the experiment. Click next to advance the instructions.<br><br>',
-      'In this experiment, you will listen to a recording of someone telling a story. The words of the story will be presented on the screen as they are spoken outloud so <b>please make sure to turn your volume on and be in a quiet location</b>.<br><br>',
+      'In this experiment, you will watch a recording of someone telling a story. <b>Please make sure to turn your volume on and be in a quiet location</b>.<br><br>',
       'On occasion, the story will stop and a blank space “_______” will appear. Please type the word that you believe is most likely coming next.<br><br>',
-      'After you submit your response, the actual word spoken in the story will appear in <span style="color: #2d9bc0">blue</span> and the story will continue. Don’t worry if you were wrong — we’re just interested in your best guess.<br><br>',
+      'After you submit your response, you will hear the actual word spoken in the story and the story will continue. Don’t worry if you were wrong — we’re just interested in your best guess.<br><br>',
       'Please submit your response as quickly as possible — remember, we’re not concerned about accuracy, so go with your first instinct and take your best guess at predicting the next word.<br><br>',
       'Click next to do a practice trial!<br><br>'
       ];
@@ -131,8 +133,11 @@
     else if (modality === 'audio'){
       instructions_text = audio_instructions;
     }
+    else if (modality == 'video'){
+      instructions_text = video_instructions
+    }
     else{
-      instructions_text = audio_text_instructions
+      instructions_text = audio_instructions
     }
 
     /////////////////////////////////////////////////////
@@ -140,6 +145,9 @@
     /////////////////////////////////////////////////////
 
     function loadStimulusInfo(url){
+      ///
+      /// Loads the stimulus json file, converts the discovery paths into https
+      ///
       
       var stimulus_info; 
 
@@ -164,34 +172,13 @@
     }
 
     function getStimulusFilenames(stimulus_info){
+      ///
+      /// Extract only the stimulus filenames for preloading
+      ///
       var all_filenames = [];
       stimulus_info.forEach(item => all_filenames.push(item.filename))
 
       return all_filenames
-    }
-
-    function addStimulusTrials(stimulus_info, experiment_phase, timeline){
-
-      stimulus_info = stimulus_info.slice()
-
-      // get all of the filenames for the current stimulus
-      var all_filenames = getStimulusFilenames(stimulus_info)
-
-      var preload = {
-          type: jsPsychPreload,
-          audio: all_filenames,
-          show_progress_bar: true,
-      }
-
-      timeline.push(preload);
-
-      for (var i = 0; i < stimulus_info.length; i++){
-
-        last_trial = (stimulus_info.length == (i + 1))
-        var trial = createTrial(stimulus_info[i], new Audio(), experiment_phase=experiment_phase, last_trial=last_trial);
-
-        timeline.push(trial);
-      }
     }
 
     function addInstructions(instructions_text, timeline){
@@ -237,11 +224,6 @@
         var element = document.getElementById("text_container");
         element.scrollTop = element.scrollHeight;
       }
-    }
-
-    function muteAudio(audio){
-      audio.muted = true;
-      console.log('Muted!');
     }
 
     function hideText(){
@@ -293,6 +275,11 @@
     //////////////// AUDIO FUNCTIONS ////////////////////
     /////////////////////////////////////////////////////
 
+    function muteAudio(audio){
+      audio.muted = true;
+      console.log('Muted!');
+    }
+
     function addAudioStartListener(audio, word_info){
 
       audio.addEventListener("play", function (){
@@ -324,7 +311,6 @@
 
       if (!last_trial){
         var post_audio_fx = function (){
-          console.log("Here");
 
           updateTextContainer(
             array=display_text_stack.slice(),
@@ -343,77 +329,353 @@
       audio.addEventListener("ended", post_audio_fx);
     }
 
-    function setModality(audio){
-      if (modality == 'text'){
-        muteAudio(audio);
-        console.log('Trial audio muted');
+    /////////////////////////////////////////////////////
+    //////////////// VIDEO FUNCTIONS ////////////////////
+    /////////////////////////////////////////////////////
+
+    // Video container setup with two video elements
+    var video_container = `
+      <div id="video_container">
+        <video id="video_1" class="story-video" width="100%"></video>
+        <video id="video_2" class="story-video" width="100%"></video>
+      </div>`;
+
+    // Track which video element is currently active
+    var activeVideoIndex = 1;
+
+    function getActiveVideo() {
+      return $(`#video_${activeVideoIndex}`);
+    }
+
+    function getInactiveVideo() {
+      return $(`#video_${activeVideoIndex === 1 ? 2 : 1}`);
+    }
+
+    function switchVideos() {
+      // Switch active index
+      activeVideoIndex = activeVideoIndex === 1 ? 2 : 1;
+      
+      // Update visibility
+      getActiveVideo().show();
+      getInactiveVideo().hide();
+    }
+
+    function createVideoElement(current_src, next_src) {
+      const activeVideo = getActiveVideo()[0];
+      const inactiveVideo = getInactiveVideo()[0];
+      
+      // Load current video into active video element
+      if (activeVideo.src !== current_src) {
+        activeVideo.src = current_src;
+        activeVideo.load();
       }
-      else if (modality == 'audio'){
+
+      // If there's a next source, preload it into the inactive video
+      if (next_src) {
+        if (inactiveVideo.src !== next_src) {
+          inactiveVideo.src = next_src;
+          inactiveVideo.load();
+        }
+      }
+      
+      return activeVideo;
+    }
+
+    function setVideoContainerPosition() {
+      $('#video_container').css({
+        "position": "absolute",
+        "top": "20%",
+        "left": "50%",
+        "transform": "translateX(-50%)",
+        "width": String(display_width * 100) + "%",
+        "max-width": "600px",
+        "text-align": "center",
+        "z-index": "1"
+      });
+
+      // Hide both videos initially
+      $('.story-video').hide();
+
+      // Position the text form below the video
+      $('#jspsych-survey-text-form').css({
+        "position": "absolute",
+        "top": "60%",
+        "left": "50%",
+        "transform": "translateX(-50%)",
+        "width": "80%",
+        "max-width": "600px"
+      });
+    }
+
+    function addVideoStartListener(video, word_info) {
+      video.addEventListener("play", function() {
+        for (var i = 0; i < word_info.length; i++) {
+          var current_word = [word_info[i].Word_Written, word_info[i].Punctuation].join('');
+          var onset = word_info[i].Norm_Onset;
+
+          jsPsych.pluginAPI.setTimeout(
+            addWordToTextContainer(current_word),
+            1000 * onset);
+        }
+      });
+    }
+
+    var current_interval = null;
+
+    function addVideoFinishListener(video, last_trial) {
+      if (!last_trial) {
+        var post_video_fx = function() {
+          updateTextContainer(
+            array = display_text_stack.slice(),
+            new_string = blank_string);
+
+          $('#jspsych-survey-text-form').show().focus();
+
+          // Show the progress bar
+          $('#progress-bar-container').show();
+
+          // Start the progress bar (e.g., 30 seconds)
+          interval = startProgressBar(TRIAL_DURATION, function() {
+            // Timeout action
+            jsPsych.finishTrial();
+          });
+
+          // Store the interval ID in a global variable
+          // Lets us reset the interval later
+          current_interval = interval
+        };
+      } else {
+        var post_video_fx = function() {
+          jsPsych.pluginAPI.setTimeout(jsPsych.finishTrial, 1000);
+          clearTextContainer();
+        };
+      }
+
+      video.addEventListener("ended", post_video_fx);
+    }
+
+    /////////////////////////////////////////////////////
+    //////////////// TIMER FUNCTIONS ////////////////////
+    /////////////////////////////////////////////////////
+
+    var progress_bar_container = `
+      <div id="progress-bar-container">
+        <div id="progress-bar"></div>
+      </div>
+    `;
+
+    function setProgressBarPosition() {
+      $('#progress-bar-container').css({
+        "position": "fixed",
+        "top": "10px",
+        "left": "50%",
+        "transform": "translateX(-50%)",
+        "width": "50%",
+        "height": "20px",
+        "background-color": "#f3f3f3",
+        "border-radius": "10px",
+        "overflow": "hidden",
+        "z-index": "1000",
+        "display": "none" // Hidden by default
+      });
+
+      $('#progress-bar').css({
+        "height": "100%",
+        "width": "100%",
+        "background-color": "#4caf50",
+        "transition": "width 0.1s linear"
+      });
+    }
+
+    function startProgressBar(duration, onTimeout) {
+      const progressBar = document.getElementById('progress-bar');
+      const progressBarContainer = document.getElementById('progress-bar-container');
+
+      // Show the progress bar
+      progressBarContainer.style.display = 'block';
+
+      let startTime = Date.now();
+      const interval = setInterval(function () {
+        const elapsedTime = Date.now() - startTime;
+        const remainingTime = duration - elapsedTime;
+        const progressPercentage = (remainingTime / duration) * 100;
+
+        if (remainingTime > 0) {
+
+          progressBar.style.width = `${progressPercentage}%`;
+
+          // Change color to red when 30% or less is left
+          if (progressPercentage <= 33) {
+            progressBar.style.backgroundColor = '#ff4444'; // Red
+          } else {
+            progressBar.style.backgroundColor = '#4caf50'; // Green
+          }
+
+        } 
+        else {
+          progressBar.style.width = '0%';
+          progressBar.style.transition = 'none'; // Remove transition for smooth completion
+          onTimeout();
+          clearInterval(interval);
+      }
+      }, 100);
+
+      return interval; // Return the interval ID
+    }
+
+    function resetProgressBar(interval) {
+      const progressBar = document.getElementById('progress-bar');
+      const progressBarContainer = document.getElementById('progress-bar-container');
+
+      // Stop the timer
+      clearInterval(interval);
+
+      // Reset the progress bar width and color
+      progressBar.style.width = '100%';
+      progressBar.style.transition = 'width 0.1s linear'; // Restore transition
+      progressBar.classList.remove('red'); // Reset color to green
+
+      // Hide the progress bar
+      progressBarContainer.style.display = 'none';
+    }
+
+
+    /////////////////////////////////////////////////////
+    /////////////// GENERAL FUNCTIONS ///////////////////
+    /////////////////////////////////////////////////////
+    
+    function setModality(media) {
+      if (modality == 'text') {
+
+        if (media instanceof HTMLVideoElement) {
+          media.muted = true;
+        } else {
+          muteAudio(media);
+        }
+        console.log('Trial media muted');
+      } else if (modality == 'audio') {
         hideText();
-        console.log('Trial text hidden');
-      }
-      else{
-        console.log('Running text-audio experiment');
+        // hideVideo();
+        console.log('Trial text and video hidden');
+      } else if (modality == 'video') {
+        hideText();
+        console.log('Running video experiment');
+      } else {
+        console.log('Running text-audio-video experiment');
       }
     }
 
-    function createTrial(stimulus_info, audio, experiment_phase, last_trial=false){
-
-      // audio = new Audio();
-      audio.src = stimulus_info.filename;
-      audio.loop = false;
-
-      addAudioStartListener(audio, stimulus_info.word_info);
-      addAudioFinishListener(audio, last_trial);
-      
-      // audio.addEventListener('timeupdate', testDisplay(stimulus_info.word_info));
+    function createTrial(stimulus_info, next_trial, media, experiment_phase, last_trial = false) {
+      if (modality == 'audio') {
+        media.src = stimulus_info.filename;
+        media.loop = false;
+        addAudioStartListener(media, stimulus_info.word_info);
+        addAudioFinishListener(media, last_trial);
+      }
 
       var trial = {
         type: jsPsychSurveyText,
         questions: [
-          {prompt: '', placeholder: 'Type your word', name: "response", required: true},
+          { prompt: '', placeholder: 'Type your word', name: "response", required: true },
         ],
-        on_load: function(){
+        on_load: function() {
+          // Hides the response box
           $('#jspsych-survey-text-form').hide();
-           setModality(audio);
-        },
-        on_start: function(){
-          audio.play();
-        },
-        on_finish: function(data){
 
-          if (data.response != null){
-            jsPsych.data.get().addToLast({
-              response: data.response.response, // this extracts the response
-              experiment_phase: experiment_phase,
-              critical_word: stimulus_info.critical_word,
-              word_index: stimulus_info.word_index,
-              entropy_group: stimulus_info.entropy_group,
-              accuracy_group: stimulus_info.accuracy_group,
-            });
+          if (modality == 'video') {
+            setVideoContainerPosition();
+            // Show the active video
+            getActiveVideo().show();
+          }
+
+          setModality(media);
+
+        },
+        on_start: function() {
+          if (modality == 'video'){
+            var media = createVideoElement(stimulus_info.filename, next_trial);
+            addVideoStartListener(media, stimulus_info.word_info);
+            addVideoFinishListener(media, last_trial);
+          }
+          media.play();
+        },
+        on_finish: function(data) {
+
+          $('#jspsych-survey-text-form').hide();
+
+          // Reset the progress bar if the participant responds before timeout
+          if (current_interval) {
+            resetProgressBar(current_interval);
+          }
+
+          // If there was no response, log the response as blank
+          var response = data.response != null ? data.response.response : '' ;
+
+          jsPsych.data.get().addToLast({
+            response: response,
+            experiment_phase: experiment_phase,
+            critical_word: stimulus_info.critical_word,
+            word_index: stimulus_info.word_index,
+            entropy_group: stimulus_info.entropy_group,
+            accuracy_group: stimulus_info.accuracy_group,
+          });
+
+          if (modality == 'video' && !last_trial) {
+            switchVideos();
           }
 
           saveNWPData();
 
-          if (!last_trial){
+          if (!last_trial) {
             jsPsych.pauseExperiment();
 
-            // First update with a correct word string (don't need to wait)
             updateTextContainer(
-              array = display_text_stack.slice(), // copy the current array
+              array = display_text_stack.slice(),
               new_string = ['<span id="correct_word">', stimulus_info.critical_word, '</span>'].join(''),
               wait_time = 0,
-              callback_func = function () {
+              callback_func = function() {
                 $('#correct_word').css({
                   'color': '#2d9bc0',
-                })});
+                })
+              });
 
             jsPsych.pluginAPI.setTimeout(jsPsych.resumeExperiment, 1000);
           }
-        }, // add to array if not finished
+
+          // Hide the progress bar
+          $('#progress-bar-container').hide();
+        },
       };
 
-      return trial
+      return trial;
+    }
+
+    // Modify the existing addStimulusTrials function to handle video preloading
+    function addStimulusTrials(stimulus_info, experiment_phase, timeline) {
+      stimulus_info = stimulus_info.slice();
+      var all_filenames = getStimulusFilenames(stimulus_info);
+
+      var preload = {
+        type: jsPsychPreload,
+        video: modality === 'video' ? all_filenames : [],
+        audio: modality === 'audio' ? all_filenames : [],
+        show_progress_bar: true,
+      };
+
+      timeline.push(preload);
+
+      for (var i = 0; i < stimulus_info.length; i++) {
+
+        var last_trial = (stimulus_info.length == (i + 1));
+        var media = modality === 'audio' ? new Audio() : null ;
+
+        if (i < (stimulus_info.length - 1)){
+          var next_fn = stimulus_info[i+1].filename
+        }
+
+        var trial = createTrial(stimulus_info[i], next_fn, media, experiment_phase, last_trial);
+        timeline.push(trial);
+      }
     }
 
     ///////////////////////////////////////////
@@ -532,6 +794,25 @@
       }
     }
 
+    // Modified initialize_video function
+    var initialize_video = {
+      type: jsPsychCallFunction,
+      func: function() {
+        if (modality == 'video') {
+          $(parent_element).append(video_container);
+          setVideoContainerPosition();
+        }
+      }
+    };
+
+    var initialize_progress_bar = {
+      type: jsPsychCallFunction,
+      func: function() {
+        $(parent_element).append(progress_bar_container);
+        setProgressBarPosition();
+      }
+    };
+
     var fullscreen = {
       type: jsPsychFullscreen,
       fullscreen_mode: true
@@ -556,17 +837,24 @@
       }
     }
 
-    var timeline = [create_text_container, fullscreen, screener];
+    // var timeline = [create_text_container, fullscreen, screener];
+
+    // Update the timeline creation to include video initialization
+    var timeline = [create_text_container];
+    if (modality == 'video') {
+      timeline.push(initialize_video);
+    }
+    timeline.push(initialize_progress_bar, fullscreen, screener);
 
     // add experiment instructions
     addInstructions(instructions_text, timeline);
 
-    // practice trials
-    practice_info = loadStimulusInfo(practice_fn)
-    addStimulusTrials(practice_info, experiment_phase='practice', timeline=timeline)
+    // // practice trials
+    // practice_info = loadStimulusInfo(practice_fn)
+    // addStimulusTrials(practice_info, experiment_phase='practice', timeline=timeline)
 
-    // add post-practice instructions
-    addInstructions(post_practice_instructions, timeline);
+    // // add post-practice instructions
+    // addInstructions(post_practice_instructions, timeline);
 
     // add stimulus itself
     stimulus_info = loadStimulusInfo(stimulus_fn)

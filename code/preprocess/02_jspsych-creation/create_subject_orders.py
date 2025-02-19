@@ -17,13 +17,6 @@ from preproc_utils import (
 	random_chunks
 	)
 
-TIME = 240
-N_NODES = 1
-N_TASKS_PER_NODE = 1
-N_TASKS = 1
-CPUS_PER_TASK = 4
-MEM_PER_CPU = '4G'
-PARTITION = 'standard'
 
 # CREATING PARTICIPANT ORDERS FOR PRESENTATION
 N_ORDERS = 3
@@ -117,11 +110,7 @@ if __name__ == "__main__":
 
 	assert (len(subject_experiment_orders) == (N_PARTICIPANTS_PER_ITEM * N_ORDERS))
 
-	# now we make the orders per subject and cut the audio
-	all_cmds = []
-	script_fn = os.path.join(os.getcwd(), 'cut_participant_audio.py')
-	job_string = f'{DSQ_MODULES} srun python {script_fn}'
-
+	# Write subject orders to file
 	for i, order in enumerate(subject_experiment_orders):
 
 		# set the subject name
@@ -136,35 +125,3 @@ if __name__ == "__main__":
 		sub_fn = os.path.join(task_out_dir, f'{subject}_task-{p.task}')
 		df_subject.to_csv(f'{sub_fn}.csv', index=False)
 		df_subject.to_json(f'{sub_fn}.json', orient='records')
-
-		cmd = ''.join([f'{job_string} -n {p.experiment_name} -t {p.task} -s {subject}'])
-		all_cmds.append(cmd)
-
-	### make dsq dirs
-	logs_dir = os.path.join(LOGS_DIR, 'behavioral')
-	dsq_dir = os.path.join(submit_dir, 'dsq')
-	jobslist_dir = os.path.join(submit_dir, 'joblists')
-
-	utils.attempt_makedirs(logs_dir)
-	utils.attempt_makedirs(jobslist_dir)
-	utils.attempt_makedirs(dsq_dir)
-
-	joblist_fn = os.path.join(jobslist_dir, f'{p.experiment_name}_task-{p.task}_cut_participant_audio.txt')
-
-	with open(joblist_fn, 'w') as f:
-		for cmd in all_cmds:
-			f.write(f"{cmd}\n")
-	
-	dsq_base_string = f'dsq_run_cut_participant_audio'
-	dsq_batch_fn = os.path.join(dsq_dir, dsq_base_string)
-	dsq_out_dir = os.path.join(logs_dir, dsq_base_string)
-	array_fmt_width = len(str(i))
-
-	if not os.path.exists(dsq_out_dir):
-		os.makedirs(dsq_out_dir)
-	
-	# subprocess.run('module load dSQ', shell=True)
-	subprocess.run(f"dsq --job-file {joblist_fn} --batch-file {dsq_batch_fn}.sh "
-		f"--status-dir {dsq_out_dir} --output={dsq_out_dir}/{dsq_base_string}-%A_%{array_fmt_width}a-%N.out "
-		f"--time={TIME} --nodes={N_NODES} --partition={PARTITION} --ntasks-per-node={N_TASKS_PER_NODE} --ntasks={N_TASKS} "
-		f"--cpus-per-task={CPUS_PER_TASK} --mem-per-cpu={MEM_PER_CPU}", shell=True)

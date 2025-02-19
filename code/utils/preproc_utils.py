@@ -39,7 +39,7 @@ from pliers.extractors import PredefinedDictionaryExtractor, merge_results
 ##### Functions for cutting audio files ####
 ############################################
 
-def cut_audio_segments(df_preproc, task, audio_fn, audio_out_dir, segment_indices, target_sr=''):
+def cut_stimulus_segments(df_preproc, task, stim_fn, stim_out_dir, segment_indices, stim_type):
     """
     Cut audio segments based on a nested list of indices.
 
@@ -50,17 +50,26 @@ def cut_audio_segments(df_preproc, task, audio_fn, audio_out_dir, segment_indice
     :param segment_indices: Nested list of indices where each sublist contains [start_idx, end_idx].
     :return: List of output filenames and a DataFrame with segment information.
     """
-    if target_sr:
-        target_sr = f'-ar {target_sr}'
+
+    if stim_type == 'video':
+        out_cmds = f'-async 1'
+        out_ftype = 'mp4'
+    else:
+        out_cmds = f'-ar 16000'
+        out_ftype = 'wav'
 
     # Load the stimulus and find the length in time
-    stim_length = librosa.get_duration(path=audio_fn)
+    stim_length = librosa.get_duration(path=stim_fn)
 
     # Initialize DataFrame to store segment information
     df_segments = pd.DataFrame(columns=['filename', 'word_index', 'critical_word', 'checked', 'adjusted'])
     out_fns = []
 
-    for i, (start_idx, end_idx) in enumerate(tqdm(segment_indices, desc="Cutting audio segments")):
+    for i, (start_idx, end_idx) in enumerate(tqdm(segment_indices, desc="Cutting stimulus segments")):
+
+        # Current word is one greater than the end index
+        current_word_idx = end_idx + 1
+
         # Calculate onset and duration based on the segment indices
         onset, _, duration = get_cut_times(df_preproc, start_idx, end_idx)
 
@@ -69,18 +78,18 @@ def cut_audio_segments(df_preproc, task, audio_fn, audio_out_dir, segment_indice
             duration = stim_length - onset
 
         # Generate output filename
-        out_fn = os.path.join(audio_out_dir, f'{task}_segment-{str(i+1).zfill(5)}.wav')
+        out_fn = os.path.join(stim_out_dir, f'{task}_segment-{str(i+1).zfill(5)}.{out_ftype}')
         out_fns.append(out_fn)
 
         # Use ffmpeg to cut the audio segment
-        cmd = f'ffmpeg -hide_banner -loglevel error -y -ss {onset} -t {duration} -i {audio_fn} {target_sr} {out_fn}'
+        cmd = f'ffmpeg -hide_banner -loglevel error -y -ss {onset} -t {duration} -i {stim_fn} {out_cmds} {out_fn}'
         subprocess.run(cmd, shell=True)
 
         # Store segment information in the DataFrame
         df_segments.loc[len(df_segments)] = {
             'filename': out_fn,
-            'word_index': end_idx,
-            'critical_word': df_preproc.loc[end_idx]['Word_Written'] if end_idx < len(df_preproc) else None,
+            'word_index': current_word_idx,
+            'critical_word': df_preproc.loc[current_word_idx]['Word_Written'] if current_word_idx < len(df_preproc) else None,
             'checked': 0,
             'adjusted': 0
         }
