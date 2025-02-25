@@ -5,6 +5,7 @@ code/modeling/joint-clm-prosody/logs/
 code/modeling/prosody_files.zip
 
 experiments/next-word-prediction/experiment-orders/
+experiments/next-word-prediction/cleaned-results/
 
 derivatives/
 stimuli/
