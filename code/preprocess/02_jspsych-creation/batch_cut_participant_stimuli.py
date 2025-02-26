@@ -59,11 +59,16 @@ if __name__ == "__main__":
 	subject_fns = sorted(glob.glob(os.path.join(task_files_dir, '*.csv')))
 
 	# Copy same files across subjects instead of producing separately for each subject
-	if p.stim_type == 'video':
+	if p.task != 'nwp_practice_trial' and p.stim_type == 'video':
 		num_orders = NUM_ORDERS[p.task]
+	else:
+		num_orders = len(subject_fns)
 
-	for fn in subject_fns:
+	for i, fn in enumerate(subject_fns):
 		subject = os.path.basename(fn).split('_')[0]
+
+		if i >= num_orders:
+			break
 
 		cmd = ''.join([f'{job_string} -n {p.experiment_name} -t {p.task} -s {subject} -stim_type {p.stim_type}'])
 		all_cmds.append(cmd)

@@ -29,6 +29,8 @@ if __name__ == '__main__':
 
 	task_list = ['black', 'wheretheressmoke', 'howtodraw']
 
+	modalities = ['video', 'audio', 'text']
+
 	# grab the tasks
 	all_cmds = []
 	script_fn = os.path.join(os.getcwd(), 'run_compile_human_data.py')
@@ -38,7 +40,7 @@ if __name__ == '__main__':
 	for i, task in enumerate(task_list):
 
 		cmd = ''.join([
-			f"{job_string} -t {task} -v {EXPERIMENT_VERSION[task]}"
+			f"{job_string} -t {task} -v {EXPERIMENT_VERSION[task]} -modality_list {' '.join(modalities)}"
 		])
 
 		all_cmds.append(cmd)

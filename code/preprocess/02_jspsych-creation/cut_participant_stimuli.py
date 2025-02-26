@@ -5,6 +5,7 @@ import pandas as pd
 import subprocess
 from praatio import textgrid as tgio
 import argparse
+import shutil 
 
 sys.path.append('../../utils/')
 
@@ -47,6 +48,13 @@ def create_participant_df(df_preproc, df_segments):
 
 	return df_segments
 
+TASK_SUB_NUMS = {
+	# number of subjects, number of orders
+	'black': [200, 4],
+	'wheretheressmoke': [150, 3],
+	'howtodraw': [150, 3]
+}
+
 if __name__ == '__main__':
 	
 	parser = argparse.ArgumentParser()
@@ -82,7 +90,14 @@ if __name__ == '__main__':
 	# Create sequential pairs
 	candidate_idxs = np.where(df_preproc['NWP_Candidate'].to_numpy())[0] # First get indices
 	candidate_idxs = np.concatenate([[0], candidate_idxs], axis=0) # Add the first item for the first cut
-	segments = np.vstack((candidate_idxs[:-1], candidate_idxs[1:]-1)).T # Stack and make pairs
+	segments = np.vstack((candidate_idxs[:-1], candidate_idxs[1:])).T # Stack and make pairs
+
+	# Grab the last index and create a crop to the end of the data
+	last_idxs = [candidate_idxs[-1], len(df_preproc)-1]
+	segments = np.vstack((segments, last_idxs))
+
+	print (segments)
+
 	segment_indices = segments.tolist()
 	
 	# perform audio segmenting for the current subject
@@ -93,4 +108,38 @@ if __name__ == '__main__':
 	jspsych_fn = os.path.join(jspsych_out_dir, f'{p.subject}_task-{p.task}')
 	df_participant.to_csv(f'{jspsych_fn}.csv', index=False)
 	df_participant.to_json(f'{jspsych_fn}.json', orient='records')
+
+	# Hack to copy the video files
+	if p.task != 'nwp_practice_trial' and p.stim_type == 'video':
+		# Grab number of subjects / number of order for current task
+		num_subs, num_orders = TASK_SUB_NUMS[p.task]
+		sub_ids = np.arange(num_subs)
+
+		# Get current subject number 
+		current_sub = int(p.subject.split('-')[-1])
+		
+		# Grab matching subject orders --> increment by the current subject number
+		sub_ids = sub_ids[::num_orders] + current_sub
+
+		for sid in sub_ids:
+			# Skip the current subject
+			if sid == current_sub:
+				continue
+
+			# create the current subject name
+			out_subject = f'sub-{str(sid).zfill(5)}'
+			out_subject_dir = stim_out_dir.replace(p.subject, out_subject)
+
+			# Write the participant file to the subject name
+			out_fn = jspsych_fn.replace(p.subject, out_subject)
+			df_participant.to_csv(f'{out_fn}.csv', index=False)
+			df_participant.to_json(f'{out_fn}.json', orient='records')
+
+			# Copy the cut files to the current output directory
+			shutil.copytree(stim_out_dir, out_subject_dir, dirs_exist_ok=True)
+
+
+
+			
+
 	

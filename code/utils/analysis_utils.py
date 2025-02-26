@@ -209,9 +209,16 @@ def load_participant_results(sub_dir, sub):
     experience = df_results[df_results['experiment_phase'].str.contains('experience').fillna(False)]
     experience = experience[['experiment_phase', 'response']].reset_index(drop=True)
     assert len(experience) == 2, "Expected 2 experience answers"
-
+    
     # Filter down to get the responses
-    responses = df_results[df_results['experiment_phase'] == 'test']
+    response_indices = df_results['experiment_phase'] == 'test'
+
+    if 'video' in sub_dir:
+        response_indices = np.where(response_indices)[0]
+        responses = df_results.iloc[response_indices[:-1], :].reset_index(drop=True)
+    else:
+        responses = df_results[response_indices]   
+
     responses.loc[:,'response'] = responses['response'].str.lower()
     responses = responses[['critical_word', 'word_index', 'entropy_group', 'accuracy_group', 'response', 'rt']].reset_index(drop=True)
 
@@ -264,6 +271,12 @@ def aggregate_participant_responses(results_dir, audio_dir, task, modality, n_or
 
             # Append responses to the results DataFrame
             for index, row in responses.iterrows():
+
+                if isinstance(row['rt'], str) and (row['rt'].lower() == 'false'):
+                    rt = np.nan
+                else:
+                    rt = float(row['rt']) - df_duration.loc[index, 'duration']
+                
                 df_results = df_results.append({
                     'prolific_id': current_id,
                     'modality': modality,
@@ -273,7 +286,7 @@ def aggregate_participant_responses(results_dir, audio_dir, task, modality, n_or
                     'ground_truth': row['critical_word'].lower(),
                     'entropy_group': row['entropy_group'],
                     'accuracy_group': row['accuracy_group'],
-                    'rt': float(row['rt']) - df_duration.loc[index, 'duration']
+                    'rt': rt,
                 }, ignore_index=True)
         else:
             print(f'File not exists: {modality}, {sub}')

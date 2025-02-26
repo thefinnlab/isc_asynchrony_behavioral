@@ -58,12 +58,12 @@ def create_colormap(dtype='spoken-written', continuous=True, N=256):
 ####### Bar plot utility ######
 ###############################
 
-def plot_bar_results(df, x, y, hue, cmap, alpha=0.75, figsize=(6,5), order=None, add_points=True):
+def plot_bar_results(df, x, y, hue, cmap, alpha=0.75, figsize=(6,5), order=None, hue_order=None, add_points=True):
 
     if figsize:
         sns.set(style='white', rc={'figure.figsize': figsize})
 
-    ax = sns.barplot(data=df, x=x, y=y, hue=hue, palette=cmap, alpha=alpha, order=order) 
+    ax = sns.barplot(data=df, x=x, y=y, hue=hue, palette=cmap, alpha=alpha, order=order, hue_order=hue_order) 
 
     if add_points:
         ax = sns.stripplot(data=df, x=x, y=y,  hue=hue,  palette=cmap, size=4,

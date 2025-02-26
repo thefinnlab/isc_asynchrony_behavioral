@@ -80,8 +80,8 @@ remove_outliers <- function(df, column) {
   initial_rows <- nrow(df)  # Store the initial number of rows
 
   # Calculate IQR bounds for the specified column
-  Q1 <- quantile(df[[column]], 0.25)
-  Q3 <- quantile(df[[column]], 0.75)
+  Q1 <- quantile(df[[column]], 0.25, na.rm=TRUE)
+  Q3 <- quantile(df[[column]], 0.75, na.rm=TRUE)
   IQR <- Q3 - Q1
   lower_bound <- Q1 - 1.5 * IQR
   upper_bound <- Q3 + 1.5 * IQR
@@ -113,7 +113,16 @@ df_results <- read.csv(results_fn)
 # Set the variable types
 factor_columns <- c('modality', 'prolific_id', 'subject', 'word_index', 'task')
 df_results <- convert_columns_to_factors(df_results, factor_columns)
-df_results
+# df_results
+
+# set order of variables
+df_results$modality <- factor(df_results$modality, levels = 
+                                  c("video", "audio", "text"))
+
+# subject model for accuracy --> test if audio > text
+audio_greater_text <- contr.poly(length(unique(df_results$modality))) #c(1,-1)
+contrasts(df_results$modality, how.many=1) <- cbind(audio_greater_text)
+
 ```
 
 ## Logistic regression
@@ -121,10 +130,6 @@ df_results
 Classify accuracy based on modality. Conduct a contrast of audio > text
 
 ```{r}
-
-# subject model for accuracy --> test if audio > text
-audio_greater_text <- c(1,-1)
-contrasts(df_results$modality) <- cbind(audio_greater_text)
 
 subject_accuracy_formula <- 'accuracy ~ modality + (1|word_index:task) + (1|subject:modality:task)'
 
@@ -143,9 +148,9 @@ Rerun the logistic regression with the mean prosody included as an interaction e
 
 ```{r}
 
-# subject model for accuracy --> test if audio > text
-audio_greater_text <- c(1,-1)
-contrasts(df_results$modality) <- cbind(audio_greater_text)
+# # subject model for accuracy --> test if audio > text
+# audio_greater_text <- c(1,-1)
+# contrasts(df_results$modality) <- cbind(audio_greater_text)
 
 subject_accuracy_formula <- 'accuracy ~ modality * prominence_mean + (1|word_index:task) + (1|subject:modality:task)'
 
@@ -197,8 +202,12 @@ summary (model)
 
 df_results_no_outliers <- remove_outliers(df_results, 'rt')
 
-audio_greater_text <- c(1,-1)
-contrasts(df_results_no_outliers$modality) <- cbind(audio_greater_text)
+# audio_greater_text <- c(1,-1)
+# contrasts(df_results_no_outliers$modality) <- cbind(audio_greater_text)
+
+# subject model for accuracy --> test if audio > text
+audio_greater_text <- contr.poly(length(unique(df_results$modality))) #c(1,-1)
+contrasts(df_results_no_outliers$modality, how.many=1) <- cbind(audio_greater_text)
 
 human_rt_formula <- 'rt ~ modality * prominence_mean + (1|task/word_index)'
 

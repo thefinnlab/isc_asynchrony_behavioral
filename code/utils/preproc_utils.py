@@ -52,7 +52,8 @@ def cut_stimulus_segments(df_preproc, task, stim_fn, stim_out_dir, segment_indic
     """
 
     if stim_type == 'video':
-        out_cmds = f'-async 1'
+        # out_cmds = f'-async 1'
+        out_cmds = '-map_metadata -1'
         out_ftype = 'mp4'
     else:
         out_cmds = f'-ar 16000'
@@ -68,13 +69,18 @@ def cut_stimulus_segments(df_preproc, task, stim_fn, stim_out_dir, segment_indic
     for i, (start_idx, end_idx) in enumerate(tqdm(segment_indices, desc="Cutting stimulus segments")):
 
         # Current word is one greater than the end index
-        current_word_idx = end_idx + 1
+        current_word_idx = end_idx
 
         # Calculate onset and duration based on the segment indices
         onset, _, duration = get_cut_times(df_preproc, start_idx, end_idx)
 
+        # If it's the last trial, we go all the way to the end of the stimulus
+        # There is also not a word index
+        if (i == (len(segment_indices) - 1)):
+            current_word_idx = None
+            duration = stim_length - onset
         # Ensure the duration does not exceed the remaining audio length
-        if onset + duration > stim_length:
+        elif (onset + duration > stim_length):
             duration = stim_length - onset
 
         # Generate output filename
@@ -89,14 +95,14 @@ def cut_stimulus_segments(df_preproc, task, stim_fn, stim_out_dir, segment_indic
         df_segments.loc[len(df_segments)] = {
             'filename': out_fn,
             'word_index': current_word_idx,
-            'critical_word': df_preproc.loc[current_word_idx]['Word_Written'] if current_word_idx < len(df_preproc) else None,
+            'critical_word': df_preproc.loc[current_word_idx]['Word_Written'] if current_word_idx else None,
             'checked': 0,
             'adjusted': 0
         }
 
     return out_fns, df_segments
 
-def get_cut_times(df_preproc, start_idx, end_idx):
+def get_cut_times(df_preproc, start_idx, end_idx, use_prev_offset=False):
     """
     Calculate the onset, offset, and duration for a segment.
 
@@ -105,9 +111,19 @@ def get_cut_times(df_preproc, start_idx, end_idx):
     :param end_idx: End index of the segment.
     :return: Onset, offset, and duration of the segment.
     """
-    onset = df_preproc.loc[start_idx]['Onset']
-    offset = df_preproc.loc[end_idx]['Offset']
+    if start_idx == 0:
+        onset = 0
+    else:
+        # We want to start from where the previous clip was trimmed to 
+        if use_prev_offset:
+            onset = df_preproc.loc[start_idx-1]['Offset']
+        else:
+            onset = df_preproc.loc[start_idx]['Onset']
+
+    # TLB changing from Onset to Onset (instead of to offset)
+    offset = df_preproc.loc[end_idx]['Onset']
     duration = offset - onset
+
     return onset, offset, duration
 
 ############################################

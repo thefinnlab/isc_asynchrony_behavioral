@@ -115,9 +115,13 @@ df_results <- read.csv(results_fn)
 factor_columns <- c('modality', 'ground_truth', 'word_index', 'top_pred', 'task')
 df_results <- convert_columns_to_factors(df_results, factor_columns)
 
+# set order of variables
+df_results$modality <- factor(df_results$modality, levels = 
+                                  c("video", "audio", "text"))
+
 # subject model for accuracy --> test if audio > text
-audio_greater_text <- c(1,-1)
-contrasts(df_results$modality) <- cbind(audio_greater_text)
+audio_greater_text <- contr.poly(length(unique(df_results$modality))) #c(1,-1)
+contrasts(df_results$modality, how.many=2) <- cbind(audio_greater_text)
 ```
 
 ## Population-level Binary accuracy

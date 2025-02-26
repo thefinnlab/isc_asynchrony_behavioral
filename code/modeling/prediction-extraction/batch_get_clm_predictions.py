@@ -31,7 +31,7 @@ if __name__ == '__main__':
 	# remove practice trial and example trial from the list of tasks
 	task_names = [task for task in task_names if task not in ['nwp_practice_trial', 'example_trial']] 
 
-	task_names = ['black'] #, 'wheretheressmoke', 'howtodraw'] #'black'] #['demon'] #, 'keats']
+	task_names = ['black', 'wheretheressmoke', 'howtodraw'] #'black'] #['demon'] #, 'keats']
 
 	# get all MLM models except BERT
 	MLM_MODELS = list(nlp.MLM_MODELS_DICT.keys())[1:]
@@ -43,24 +43,24 @@ if __name__ == '__main__':
 	# window_sizes = [
 	# 	2, 3, 4, 5, 10, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300
 	# ]
-	window_sizes = [5]
-	model_names = ['gpt-neo-x']
+	window_sizes = [25]
+	# model_names = ['gpt-neo-x']
 
-	top_ns = [1, 5] #, 10]
+	top_ns = [1] #, 5] #, 10]
 
 	all_cmds = []
 	script_fn = os.path.join(os.getcwd(), 'run_get_clm_predictions.py')
 	job_string = f'{DSQ_MODULES} srun python {script_fn}'
 	job_num = 0
 
-	# failed_jobs = [
-	# 	2, 3, 5, 17, 25, 40, 54, 56
-	# ]
+	failed_jobs = [
+		5, 21, 22
+	]
 
 	for i, (task, model, window) in enumerate(product(task_names, model_names, window_sizes)):
 
-		# if i not in failed_jobs:
-		# 	continue
+		if i not in failed_jobs:
+			continue
 
 		if window in [25, 100]:
 			save_logits = 1

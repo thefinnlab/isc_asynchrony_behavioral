@@ -68,6 +68,7 @@ if __name__ == "__main__":
     parser.add_argument('-word_model', '--word_model', type=str, default='fasttext')
     parser.add_argument('-m', '--model_name', type=str, default='gpt2-xl')
     parser.add_argument('-window', '--window_size', type=int, default=25)
+    parser.add_argument('-modality_list', '--modality_list', type=str, nargs='+', default=['audio', 'text']) 
     parser.add_argument('-careful_whisper', '--careful_whisper', type=int, default=0)
     parser.add_argument('-o', '--overwrite', type=int, default=0)
     p = parser.parse_args()
@@ -136,15 +137,16 @@ if __name__ == "__main__":
     ordered_accuracy = utils.get_ordered_accuracy(df_results)
 
     # always put humans first (audio, text) then CLM models, then MLM models
-    human_conditions = ['audio', 'text']
+    # human_conditions = ['audio', 'text']
 
     if p.careful_whisper:
-        models_order = [item for item in ordered_accuracy if item not in ['audio', 'text']]
+        models_order = [item for item in ordered_accuracy if item not in p.modality_list]
     else:
-        models_order = [item for item in ordered_accuracy if item not in ['audio', 'text', *MLM_MODELS]]
+        order = p.modality_list + MLM_MODELS
+        models_order = [item for item in ordered_accuracy if item not in order]
         models_order = models_order + MLM_MODELS
 
-    human_models_order = human_conditions + models_order
+    human_models_order = p.modality_list + models_order
 
     #################################################
     ### Plot 1a: binary accuracy for each task ###
@@ -312,52 +314,52 @@ if __name__ == "__main__":
     ###### Plot 5: Difference of KL Divergence ######
     #################################################
 
-    # Define gradient colors
-    cmap = utils.create_colormap()
+    # # Define gradient colors
+    # cmap = utils.create_colormap()
 
-    df_kl_difference = []
+    # df_kl_difference = []
 
-    for (task, model_name), df in df_distributions.groupby(['task', 'model_name']):
-        df_audio = df[df['modality'] == 'audio'].reset_index(drop=True)
-        df_text = df[df['modality'] == 'text'].reset_index(drop=True)
+    # for (task, model_name), df in df_distributions.groupby(['task', 'model_name']):
+    #     df_audio = df[df['modality'] == 'audio'].reset_index(drop=True)
+    #     df_text = df[df['modality'] == 'text'].reset_index(drop=True)
 
-        kl_diff = df_text['kl_divergence'] - df_audio['kl_divergence'] 
+    #     kl_diff = df_text['kl_divergence'] - df_audio['kl_divergence'] 
 
-        df_diff = pd.DataFrame(kl_diff, columns=['kl_divergence'])
-        df_diff['task'] = task
-        df_diff['model_name'] = model_name
+    #     df_diff = pd.DataFrame(kl_diff, columns=['kl_divergence'])
+    #     df_diff['task'] = task
+    #     df_diff['model_name'] = model_name
 
-        df_kl_difference.append(df_diff)
+    #     df_kl_difference.append(df_diff)
 
-    df_kl_difference = pd.concat(df_kl_difference).reset_index(drop=True)
+    # df_kl_difference = pd.concat(df_kl_difference).reset_index(drop=True)
 
-    ax = sns.pointplot(df_kl_difference, x="kl_divergence", y="model_name",
-        color="black", markersize=4, linestyles="none", order=models_order,
-        errorbar='se',
-    )
+    # ax = sns.pointplot(df_kl_difference, x="kl_divergence", y="model_name",
+    #     color="black", markersize=4, linestyles="none", order=models_order,
+    #     errorbar='se',
+    # )
 
-    plt.xlim([-1, 1])
+    # plt.xlim([-1, 1])
 
-    xmin, xmax = ax.get_xlim()
-    ymin, ymax = ax.get_ylim()
+    # xmin, xmax = ax.get_xlim()
+    # ymin, ymax = ax.get_ylim()
 
-    # Create gradient rectangle
-    gradient_rect = patches.Rectangle(
-        (xmin, ymin), xmax - xmin, ymax - ymin,
-        transform=ax.transData,
-        color="white", alpha=0.2
-    )
+    # # Create gradient rectangle
+    # gradient_rect = patches.Rectangle(
+    #     (xmin, ymin), xmax - xmin, ymax - ymin,
+    #     transform=ax.transData,
+    #     color="white", alpha=0.2
+    # )
 
-    ax.add_patch(gradient_rect)
+    # ax.add_patch(gradient_rect)
 
-    # Use the gradient as an image in the background
-    ax.imshow(
-        np.linspace(0, 1, 256).reshape(1, -1),  # Create 1D gradient
-        aspect="auto", extent=(xmin, xmax, ymin, ymax),
-        origin="lower", cmap=cmap, alpha=0.75
-    )
+    # # Use the gradient as an image in the background
+    # ax.imshow(
+    #     np.linspace(0, 1, 256).reshape(1, -1),  # Create 1D gradient
+    #     aspect="auto", extent=(xmin, xmax, ymin, ymax),
+    #     origin="lower", cmap=cmap, alpha=0.75
+    # )
 
-    ax.vlines(0, ymin=ymin, ymax=ymax, linestyle='--', color='0.5', linewidth=2)
+    # ax.vlines(0, ymin=ymin, ymax=ymax, linestyle='--', color='0.5', linewidth=2)
 
-    plt.savefig(os.path.join(plots_dir, "all-task_human-llm-comparison_kl-divergence-difference.pdf"), bbox_inches='tight', dpi=600)
-    plt.close('all')
+    # plt.savefig(os.path.join(plots_dir, "all-task_human-llm-comparison_kl-divergence-difference.pdf"), bbox_inches='tight', dpi=600)
+    # plt.close('all')

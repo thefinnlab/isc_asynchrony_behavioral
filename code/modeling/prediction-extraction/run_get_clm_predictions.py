@@ -50,7 +50,7 @@ if __name__ == '__main__':
 	print (f'Window Size: {p.window_size}')
 
 	out_dir = os.path.join(BASE_DIR, 'derivatives/model-predictions', p.task, p.model_name, f'window-size-{str(p.window_size).zfill(5)}')
-	logits_dir = os.path.join(SCRATCH_DIR, 'derivatives/model-predictions', p.task, p.model_name, f'window-size-{str(p.window_size).zfill(5)}', 'logits')
+	logits_dir = os.path.join(BASE_DIR, 'derivatives/model-predictions', p.task, p.model_name, f'window-size-{str(p.window_size).zfill(5)}', 'logits')
 
 	utils.attempt_makedirs(out_dir)
 	utils.attempt_makedirs(logits_dir)

@@ -116,9 +116,17 @@ factor_columns <- c('modality', 'ground_truth', 'word_index', 'top_pred', 'task'
 df_results <- convert_columns_to_factors(df_results, factor_columns)
 df_results
 
+# # subject model for accuracy --> test if audio > text
+# audio_greater_text <- c(1,-1)
+# contrasts(df_results$modality) <- cbind(audio_greater_text)
+
+# set order of variables
+df_results$modality <- factor(df_results$modality, levels = 
+                                  c("video", "audio", "text"))
+
 # subject model for accuracy --> test if audio > text
-audio_greater_text <- c(1,-1)
-contrasts(df_results$modality) <- cbind(audio_greater_text)
+audio_greater_text <- contr.poly(length(unique(df_results$modality))) #c(1,-1)
+contrasts(df_results$modality, how.many=2) <- cbind(audio_greater_text)
 ```
 
 ## Entropy
@@ -218,10 +226,6 @@ Rerun the logistic regression with the mean prosody included as an interaction e
 
 ```{r}
 
-# subject model for accuracy --> test if audio > text
-audio_greater_text <- c(1,-1)
-contrasts(df_results$modality) <- cbind(audio_greater_text)
-
 entropy_formula <- 'entropy ~ modality * prominence_mean + (1|word_index:task)'
 
 # Fit the logistic mixed-effects model
@@ -236,36 +240,38 @@ report (model)
 
 ```{r}
 
-preds <- data.frame(get_model_data(model, type='pred', terms = c("prominence_mean", "modality")))
+plot_model(model, type="pred", terms=c("prominence_mean", "modality"))
 
-head(preds)
+# preds <- data.frame(get_model_data(model, type='pred', terms = c("prominence_mean", "modality")))
 
-colors <- c('#82C564', '#F7CD84')
+# head(preds)
+# 
+# colors <- c('#82C564', '#F7CD84')
+# 
+# ggplot(preds, aes(x=x, y=predicted, color=group)) + 
+#   geom_point(
+#     data = df_results, 
+#     aes(x=prominence_mean, y=entropy, color=modality), 
+#     stroke=1,
+#     alpha=0.15) +
+#   geom_line(size=1) + 
+#   geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.3, color=NA) + 
+#   theme(
+#     aspect.ratio = 6/7,
+#     axis.line = element_line(colour = "black"),
+#     panel.grid.major = element_blank(),
+#     panel.grid.minor = element_blank(),
+#     panel.border = element_blank(),
+#     panel.background = element_blank()
+#   ) +
+#   scale_color_manual(values=colors) +
+#   scale_fill_manual(values=colors) +
+#   labs(
+#     x = "Prosodic Prominence",
+#     y = "Entropy",
+#     title = "Prosody reduces entropy of prediction distributions") 
 
-ggplot(preds, aes(x=x, y=predicted, color=group)) + 
-  geom_point(
-    data = df_results, 
-    aes(x=prominence_mean, y=entropy, color=modality), 
-    stroke=1,
-    alpha=0.15) +
-  geom_line(size=1) + 
-  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.3, color=NA) + 
-  theme(
-    aspect.ratio = 6/7,
-    axis.line = element_line(colour = "black"),
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank(),
-    panel.border = element_blank(),
-    panel.background = element_blank()
-  ) +
-  scale_color_manual(values=colors) +
-  scale_fill_manual(values=colors) +
-  labs(
-    x = "Prosodic Prominence",
-    y = "Entropy",
-    title = "Prosody reduces entropy of prediction distributions") 
-
-ggsave('human_entropy-prosody-interaction.pdf', device = "pdf")
+# ggsave('human_entropy-prosody-interaction.pdf', device = "pdf")
 ```
 
 
@@ -277,11 +283,7 @@ Predict accuracy based on modality
 
 ```{r}
 
-# subject model for accuracy --> test if audio > text
-audio_greater_text <- c(1,-1)
-contrasts(df_results$modality) <- cbind(audio_greater_text)
-
-df_results[df_results$predictability == 0,]$predictability <- 0.01
+# df_results[df_results$predictability == 0,]$predictability <- 0.01
 
 predictability_formula <- 'predictability ~ modality + (1|word_index:task)'
 
@@ -290,16 +292,13 @@ model <- glmer(predictability_formula, data=df_results, family=gaussian(link='lo
 
 tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE,  show.df = TRUE)
 
-check_model(model)
+plot_model(model, type='pred')
 ```
 
 ### Include prosody within model
 
 ```{r}
 
-# subject model for accuracy --> test if audio > text
-audio_greater_text <- c(1,-1)
-contrasts(df_results$modality) <- cbind(audio_greater_text)
 
 predictability_formula <- 'predictability ~ modality * prominence_mean + (1|word_index:task)'
 
@@ -310,7 +309,7 @@ tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE,  show.df = TRUE)
 summary(model)
 # report (model)
 
-# plot_model(model, type='pred', terms=c('prominence_mean', 'modality'))
+plot_model(model, type='pred', terms=c('prominence_mean', 'modality'))
 ```
 
 # Supplementary analyses

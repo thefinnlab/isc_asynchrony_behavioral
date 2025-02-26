@@ -29,7 +29,7 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--overwrite', type=int, default=0)
     p = parser.parse_args()
 
-    task_list = ['black', 'wheretheressmoke', 'howtodraw']
+    task_list = ['black', 'wheretheressmoke', 'howtodraw'] # black
     window_sizes = [25]
 
     # # model_names = sorted(CLM_MODELS_DICT.keys())

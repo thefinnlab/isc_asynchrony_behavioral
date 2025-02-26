@@ -16,6 +16,8 @@ N_ORDERS = {
     'howtodraw': 3
 }
 
+MODALITIES = ['audio', 'text']
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -23,6 +25,7 @@ if __name__ == '__main__':
     # type of analysis we're running --> linked to the name of the regressors
     parser.add_argument('-t', '--task', type=str)
     parser.add_argument('-v', '--experiment_version', type=str)
+    parser.add_argument('-modality_list', '--modality_list', type=str, nargs='+', default=['audio', 'text'])
     parser.add_argument('-o', '--overwrite', type=int, default=0)
     p = parser.parse_args()
 
@@ -58,7 +61,7 @@ if __name__ == '__main__':
 
     df_aggregated_results = []
 
-    for modality in ['audio', 'text']:
+    for modality in p.modality_list:
 
         # Process data for modality
         df_modality = analysis.aggregate_participant_responses(results_dir, audio_dir, task=p.task, modality=modality, n_orders=N_ORDERS[p.task])
@@ -72,7 +75,7 @@ if __name__ == '__main__':
     df_aggregated_results = pd.concat(df_aggregated_results).reset_index(drop=True)
 
     # Calculate phoneme statistics for leakage checks
-    df_aggregated_results = analysis.get_leakage_stats(df_aggregated_results)
+    # df_aggregated_results = analysis.get_leakage_stats(df_aggregated_results)
 
     out_fn = os.path.join(behavioral_dir, f'task-{p.task}_group-cleaned-behavior.csv')
     df_aggregated_results.to_csv(out_fn, index=False)
@@ -89,7 +92,7 @@ if __name__ == '__main__':
     df_lemmatized_results = analysis.calculate_response_accuracy(df_lemmatized_results)
 
     # Calculate phoneme statistics for leakage checks
-    df_lemmatized_results = analysis.get_leakage_stats(df_lemmatized_results)
+    # df_lemmatized_results = analysis.get_leakage_stats(df_lemmatized_results)
     
     out_fn = os.path.join(behavioral_dir, f'task-{p.task}_group-cleaned-behavior_lemmatized.csv')
     df_lemmatized_results.to_csv(out_fn, index=False)

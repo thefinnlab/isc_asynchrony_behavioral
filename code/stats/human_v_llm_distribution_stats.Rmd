@@ -134,7 +134,7 @@ Load data and set factor columns
 ```{r}
 
 # Load the results file
-results_fn<-glue('{results_dir}all-task_group-analyzed-behavior_window-size-25_human-model-distributions-lemmatized.csv')
+results_fn<-glue('{results_dir}all-task_group-analyzed-behavior_window-size-00025_human-model-distributions-lemmatized.csv')
 
 df_results <- read.csv(results_fn)
 
@@ -162,12 +162,17 @@ factor_columns <- c('modality', 'model_name', 'model_type', 'word_index', 'task'
 df_results <- convert_columns_to_factors(df_results, factor_columns)
 
 # set order of variables
-df_results$modality <- factor(df_results$modality, levels = c("audio", "text"))
+df_results$modality <- factor(df_results$modality, levels = c("video", "audio", "text"))
 df_results$model_type <- factor(df_results$model_type, levels = c("clm", "mlm"))
 
 # df_results <- df_results[df_results$model_type == 'clm',]
-audio_greater_text <- c(1,-1)
-contrasts(df_results$modality) <- cbind(audio_greater_text)
+# audio_greater_text <- c(1,-1)
+# contrasts(df_results$modality) <- cbind(audio_greater_text)
+
+# subject model for accuracy --> test if audio > text
+modality_contrast <- contr.poly(length(unique(df_results$modality))) #c(1,-1)
+contrasts(df_results$modality, how.many=2) <- cbind(modality_contrast)
+
 ```
 
 ## Predictability
@@ -195,37 +200,39 @@ tab_model(model, show.df=TRUE, show.se=TRUE, show.stat=TRUE)
 
 ```{r}
 
-preds <- data.frame(get_model_data(model, type='pred', terms = c("log_model_predictability", "modality")))
+plot_model(model, type="pred", terms=c("log_model_predictability", "modality"))
 
-head(preds)
-
-colors <- c('#82C564', '#F7CD84')
-
-ggplot(preds, aes(x=x, y=log(predicted), color=group)) + 
-  geom_point(
-    data = df_cleaned, 
-    aes(x=log_model_predictability, y=log(human_predictability), color=modality), 
-    stroke=1,
-    alpha=0.05) +
-  geom_line(size=1) + 
-  geom_ribbon(aes(ymin=log(conf.low), ymax=log(conf.high), fill=group), alpha=0.3, color=NA) + 
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black", size = 1) +
-  theme(
-    aspect.ratio = 4/5,
-    axis.line = element_line(colour = "black"),
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank(),
-    panel.border = element_blank(),
-    panel.background = element_blank()
-  ) +
-  scale_color_manual(values=colors) +
-  scale_fill_manual(values=colors) +
-  labs(
-    x = "Model Predictability (Log-Scale)",
-    y = "Human Predictability",
-    title = "Relationship of predictability") 
-
-ggsave('human-llm_predictability-relationship.pdf', device = "pdf")
+# preds <- data.frame(get_model_data(model, type='pred', terms = c("log_model_predictability", "modality")))
+# 
+# head(preds)
+# 
+# colors <- c('#82C564', '#F7CD84')
+# 
+# ggplot(preds, aes(x=x, y=log(predicted), color=group)) + 
+#   geom_point(
+#     data = df_cleaned, 
+#     aes(x=log_model_predictability, y=log(human_predictability), color=modality), 
+#     stroke=1,
+#     alpha=0.05) +
+#   geom_line(size=1) + 
+#   geom_ribbon(aes(ymin=log(conf.low), ymax=log(conf.high), fill=group), alpha=0.3, color=NA) + 
+#   geom_hline(yintercept = 0, linetype = "dashed", color = "black", size = 1) +
+#   theme(
+#     aspect.ratio = 4/5,
+#     axis.line = element_line(colour = "black"),
+#     panel.grid.major = element_blank(),
+#     panel.grid.minor = element_blank(),
+#     panel.border = element_blank(),
+#     panel.background = element_blank()
+#   ) +
+#   scale_color_manual(values=colors) +
+#   scale_fill_manual(values=colors) +
+#   labs(
+#     x = "Model Predictability (Log-Scale)",
+#     y = "Human Predictability",
+#     title = "Relationship of predictability") 
+# 
+# ggsave('human-llm_predictability-relationship.pdf', device = "pdf")
 
 ```
 
@@ -257,7 +264,7 @@ model <- lmer(kl_divergence, data = df_cleaned)
 
 tab_model(model, show.est = TRUE, show.se = TRUE, show.df = TRUE, show.stat = TRUE)
 
-# plot_model(model, type='pred',  terms=c('prominence_mean', 'modality' ))
+plot_model(model, type='pred',  terms=c('modality' ))
 ```
 
 # Supplementary analyses

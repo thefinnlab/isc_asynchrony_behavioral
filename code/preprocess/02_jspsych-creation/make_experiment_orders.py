@@ -57,25 +57,30 @@ if __name__ == '__main__':
 
 			experiment_info_dir = os.path.join(base_dir, 'experiments', EXPERIMENT_NAME, 'experiment_orders', p.experiment_version, p.task, modality)
 
-			if not os.path.exists(experiment_info_dir):
-				os.makedirs(experiment_info_dir)
+			# if not os.path.exists(experiment_info_dir):
+			# 	os.makedirs(experiment_info_dir)
 
-			sub_parameters = experiment_parameters.copy()
+			# sub_parameters = experiment_parameters.copy()
 			
-			if 'json' not in fn:
-				continue
+			# if 'json' not in fn:
+			# 	continue
 
-			sub_parameters.update({
-				"stimulus_info": os.path.join(URL_BASE, 'stimuli/presentation_orders/', p.experiment_version, p.task, json_file_dir, fn),
-				"stimulus_modality": modality,
-				"practice_info": os.path.join(URL_BASE, 'stimuli/presentation_orders/', p.experiment_version, "nwp_practice_trial/jspsych/practice_task-nwp_practice_trial.json"),
-			})
+			# if modality == 'video':
+			# 	json_file_dir = 'jspsych-video'
+			# else:
+			# 	json_file_dir = 'jspsych'
 			
-			out_json = [global_parameters, sub_parameters]
+			# sub_parameters.update({
+			# 	"stimulus_info": os.path.join(URL_BASE, 'stimuli/presentation_orders/', p.experiment_version, p.task, json_file_dir, fn),
+			# 	"stimulus_modality": modality,
+			# 	"practice_info": os.path.join(URL_BASE, 'stimuli/presentation_orders/', p.experiment_version, f"nwp_practice_trial/{json_file_dir}/practice_task-nwp_practice_trial.json"),
+			# })
+			
+			# out_json = [global_parameters, sub_parameters]
 			out_fn = os.path.join(experiment_info_dir, f'sub-{str(sub_counter).zfill(5)}_experiment-information.json')
 			
-			with open(out_fn, 'w') as f:
-				json.dump(out_json, f)
+			# with open(out_fn, 'w') as f:
+			# 	json.dump(out_json, f)
 
 			fns.append(out_fn.replace(base_dir, URL_BASE))
 
