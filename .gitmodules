@@ -1,0 +1,3 @@
+[submodule "code/modeling/preproc-av-datasets/av_hubert"]
+	path = code/modeling/preproc-av-datasets/av_hubert
+	url = https://github.com/thefinnlab/av_hubert.git
