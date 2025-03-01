@@ -54,6 +54,7 @@ dependencies:
 
   - pip>=23
   - pip:
+      - pyav
       - whisper
       - opencv-python
       - ffmpeg-python

@@ -44,8 +44,6 @@ if __name__ == '__main__':
 	# 	2, 3, 4, 5, 10, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300
 	# ]
 	window_sizes = [25]
-	# model_names = ['gpt-neo-x']
-
 	top_ns = [1] #, 5] #, 10]
 
 	all_cmds = []
@@ -53,14 +51,14 @@ if __name__ == '__main__':
 	job_string = f'{DSQ_MODULES} srun python {script_fn}'
 	job_num = 0
 
-	failed_jobs = [
-		5, 21, 22
-	]
+	# failed_jobs = [
+	# 	5, 21, 22
+	# ]
 
 	for i, (task, model, window) in enumerate(product(task_names, model_names, window_sizes)):
 
-		if i not in failed_jobs:
-			continue
+		# if i not in failed_jobs:
+		# 	continue
 
 		if window in [25, 100]:
 			save_logits = 1
@@ -84,9 +82,9 @@ if __name__ == '__main__':
 		sys.exit(0)
 
 	dsq_base_string = f'dsq_run_get_clm_predictions'
-	logs_dir = os.path.join(BASE_DIR, 'derivatives/logs/behavioral/')
-	dsq_dir =  os.path.join(BASE_DIR, 'code/submit_scripts/behavioral/dsq')
-	joblists_dir = os.path.join(BASE_DIR, 'code/submit_scripts/behavioral/joblists')
+	logs_dir = os.path.join(BASE_DIR, 'derivatives/logs/modeling/')
+	dsq_dir =  os.path.join(BASE_DIR, 'code/submit_scripts/modeling/dsq')
+	joblists_dir = os.path.join(BASE_DIR, 'code/submit_scripts/modeling/joblists')
 
 	utils.attempt_makedirs(logs_dir)
 	utils.attempt_makedirs(dsq_dir)
