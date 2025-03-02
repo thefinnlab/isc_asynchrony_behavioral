@@ -1,5 +1,8 @@
 # process_speech.py
 import os, sys
+
+os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
+
 import glob
 import argparse
 import math
@@ -9,7 +12,7 @@ import torch
 from tqdm import tqdm
 from torchvision.io import read_video
 import shutil
-from transformers import AutoProcessor, AutoModel, AutoTokenizer
+from transformers import AutoImageProcessor, AutoProcessor, AutoModel, AutoTokenizer
 
 sys.path.append('../')
 
@@ -28,7 +31,7 @@ AUDIO_MODELS = {
 VIDEO_MODELS = {
     'video_swin': "microsoft/videoswin-base-patch244-window877-kinetics400-1k",
     'video_clip': "openai/clip-vit-base-patch32",
-    'data2vec': "facebook/data2vec-vision-large"
+    'data2vec': "facebook/data2vec-vision-large",
 }
 
 def initialize_models(args):
@@ -42,103 +45,80 @@ def initialize_models(args):
         'device': device
     }
 
-    if args.audio_model:
-        processor = AutoProcessor.from_pretrained(AUDIO_MODELS[args.audio_model])
-        audio_model = AutoModel.from_pretrained(AUDIO_MODELS[args.audio_model]).to(device)
-        
+    if args.audio_model:        
         models['audio'] = {
-            'processor': processor,
-            'model': audio_model,
+            'processor': AutoProcessor.from_pretrained(AUDIO_MODELS[args.audio_model]),
+            'model': AutoModel.from_pretrained(AUDIO_MODELS[args.audio_model]).to(device)
         }
 
     if args.video_model:
-        processor = AutoImageProcessor.from_pretrained(VIDEO_MODELS[args.video_model])
-        video_model = AutoModel.from_pretrained(VIDEO_MODELS[args.video_model]).to(device)
-
-        models['audio'] = {
-            'processor': processor,
-            'model': video_model,
+        models['video'] = {
+            'processor': AutoImageProcessor.from_pretrained(VIDEO_MODELS[args.video_model]),
+            'model': AutoModel.from_pretrained(VIDEO_MODELS[args.video_model]).to(device)
         }
 
     return models
 
 def preprocess_data(args, dirs, split, models, num_shards=1, current_shard=0):
-        """Preprocess all data with temporary file handling."""
+    """Preprocess all data with temporary file handling."""
 
-        # Setup cache directories
-        model_combo = f"{args.text_model}"
+    temp_dir, errors_dir = [dirs.get(item) for item in ['temp_dir', 'errors_dir']]
 
-        if args.audio_model:
-            model_combo += f"-{args.audio_model}"
+    # Get file list 
+    all_fns = sorted(os.listdir(dirs["textgrids"]))
+    all_fns = [os.path.splitext(fn)[0] for fn in all_fns]
 
-        if args.video_model:
-            model_combo += f"-{args.video_model}"
+    # Apply sharding logic --> divide dataset into number of shards 
+    if num_shards > 1:
+        # Calculate shard size and starting/ending indices
+        shard_size = math.ceil(len(all_fns) / num_shards)
+        start_idx = current_shard * shard_size
+        end_idx = min(start_idx + shard_size, len(all_fns))
+        
+        # Get only the files for the current shard
+        all_fns = all_fns[start_idx:end_idx]
+        
+        print(f"Processing shard {current_shard+1}/{num_shards} with {len(all_fns)} files", flush=True)
 
-        # Create cache for our features and a temp directory for writing progress
-        cache_dir = os.path.join(args.output_dir, split, 'features', model_combo)
-        dirs["temp_dir"] = os.path.join(cache_dir, 'temp')
-        dirs["errors_dir"] = os.path.join(cache_dir, 'errors')
+    # Count existing json files
+    existing_count = 0
+    to_process_count = 0
 
-        temp_dir, errors_dir = [dirs.get(item) for item in ['temp_dir', 'errors_dir']]
+    process_fns = []
 
-        os.makedirs(temp_dir, exist_ok=True)
-        os.makedirs(errors_dir, exist_ok=True)
+    for fn in all_fns:
+        temp_json_fn = utils.get_temp_json_path(temp_dir, fn)
+        error_json_fn = utils.get_temp_json_path(errors_dir, fn)
 
-        # Get file list 
-        all_fns = sorted(os.listdir(dirs["textgrids"]))
-        all_fns = [os.path.splitext(fn)[0] for fn in all_fns]
+        # If the file was successfully or unsuccessfully processed, a json exists
+        if (os.path.exists(temp_json_fn) or os.path.exists(error_json_fn)) and not args.overwrite:
+            existing_count += 1
+        else:
+            process_fns.append(fn)
+            to_process_count += 1
 
-        # Apply sharding logic --> divide dataset into number of shards 
-        if num_shards > 1:
-            # Calculate shard size and starting/ending indices
-            shard_size = math.ceil(len(all_fns) / num_shards)
-            start_idx = current_shard * shard_size
-            end_idx = min(start_idx + shard_size, len(all_fns))
-            
-            # Get only the files for the current shard
-            all_fns = all_fns[start_idx:end_idx]
-            
-            print(f"Processing shard {current_shard+1}/{num_shards} with {len(all_fns)} files", flush=True)
+    if to_process_count == 0:
+        print(f"All json files exist for {split} split. Skipping transcription.", flush=True)
+        return temp_dir
 
-        # Count existing json files
-        existing_count = 0
-        to_process_count = 0
+    print(f"Found {existing_count} existing json files and {to_process_count} files to process", flush=True)
 
-        process_fns = []
-    
-        for fn in all_fns:
-            temp_json_fn = utils.get_temp_json_path(temp_dir, fn)
-            error_json_fn = utils.get_temp_json_path(errors_dir, fn)
+    failed_samples_count = 0
 
-            # If the file was successfully or unsuccessfully processed, a json exists
-            if (os.path.exists(temp_json_fn) or os.path.exists(error_json_fn)) and not args.overwrite:
-                existing_count += 1
-            else:
-                process_fns.append(fn)
-                to_process_count += 1
-    
-        if to_process_count == 0:
-            print(f"All transcripts already exist for {split} split. Skipping transcription.", flush=True)
-            return temp_dir
-    
-        print(f"Found {existing_count} existing transcripts and {to_process_count} files to process", flush=True)
-    
-        failed_samples_count = 0
+    # Process each file
+    for file_name in tqdm(process_fns):
 
-        # Process each file
-        for file_name in tqdm(process_fns):
+        # Attempt to process the file
+        temp_json_path = process_single_file(args, dirs, models, file_name)
+        
+        # If it fails, save a file to the errors directory to log which files didn't process correctly
+        if not temp_json_path:
+            error_json = {'base_name': file_name}
+            errors_path = utils.get_temp_json_path(errors_dir, file_name)
+            utils.save_json(errors_path, {'base_name': file_name})
+            failed_samples_count += 1
 
-            # Attempt to process the file
-            temp_json_path = process_single_file(args, dirs, models, file_name)
-            
-            # If it fails, save a file to the errors directory to log which files didn't process correctly
-            if not temp_json_path:
-                error_json = {'base_name': file_name}
-                errors_path = utils.get_temp_json_path(errors_dir, file_name)
-                utils.save_json(errors_path, {'base_name': file_name})
-                failed_samples_count += 1
-    
-        print(f"Split {split} failed samples: {failed_samples_count}", flush=True)
+    print(f"Split {split} failed samples: {failed_samples_count}", flush=True)
 
 def load_file_data(args, dirs, models, file_name):
     """Load all necessary data for a single file."""
@@ -156,10 +136,12 @@ def load_file_data(args, dirs, models, file_name):
         
         # Verify data matches
         if not words or len(prosody_data) != len(words):
+            print ('Mismatched prosody and words')
             return None
 
         # If there aren't enough or too many words we skip
         if len(words) < args.min_words or len(words) > args.max_words:
+            print (f"Number of words {len(words)}, Min words {args.min_words}, Max words {args.max_words}")
             return None
             
         # Extract prosody features
@@ -196,7 +178,7 @@ def load_file_data(args, dirs, models, file_name):
         return file_data
         
     except Exception as e:
-        print(f"Error processing {file_name}: {str(e)}")
+        print(f"Error processing {file_name}: {str(e)}", flush=True)
         return None
 
 def process_single_file(args, dirs, models, file_name):
@@ -271,15 +253,23 @@ def process_single_file(args, dirs, models, file_name):
 
     # Process audio if requested
     if 'audio' in models and (args.overwrite or not os.path.exists(audio_features_path)):
-        audio_features = process_audio(file_data, models, text_tokens)
+        try:
+            audio_features = process_audio(file_data, models, text_tokens)
+        except Exception as e:
+            print (f'Problem extracting audio features: {str(e)}')
+            return None
         
-        if audio_inputs is not None:
+        if audio_features is not None:
             torch.save(audio_features, audio_features_path)
             result['audio_features_path'] = audio_features_path
     
     # Process video if requested
     if 'video' in models and (args.overwrite or not os.path.exists(video_features_path)):
-        video_features = process_video(file_data, models, text_tokens)
+        try:
+            video_features = process_video(file_data, models, text_tokens,)
+        except Exception as e:
+            print (f'Problem extracting video features: {str(e)}')
+            return None
         
         if video_features is not None:
             torch.save(video_features, video_features_path)
@@ -289,7 +279,7 @@ def process_single_file(args, dirs, models, file_name):
     return temp_json_path
 
 @torch.no_grad() 
-def process_audio(file_data, models, text_tokens):
+def process_audio(file_data, models, text_tokens, end_tolerance=1):
     """Process audio data and extract embeddings."""
 
     # Grab information from the file data
@@ -301,17 +291,25 @@ def process_audio(file_data, models, text_tokens):
     segments = []
 
     # Extract audio segments for each word/token
-    for word, idx, n_tokens in zip(words, word_ids, token_counts):
+    for i, (word, idx, n_tokens) in enumerate(zip(words, word_ids, token_counts)):
         if n_tokens > 1:
             # If current word has multiple tokens, create ratios based on length of tokens
             ratios = [len(x) for x in models['tokenizer'].batch_decode(text_tokens["input_ids"][idx:idx+n_tokens])]
             ratios = torch.tensor(ratios)
             ratios = ratios / ratios.sum()
-
-            # Extract word segments with weighted ratios
-            word_segments = utils.extract_media_segment(waveform, audio_sr, word["start"], word["end"], ratios=ratios, time_axis=1)
         else:
-            word_segments = utils.extract_media_segment(waveform, audio_sr, word["start"], word["end"], time_axis=1)
+            ratios = None
+
+        # Extract word segments with weighted ratios
+        word_segments = utils.extract_media_segment(
+            waveform, 
+            rate = audio_sr, 
+            onset = word["start"], 
+            offset = word["end"], 
+            ratios = ratios, 
+            time_axis = 1, 
+            end_tolerance = end_tolerance if i == len(words) else None
+        )
 
         segments.extend(word_segments)
     
@@ -331,11 +329,14 @@ def process_audio(file_data, models, text_tokens):
     return audio_features.cpu()
 
 @torch.no_grad()
-def process_video(words, video_cap, fps, text_tokens, video_processor, video_model, text_tokenizer, device):
+def process_video(file_data, models, text_tokens):
     """Process video data and extract embeddings at word timepoints."""
     
     words, video_data, fps = [file_data.get(item) for item in ['words', 'video_data', 'video_fps']]
     processor, model = [models['video'].get(item) for item in ['processor', 'model']]
+
+    # Get word token ids
+    word_ids, token_counts = np.unique(text_tokens.word_ids(), return_counts=True)
 
     # For videos, we can do this backwards --> embed the whole thing and then extract the frames to pool
     inputs = processor(video_data, return_tensors="pt")
@@ -349,15 +350,24 @@ def process_video(words, video_cap, fps, text_tokens, video_processor, video_mod
     segments = []
 
     # Process each word
-    for word, idx, n_tokens in zip(words, word_ids, token_counts):
+    for i, (word, idx, n_tokens) in enumerate(zip(words, word_ids, token_counts)):
         if n_tokens > 1:
-            ratios = torch.tensor([len(x) for x in models['tokenizer'].batch_decode(
-                text_tokens["input_ids"][idx:idx+n_tokens])])
+            # If current word has multiple tokens, create ratios based on length of tokens
+            ratios = [len(x) for x in models['tokenizer'].batch_decode(text_tokens["input_ids"][idx:idx+n_tokens])]
+            ratios = torch.tensor(ratios)
             ratios = ratios / ratios.sum()
-
-            word_segments = utils.extract_media_segment(features, fps, word["start"], word["end"], ratios=ratios)
         else:
-            word_segments = utils.extract_media_segment(features, fps, word["start"], word["end"])
+            ratios = None
+
+        # Extract word segments with weighted ratios
+        word_segments = utils.extract_media_segment(
+            features, 
+            rate = fps, 
+            onset = word["start"], 
+            offset = word["end"], 
+            ratios = ratios, 
+            end_tolerance = end_tolerance if i == len(words) else None
+        )
 
         segments.extend(word_segments)
 
@@ -366,11 +376,8 @@ def process_video(words, video_cap, fps, text_tokens, video_processor, video_mod
 
     return video_features.cpu()
 
-
-
 if __name__ == "__main__":
-    import argparse
-    
+
     parser = argparse.ArgumentParser(description='Preprocess audio/video-text dataset')
     parser.add_argument('-d','--dataset', type=str,required=True, 
                       help='Which dataset to process')
@@ -394,7 +401,7 @@ if __name__ == "__main__":
 
     ### Dataset filtering setup
     parser.add_argument('--min_words', type=int, default=4, help='Minimum number of words per sample')
-    parser.add_argument('--max_words', type=int, default=60, help='Maximum number of words per sample')
+    parser.add_argument('--max_words', type=int, default=128, help='Maximum number of words per sample')
 
     ### Video
     parser.add_argument('--video', type=int, default=0, help="Whether this is an AV dataset")
@@ -414,10 +421,32 @@ if __name__ == "__main__":
     # Prepare directory structure --> only this script is needed for video
     dirs, splits = utils.prepare_directory_structure(output_dir, splits, video=args.video)
 
+    # Setup cache directories
+    model_combo = f"{args.text_model}"
+
+    if args.audio_model:
+        model_combo += f"-{args.audio_model}"
+
+    if args.video_model:
+        model_combo += f"-{args.video_model}"
+
+    # Create cache for our features and a temp directory for writing progress
+    dirs["cache_dir"] = os.path.join(args.output_dir, 'features', model_combo)
+
     # Initialize models used in the preprocessing 
     models = initialize_models(args)
 
     for split in splits:
+        print(f"\nExtracting features for {split} split...", flush=True)
+        print(f"\nCurrent shard: {args.current_shard+1}/{args.num_shards}", flush=True)
         split_dirs = {k: os.path.join(v, split) for k, v in dirs.items()}
+
+        # Make the json directories
+        split_dirs["temp_dir"] = os.path.join(split_dirs["cache_dir"], 'temp')
+        split_dirs["errors_dir"] = os.path.join(split_dirs["cache_dir"], 'errors')
+
+        # Make directories if they don't exist
+        os.makedirs(split_dirs["temp_dir"], exist_ok=True)
+        os.makedirs(split_dirs["errors_dir"], exist_ok=True)
 
         preprocess_data(args, split_dirs, split, models, num_shards=args.num_shards, current_shard=args.current_shard)

@@ -1,129 +1,285 @@
-# First run the following command
-'''
-aria2c --seed-time=0 --max-overall-download-limit=10M 
-	--file-allocation=none --dir=./avspeech/ 
-	https://academictorrents.com/download/b078815ca447a3e4d17e8a2a34f13183ec5dec41.torrent
-'''
 import os
-import csv
+import sys
+import glob
+import random
 import shutil
 import tarfile
-import random
-import string
-import glob
+import pandas as pd
+import concurrent.futures
+from typing import Dict, List, Tuple
 
-def extract_all_tars(extract_dir):
-    """Extract all tar files from xaa.tar to xpj.tar"""
-    # Generate all possible file names from xaa.tar to xpj.tar
-    # This covers a-z for the first position and a-j for the second position
-    first_chars = string.ascii_lowercase[:24]  # a to x
-    second_chars = string.ascii_lowercase[:10]  # a to j
-    
-    tar_files = []
-    for first in first_chars:
-        for second in second_chars:
-            tar_name = f"x{first}{second}.tar"
-            if os.path.exists(tar_name):
-                tar_files.append(tar_name)
-    
-    # Alternative approach using glob
-    if not tar_files:
-        tar_files = glob.glob("x??.tar")
-    
-    for tar_file in tar_files:
-        print(f"Extracting {tar_file}...")
-        try:
-            with tarfile.open(tar_file, 'r') as tar:
-                tar.extractall(path=extract_dir)
-        except Exception as e:
-            print(f"Error extracting {tar_file}: {e}")
+# Assuming these imports work in your environment
+sys.path.append('../../../utils/')
+from config import *
+from dataset_utils import attempt_makedirs
 
-def organize_files(extract_dir, train_dir, test_dir):
-    """Organize files into train and test directories based on CSV files"""
-    # Read train.csv
-    train_files = read_csv_files('train.csv')
-    
-    # Read test.csv
-    test_files = read_csv_files('test.csv')
-    
-    # Move files to appropriate directories
-    for file_name in train_files:
-        src_path = os.path.join(extract_dir, file_name)
-        dst_path = os.path.join(train_dir, file_name)
-        if os.path.exists(src_path):
-            shutil.copy2(src_path, dst_path)
-    
-    for file_name in test_files:
-        src_path = os.path.join(extract_dir, file_name)
-        dst_path = os.path.join(test_dir, file_name)
-        if os.path.exists(src_path):
-            shutil.copy2(src_path, dst_path)
+sys.path.append('../')
+import utils
 
-def read_csv_files(csv_file):
-    """Read file names from a CSV file"""
-    files = []
-    if not os.path.exists(csv_file):
-        print(f"Warning: {csv_file} not found!")
-        return files
-    
-    with open(csv_file, 'r') as f:
-        csv_reader = csv.reader(f)
-        for row in csv_reader:
-            if row:  # Check if row is not empty
-                files.append(row[0])  # Assume first column contains file names
-    
-    return files
+# Constants
+VALIDATION_PERCENTAGE = 0.1
+RANDOM_SEED = 42
 
-def create_validation_split(train_dir, val_dir):
-    """Create a validation set by moving 10% of training data"""
-    # Set a consistent seed for reproducibility
-    random.seed(42)
+
+def untar_file(fn: str) -> bool:
+    """
+    Extract a tar file to a proper directory.
     
-    # Get all files in train directory
+    Args:
+        fn: Path to the tar file
+        
+    Returns:
+        bool: True if extraction succeeded, False otherwise
+    """
+    print(f"Extracting {fn}...")
+    try:
+        # Extract to parent directory instead of the tar file itself
+        extract_dir = os.path.dirname(file_path)
+
+        # Create the extraction directory if it doesn't exist
+        if not os.path.exists(extract_dir):
+            os.makedirs(extract_dir)
+            
+        with tarfile.open(fn, 'r') as tar:
+            tar.extractall(extract_dir)
+        return True
+    except Exception as e:
+        print(f"Error extracting {fn}: {e}")
+        return False
+
+
+def process_tar_file(fn: str, split_ids: Dict[str, List[str]], 
+                    dirs: Dict[str, Dict[str, str]]) -> Dict[str, List[str]]:
+    """
+    Process a single tar file and move its contents to the appropriate split directories.
+    
+    Args:
+        fn: Path to the tar file
+        split_ids: Dictionary mapping split names to lists of video IDs
+        dirs: Directory structure for splits
+        
+    Returns:
+        Dictionary mapping split names to lists of processed file IDs
+    """
+    # Initialize tracking for processed files
+    processed_files = {split: [] for split in split_ids.keys()}
+    
+    # Get file path without extension
+    file_path = os.path.splitext(fn)[0]
+    
+    # Check if it's a tar file that needs extraction
+    if fn.endswith('.tar') and not os.path.isdir(file_path):
+        if not untar_file(fn):
+            return processed_files
+    
+    # Skip if directory doesn't exist
+    if not os.path.isdir(file_path):
+        print(f"Warning: Directory {file_path} does not exist or is not a directory")
+        return processed_files
+        
+    # Get video IDs from the extracted directory
+    try:
+        video_ids = os.listdir(file_path)
+    except Exception as e:
+        print(f"Error listing directory {file_path}: {e}")
+        return processed_files
+    
+    # Process each split
+    for split, ids in split_ids.items():
+        # Filter videos that belong to this split
+        split_vids = [vid for vid in video_ids if vid in ids]
+        
+        # Move each video to its destination
+        for vid in split_vids:
+            source_path = os.path.join(file_path, vid)
+            dest_path = os.path.join(dirs['src'][split], vid)
+            
+            if os.path.exists(source_path):
+                try:
+                    shutil.move(source_path, dest_path)
+                    processed_files[split].append(vid)
+                except Exception as e:
+                    print(f"Error moving {vid}: {e}")
+    
+    return processed_files
+
+
+def create_validation_split(train_dir: str, val_dir: str) -> Tuple[List[str], List[str]]:
+    """
+    Create a validation set by moving files from train to validation directory.
+    
+    Args:
+        train_dir: Path to training directory
+        val_dir: Path to validation directory
+        
+    Returns:
+        Tuple of (remaining_train_files, validation_files)
+    """
+    # Set seed for reproducibility
+    random.seed(RANDOM_SEED)
+    
+    # Get and shuffle training files
     train_files = os.listdir(train_dir)
-    
-    # Shuffle the files
     random.shuffle(train_files)
     
-    # Calculate split index (90/10 split)
-    split_idx = int(len(train_files) * 0.9)
+    # Calculate the split index (90% train, 10% validation)
+    split_idx = int(len(train_files) * (1 - VALIDATION_PERCENTAGE))
     
-    # Select validation files (10% of training data)
+    # Select validation files
     val_files = train_files[split_idx:]
+    remaining_train = train_files[:split_idx]
     
     # Move validation files to validation directory
     for file_name in val_files:
-        src_path = os.path.join(train_dir, file_name)
-        dst_path = os.path.join(val_dir, file_name)
-        shutil.move(src_path, dst_path)
+        source_path = os.path.join(train_dir, file_name)
+        dest_path = os.path.join(val_dir, file_name)
+        shutil.move(source_path, dest_path)
     
-    print(f"Split complete: {len(train_files) - len(val_files)} files in training, {len(val_files)} files in validation")
+    print(f"Split complete: {len(remaining_train)} files in training, {len(val_files)} files in validation")
+    return remaining_train, val_files
 
-def main():
-    # Create necessary directories if they don't exist
-    base_dir = os.getcwd()
-    output_dir = os.path.join(base_dir, 'src')
-    train_dir = os.path.join(output_dir, 'train')
-    val_dir = os.path.join(output_dir, 'val')
-    test_dir = os.path.join(output_dir, 'test')
-    extract_dir = os.path.join(base_dir, 'extracted_files')
+
+def create_split_csv(split_dir: str, original_csv: str, output_csv: str, columns: List[str]) -> None:
+    """
+    Create a new CSV file containing only the files present in the split directory.
     
-    for directory in [output_dir, train_dir, val_dir, test_dir, extract_dir]:
-        os.makedirs(directory, exist_ok=True)
+    Args:
+        split_dir: Directory containing the split files
+        original_csv: Path to the original CSV file
+        output_csv: Path to save the new CSV file
+        columns: Column names for the CSV
+    """
+    # Get files in the split directory
+    try:
+        split_files = set(os.listdir(split_dir))
+    except Exception as e:
+        print(f"Error accessing directory {split_dir}: {e}")
+        return
     
-    # Step 1: Extract all tar files
-    print("Extracting tar files...")
-    extract_all_tars(extract_dir)
-    
-    # Step 2: Organize files into train and test based on CSV files
-    print("Organizing files based on CSV files...")
-    organize_files(extract_dir, train_dir, test_dir)
-    
-    # Step 3: Create validation set from train data
-    print("Creating validation set...")
-    create_validation_split(train_dir, val_dir)
-    
-    print("Processing complete!")
+    # Read and filter the original CSV
+    try:
+        df = pd.read_csv(original_csv, names=columns)
+        filtered_df = df[df['video_id'].isin(split_files)]
+        
+        # Save the filtered CSV
+        filtered_df.to_csv(output_csv, index=False)
+        print(f"Created {output_csv} with {len(filtered_df)} entries")
+    except Exception as e:
+        print(f"Error creating CSV {output_csv}: {e}")
+
 
 if __name__ == "__main__":
-    main()
+    # Set up dataset paths
+    dataset = 'avspeech'
+    data_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', dataset)
+    dataset_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', dataset)
+    
+    # Create directories if needed
+    attempt_makedirs(data_dir)
+
+    # Get dataset configuration
+    dataset_config = utils.DATASET_CONFIGS[dataset]
+    splits = dataset_config['splits']
+    
+    # Add validation split if needed
+    if 'val' not in splits:
+        splits.append('val')
+
+    # Prepare directory structure
+    dirs, splits = utils.prepare_directory_structure(data_dir, splits, video=True)
+
+    # Define CSV configuration
+    split_fn = lambda x: os.path.join(dataset_dir, f'avspeech_{x}.csv')
+    csv_splits = ['train', 'test']
+    split_columns = ['video_id', 'start_segment', 'end_segment', 'x_coord', 'y_coord']
+
+    # Load video IDs for each split
+    split_ids = {}
+    for split in csv_splits:
+        try:
+            df = pd.read_csv(split_fn(split), names=split_columns)
+            split_ids[split] = df['video_id'].tolist()
+        except Exception as e:
+            print(f"Error loading CSV for {split}: {e}")
+            split_ids[split] = []
+    
+    # Get all tar files
+    tar_fns = sorted(glob.glob(os.path.join(dataset_dir, 'clips', '*')))
+    
+    if not tar_fns:
+        print(f"Warning: No tar files found in {os.path.join(dataset_dir, 'clips')}")
+    
+    # Process tar files in parallel
+    print("Starting parallel processing of tar files...")
+    all_processed_files = {split: [] for split in split_ids.keys()}
+    
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        # Submit all tar files for processing
+        future_to_tar = {
+            executor.submit(process_tar_file, fn, split_ids, dirs): fn 
+            for fn in tar_fns
+        }
+        
+        # Collect results as they complete
+        for future in concurrent.futures.as_completed(future_to_tar):
+            try:
+                tar_fn = future_to_tar[future]
+                results = future.result()
+                
+                # Track processed files
+                for split, files in results.items():
+                    all_processed_files[split].extend(files)
+                    
+                print(f"Processed {tar_fn}: {sum(len(files) for files in results.values())} files")
+            except Exception as e:
+                print(f"Error processing {future_to_tar[future]}: {e}")
+    
+    print("Parallel processing complete.")
+    
+    # Create validation split
+    train_dir = dirs['src']['train']
+    val_dir = dirs['src']['val']
+    
+    print("Creating validation split...")
+    if os.path.exists(train_dir) and os.path.exists(val_dir) and os.listdir(train_dir):
+        remaining_train, validation_files = create_validation_split(train_dir, val_dir)
+    else:
+        if not os.path.exists(train_dir):
+            print(f"Training directory {train_dir} not found")
+        elif not os.path.exists(val_dir):
+            print(f"Validation directory {val_dir} not found")
+        elif not os.listdir(train_dir):
+            print(f"Training directory {train_dir} is empty")
+        remaining_train, validation_files = [], []
+    
+    # Create new CSV files for each split
+    print("Creating new CSV files for each split...")
+    
+    # Create train CSV
+    create_split_csv(
+        train_dir, 
+        split_fn('train'), 
+        os.path.join(dataset_dir, 'avspeech_train_new.csv'), 
+        split_columns
+    )
+    
+    # Create validation CSV
+    if validation_files:
+        try:
+            train_df = pd.read_csv(split_fn('train'), names=split_columns)
+            val_df = train_df[train_df['video_id'].isin(validation_files)]
+            val_csv_path = os.path.join(dataset_dir, 'avspeech_val.csv')
+            val_df.to_csv(val_csv_path, index=False)
+            print(f"Created validation CSV at {val_csv_path} with {len(val_df)} entries")
+        except Exception as e:
+            print(f"Error creating validation CSV: {e}")
+    
+    # Create test CSV
+    create_split_csv(
+        dirs['src']['test'], 
+        split_fn('test'), 
+        os.path.join(dataset_dir, 'avspeech_test_new.csv'), 
+        split_columns
+    )
+    
+    print("Processing complete!")

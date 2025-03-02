@@ -18,25 +18,23 @@ TIME = '5-00:00:00'
 N_NODES = 1
 N_TASKS_PER_NODE = 1
 N_TASKS = 1
-CPUS_PER_TASK = 8
-MEM_PER_CPU = '8G'
+CPUS_PER_TASK = 31
+MEM_PER_CPU = '4G'
 GPU_INFO = ''
 
-TIME = '2-12:00:00'
-CPUS_PER_TASK = 8
-MEM_PER_CPU = '8G'
-PARTITION = 'v100_preemptable'
-GPU_INFO = '--gres=gpu:1'
+# TIME = '2-12:00:00'
+# CPUS_PER_TASK = 16
+# MEM_PER_CPU = '8G'
+# PARTITION = 'v100_preemptable'
+# GPU_INFO = '--gres=gpu:1'
+
 NODE_LIST = ''#--nodelist=a03,a04'
-EXCLUDE = 'p04'
+EXCLUDE = ''
 ACCOUNT = 'dbic'
 
 if __name__ == "__main__":
 
   DATASETS = ['voxceleb2'] #'lrs3'
-
-  # Number of subdatasets for efficient processing
-  N_SHARDS = 5 # default is 1 shard
 
   logs_dir = os.path.join(BASE_DIR, 'derivatives/logs/modeling/')
   dsq_dir =  os.path.join(BASE_DIR, 'code/submit_scripts/modeling/dsq')
@@ -58,20 +56,27 @@ if __name__ == "__main__":
 
     for split in dataset_config['splits']:
 
-      if split != 'train':
-        continue
+      # Number of subdatasets for efficient processing
+      if split == 'train':
+          N_SHARDS = 5
+          # continue
+      else:
+          N_SHARDS = 1
+
+      # if split != 'train':
+      #   continue
 
       for shard in range(N_SHARDS):
 
-          if shard <= 1:
-            continue
+          # if shard != 4:
+          #   continue
             
           print(f'Making job for: {dataset} {split}, {shard+1}/{N_SHARDS} shards', flush=True)
 
           cmd = [
             f"{DSQ_MODULES.replace('dark_matter', 'prosody')} ",
-            f"python extract_dataset_audio.py --dataset {dataset} --output_dir {output_dir} --split {split} --num_jobs {CPUS_PER_TASK} --num_shards {N_SHARDS} --current_shard {shard}; ", 
-            f"python transcribe_audio.py --dataset {dataset} --output_dir {output_dir} --split {split} --batch_size 64 --num_shards {N_SHARDS} --current_shard {shard}; ", 
+            # f"python extract_dataset_audio.py --dataset {dataset} --output_dir {output_dir} --split {split} --num_jobs {CPUS_PER_TASK} --num_shards {N_SHARDS} --current_shard {shard}; ", 
+            # f"python transcribe_audio.py --dataset {dataset} --output_dir {output_dir} --split {split} --batch_size 64 --num_shards {N_SHARDS} --current_shard {shard}; ", 
             f"python prepare_corpus.py --dataset {dataset} --output_dir {output_dir} --split {split} --num_jobs {CPUS_PER_TASK} --num_shards {N_SHARDS} --current_shard {shard} ", 
           ]
 

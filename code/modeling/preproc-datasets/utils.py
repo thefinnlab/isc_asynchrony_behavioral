@@ -1,5 +1,6 @@
 # utils.py
 import os
+import json
 import subprocess
 import librosa
 import soundfile as sf
@@ -75,6 +76,18 @@ DATASET_CONFIGS = {
 for dataset in ['lrs3', 'avspeech', 'voxceleb2']:
     DATASET_CONFIGS[dataset] = {'splits': ['train', 'val', 'test']}
 
+DATASET_TYPES = {
+    'audio': {
+        'text_model': 'gpt2',
+        'audio_model': 'wav2vec2',
+    },
+    'video': {
+        'text_model': 'gpt2',
+        'audio_model': 'wav2vec2',
+        'video_model': 'data2vec',
+    }
+}
+
 def prepare_directory_structure(base_dir, splits, video=False):
     """
     Create necessary directories for processing if they don't exist
@@ -90,7 +103,7 @@ def prepare_directory_structure(base_dir, splits, video=False):
     # Normalize split names (replace dots with hyphens)
     normalized_splits = [split.replace('.', '-') for split in splits]
 
-    dir_names = ['audio', 'transcripts', 'corpus', 'textgrids', 'aligned', 'prosody']
+    dir_names = ['src', 'audio', 'transcripts', 'corpus', 'textgrids', 'aligned', 'prosody']
 
     if video:
         dir_names.append('video')
@@ -380,7 +393,7 @@ def load_audio(file_path):
     
     return waveform.numpy(), sample_rate
 
-def extract_media_segment(media_data, rate, onset, offset, ratios=None, time_axis=0):
+def extract_media_segment(media_data, rate, onset, offset, ratios=None, end_tolerance=None, time_axis=0):
     """
     Extract a segment of media data between onset and offset, divided into parts based on the specified ratios.
     Works universally for any n-dimensional array where one axis represents time.
@@ -407,6 +420,21 @@ def extract_media_segment(media_data, rate, onset, offset, ratios=None, time_axi
     # Convert onset and offset to indices
     start_idx = int(onset * rate)
     end_idx = int(offset * rate)
+
+    media_length = media_data.shape[time_axis]
+
+    # There are more indices than the length of the media
+    if end_idx >= media_length:
+        # How many seconds we're over by 
+        over_by = offset - (media_length/rate)
+
+        # We have set an end tolerance (in s) and we're within that tolerance
+        if end_tolerance and overby <= end_tolerance:
+            print (f'Passed tolerance check: time {offset:.2f}/{media_length/rate:.2f}s // over {over_by:.2f}', flush=True)
+            end_idx = media_length
+        else:
+            print (f'Failed tolerance check: time {offset:.2f}/{media_length/rate:.2f}s // over {over_by:.2f}', flush=True)
+            return None
     
     # Create array of indices for the time axis
     time_indices = np.arange(start_idx, end_idx)

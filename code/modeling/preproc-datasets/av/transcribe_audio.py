@@ -40,6 +40,8 @@ def save_transcript(fn, result, audio_dir, transcript_dir):
     
     if transcript:
         utils.save_transcript(transcript, transcript_path)
+    else:
+        print (f'No successful transcription: {fn}')
 
 def transcribe_batch(audio_dir, transcript_dir, batch, pipe):
 

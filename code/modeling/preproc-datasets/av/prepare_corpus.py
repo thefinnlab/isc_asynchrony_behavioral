@@ -13,6 +13,9 @@ sys.path.append('../')
 import utils
 
 def process_corpus_file(dirs, split, audio_path):
+    '''
+    audio_path is the path to the existing audio file
+    '''
 
     audio_dir = os.path.join(dirs['audio'], split)
     transcript_dir = os.path.join(dirs['transcripts'], split)
@@ -20,9 +23,7 @@ def process_corpus_file(dirs, split, audio_path):
 
     try:
         # Determine relative path
-        rel_path = os.path.relpath(audio_path, audio_dir)
-        base_name = os.path.splitext(rel_path)[0]
-        
+        base_name = os.path.splitext(os.path.basename(audio_path))[0]
         transcript_path = os.path.join(transcript_dir, base_name + '.txt')
 
         # Skip if transcript doesn't exist
@@ -44,7 +45,7 @@ def process_corpus_file(dirs, split, audio_path):
     except Exception as e:
         return False, audio_path, str(e)
 
-def prepare_corpus(dirs, split, num_jobs=None, num_shards=1, current_shard=0):
+def prepare_corpus(dirs, split, num_jobs=None, num_shards=1, current_shard=0, force=False):
     """
     Prepare corpus directory with paired .wav and .txt files for MFA
     
@@ -86,10 +87,10 @@ def prepare_corpus(dirs, split, num_jobs=None, num_shards=1, current_shard=0):
     
     for audio_path in audio_files:
         rel_path = os.path.relpath(audio_path, audio_dir)
-        audio_path = os.path.join(corpus_dir, os.path.splitext(rel_path)[0] + '.wav')
-        transcript_path = os.path.join(corpus_dir, os.path.splitext(rel_path)[0] + '.txt')
+        corpus_audio_path = os.path.join(corpus_dir, os.path.splitext(rel_path)[0] + '.wav')
+        corpus_transcript_path = os.path.join(corpus_dir, os.path.splitext(rel_path)[0] + '.txt')
 
-        if os.path.exists(audio_path) and os.path.exists(transcript_path) and not force:
+        if os.path.exists(corpus_audio_path) and os.path.exists(corpus_transcript_path) and not force:
             existing_count += 1
         else:
             to_process.append(audio_path)
@@ -174,7 +175,7 @@ def main():
 
         #Prepare corpus
         print(f"\nPreparing corpus for {split} split...", flush=True)
-        prepare_corpus(dirs, split, num_jobs=args.num_jobs, num_shards=args.num_shards, current_shard=args.current_shard)
+        prepare_corpus(dirs, split, num_jobs=args.num_jobs, num_shards=args.num_shards, current_shard=args.current_shard, force=args.overwrite)
 
     print("\nProcessing complete!", flush=True)
 
