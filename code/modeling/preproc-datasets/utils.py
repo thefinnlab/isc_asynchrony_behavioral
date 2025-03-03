@@ -16,6 +16,8 @@ import torchaudio
 from torch.nn import functional as F
 from praatio import textgrid
 
+from transformers import AutoFeatureExtractor, Wav2Vec2ForSequenceClassification
+
 N_FILES = 3
 
 DATASET_CONFIGS = {
@@ -88,7 +90,7 @@ DATASET_TYPES = {
     }
 }
 
-def prepare_directory_structure(base_dir, splits, video=False):
+def prepare_directory_structure(base_dir, splits, dir_names=None, video=False):
     """
     Create necessary directories for processing if they don't exist
     
@@ -103,9 +105,10 @@ def prepare_directory_structure(base_dir, splits, video=False):
     # Normalize split names (replace dots with hyphens)
     normalized_splits = [split.replace('.', '-') for split in splits]
 
-    dir_names = ['src', 'audio', 'transcripts', 'corpus', 'textgrids', 'aligned', 'prosody']
+    if dir_names is None:
+        dir_names = ['src', 'audio', 'transcripts', 'corpus', 'textgrids', 'aligned', 'prosody']
 
-    if video:
+    if video and 'video' not in dir_names:
         dir_names.append('video')
 
     # Define directory structure
@@ -429,7 +432,7 @@ def extract_media_segment(media_data, rate, onset, offset, ratios=None, end_tole
         over_by = offset - (media_length/rate)
 
         # We have set an end tolerance (in s) and we're within that tolerance
-        if end_tolerance and overby <= end_tolerance:
+        if end_tolerance and over_by <= end_tolerance:
             print (f'Passed tolerance check: time {offset:.2f}/{media_length/rate:.2f}s // over {over_by:.2f}', flush=True)
             end_idx = media_length
         else:
@@ -515,3 +518,42 @@ def pool_embeddings(
         pooled = F.normalize(pooled, p=2, dim=-1)
         
     return pooled
+
+######################################################
+######### Language classification functions ##########
+######################################################
+
+def load_language_classifier(model_name="facebook/mms-lid-256"):
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    processor = AutoFeatureExtractor.from_pretrained(model_name)
+    model = Wav2Vec2ForSequenceClassification.from_pretrained(model_name).to(device)
+
+    return processor, model
+
+def classify_language(batch, processor, model, audio_sr=16000, return_probs=False):
+
+    # Find current device of the model
+    device = model.device
+
+    # Takes a set of file names and prepares to pass them to the model
+    inputs = processor(batch, sampling_rate=audio_sr, padding=True, return_tensors="pt")
+
+    # Map to the device
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+
+    with torch.no_grad():
+        outputs = model(**inputs).logits
+
+    # Find highest probability language
+    lang_ids = torch.argmax(outputs, dim=-1)
+
+    # Convert the language id to a label
+    detected_langs = [model.config.id2label[lang_id.item()] for lang_id in lang_ids]
+
+    if return_probs:
+        probs, _ = torch.softmax(outputs, dim=-1).max(-1)
+        return detected_langs, probs
+    else:
+        return detected_langs

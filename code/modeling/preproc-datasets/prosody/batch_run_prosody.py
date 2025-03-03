@@ -24,7 +24,7 @@ GPU_INFO = ''
 
 if __name__ == "__main__":
 
-  DATASETS = ['lrs3'] #, 'voxceleb2']
+  DATASETS = ['voxceleb2'] #, 'voxceleb2']
 
   logs_dir = os.path.join(BASE_DIR, 'derivatives/logs/modeling/')
   dsq_dir =  os.path.join(BASE_DIR, 'code/submit_scripts/modeling/dsq')

@@ -72,18 +72,18 @@ if __name__ == "__main__":
             else:
                 N_SHARDS = 1
 
-            # if split != 'train':
-            #     continue
+            if split != 'train':
+                continue
             
             for shard in range(N_SHARDS):
 
-                # if counter != 1:
+                # if counter == 0:
                 #     counter += 1
                 #     continue
 
                 counter += 1
-                # if shard <= 1:
-                #   continue
+                if shard not in [3,4]:
+                  continue
 
                 print(f'Making job for: {dataset} {split}, {shard+1}/{N_SHARDS} shards', flush=True)
 

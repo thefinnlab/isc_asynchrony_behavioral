@@ -22,12 +22,11 @@ CPUS_PER_TASK = 31
 MEM_PER_CPU = '4G'
 GPU_INFO = ''
 
-# TIME = '2-12:00:00'
-# CPUS_PER_TASK = 16
-# MEM_PER_CPU = '8G'
-# PARTITION = 'v100_preemptable'
-# GPU_INFO = '--gres=gpu:1'
-
+TIME = '2-12:00:00'
+CPUS_PER_TASK = 16
+MEM_PER_CPU = '8G'
+PARTITION = 'v100_preemptable'
+GPU_INFO = '--gres=gpu:1'
 NODE_LIST = ''#--nodelist=a03,a04'
 EXCLUDE = ''
 ACCOUNT = 'dbic'
@@ -51,10 +50,12 @@ if __name__ == "__main__":
   for dataset in DATASETS:
 
     dataset_config = utils.DATASET_CONFIGS[dataset]
+    splits = dataset_config['splits']
+    splits = splits[::-1]
 
     output_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', dataset)
 
-    for split in dataset_config['splits']:
+    for split in splits:
 
       # Number of subdatasets for efficient processing
       if split == 'train':
@@ -75,8 +76,8 @@ if __name__ == "__main__":
 
           cmd = [
             f"{DSQ_MODULES.replace('dark_matter', 'prosody')} ",
-            # f"python extract_dataset_audio.py --dataset {dataset} --output_dir {output_dir} --split {split} --num_jobs {CPUS_PER_TASK} --num_shards {N_SHARDS} --current_shard {shard}; ", 
-            # f"python transcribe_audio.py --dataset {dataset} --output_dir {output_dir} --split {split} --batch_size 64 --num_shards {N_SHARDS} --current_shard {shard}; ", 
+            f"python extract_dataset_audio.py --dataset {dataset} --output_dir {output_dir} --split {split} --num_jobs {CPUS_PER_TASK} --num_shards {N_SHARDS} --current_shard {shard}; ", 
+            f"python transcribe_audio.py --dataset {dataset} --output_dir {output_dir} --split {split} --batch_size 64 --num_shards {N_SHARDS} --current_shard {shard}; ", 
             f"python prepare_corpus.py --dataset {dataset} --output_dir {output_dir} --split {split} --num_jobs {CPUS_PER_TASK} --num_shards {N_SHARDS} --current_shard {shard} ", 
           ]
 

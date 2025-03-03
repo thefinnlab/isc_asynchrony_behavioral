@@ -166,7 +166,11 @@ def main():
     output_dir = args.output_dir or f"{args.dataset}_processing"
 
     # Prepare directory structure --> only this script is needed for video
-    dirs, splits = utils.prepare_directory_structure(output_dir, splits, video=True)
+    dirs, splits = utils.prepare_directory_structure(
+        output_dir, 
+        splits, 
+        dir_names=['audio','transcripts', 'corpus'],
+    )
 
     # Process each split
     for split in splits:

@@ -109,7 +109,12 @@ def main():
     output_dir = args.output_dir or f"{args.dataset}_processing"
 
     # Prepare directory structure
-    dirs, splits = utils.prepare_directory_structure(output_dir, splits, video=video)
+    dirs, splits = utils.prepare_directory_structure(
+        output_dir, 
+        splits, 
+        dir_names=[ 'aligned', 'corpus', 'textgrids'],
+        video=video
+    )
     
     # Process each split
     for split in splits:

@@ -308,7 +308,7 @@ def process_audio(file_data, models, text_tokens, end_tolerance=1):
             offset = word["end"], 
             ratios = ratios, 
             time_axis = 1, 
-            end_tolerance = end_tolerance if i == len(words) else None
+            end_tolerance = end_tolerance if (i + 1) == len(words) else None
         )
 
         segments.extend(word_segments)
@@ -329,7 +329,7 @@ def process_audio(file_data, models, text_tokens, end_tolerance=1):
     return audio_features.cpu()
 
 @torch.no_grad()
-def process_video(file_data, models, text_tokens):
+def process_video(file_data, models, text_tokens, end_tolerance=1):
     """Process video data and extract embeddings at word timepoints."""
     
     words, video_data, fps = [file_data.get(item) for item in ['words', 'video_data', 'video_fps']]
@@ -366,7 +366,7 @@ def process_video(file_data, models, text_tokens):
             onset = word["start"], 
             offset = word["end"], 
             ratios = ratios, 
-            end_tolerance = end_tolerance if i == len(words) else None
+            end_tolerance = end_tolerance if (i + 1) == len(words) else None
         )
 
         segments.extend(word_segments)
@@ -393,18 +393,18 @@ if __name__ == "__main__":
     parser.add_argument('--video_model', type=str, default=None, choices=list(VIDEO_MODELS.keys()) + [None], 
                         help='Video model to use, or None to skip video processing')
 
+    ### Dataset filtering setup
+    parser.add_argument('--min_words', type=int, default=4, help='Minimum number of words per sample')
+    parser.add_argument('--max_words', type=int, default=128, help='Maximum number of words per sample')
+
     ### Sharding for more efficient processing
     parser.add_argument('--num_shards', type=int, default=1,
                         help='Number of shards to divide the dataset into')
     parser.add_argument('--current_shard', type=int, default=0,
                         help='Current shard to process (0-based indexing)')
-
-    ### Dataset filtering setup
-    parser.add_argument('--min_words', type=int, default=4, help='Minimum number of words per sample')
-    parser.add_argument('--max_words', type=int, default=128, help='Maximum number of words per sample')
-
-    ### Video
-    parser.add_argument('--video', type=int, default=0, help="Whether this is an AV dataset")
+    ### Multiprocessing
+    parser.add_argument('--n_jobs', type=int, default=1,
+                        help='Number of CPU cores to use for multiprocessing (only used when GPU is not available)')=
     parser.add_argument('--overwrite', type=int, default=0,
                         help='Force extraction even if files exist')
 
@@ -419,7 +419,11 @@ if __name__ == "__main__":
     output_dir = args.output_dir or f"{args.dataset}_processing"
 
     # Prepare directory structure --> only this script is needed for video
-    dirs, splits = utils.prepare_directory_structure(output_dir, splits, video=args.video)
+    dirs, splits = utils.prepare_directory_structure(
+        output_dir, 
+        splits, 
+        dir_names=['audio', 'textgrids', 'video', 'prosody'],
+    )
 
     # Setup cache directories
     model_combo = f"{args.text_model}"
