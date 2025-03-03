@@ -402,9 +402,7 @@ if __name__ == "__main__":
                         help='Number of shards to divide the dataset into')
     parser.add_argument('--current_shard', type=int, default=0,
                         help='Current shard to process (0-based indexing)')
-    ### Multiprocessing
-    parser.add_argument('--n_jobs', type=int, default=1,
-                        help='Number of CPU cores to use for multiprocessing (only used when GPU is not available)')=
+    
     parser.add_argument('--overwrite', type=int, default=0,
                         help='Force extraction even if files exist')
 
@@ -418,11 +416,16 @@ if __name__ == "__main__":
     # Determine output directory
     output_dir = args.output_dir or f"{args.dataset}_processing"
 
+    if args.dataset in ['lrs3', 'avspeech', 'voxceleb2']:
+        dir_names = ['audio', 'textgrids', 'video', 'prosody']
+    else:
+        dir_names = ['audio', 'textgrids', 'prosody']
+
     # Prepare directory structure --> only this script is needed for video
     dirs, splits = utils.prepare_directory_structure(
         output_dir, 
         splits, 
-        dir_names=['audio', 'textgrids', 'video', 'prosody'],
+        dir_names=dir_names,
     )
 
     # Setup cache directories
