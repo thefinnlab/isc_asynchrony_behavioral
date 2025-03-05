@@ -15,7 +15,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 from tqdm import tqdm
 import shutil
 
-sys.path.append('../')
+sys.path.append('../utils/')
 
 import utils
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --output /dartfs/rc/lab/F/FinnLab/tommy/isc_asynchrony_behavior/derivatives/logs/modeling/dsq_preproc_av_dataset/dsq_preproc_av_dataset-%A_%1a-%N.txt
-#SBATCH --array 0-6
+#SBATCH --array 0
 #SBATCH --job-name dsq-dsq_preproc_av_dataset
 #SBATCH --partition=v100_preemptable --time=2-12:00:00 --nodes=1 --gres=gpu:1 --account=dbic --ntasks-per-node=1 --ntasks=1 --cpus-per-task=16 --mem-per-cpu=8G --exclude=
 

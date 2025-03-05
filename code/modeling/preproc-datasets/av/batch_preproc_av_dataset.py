@@ -1,4 +1,5 @@
-import sys, os
+import os
+import sys
 import argparse
 import subprocess
 from pathlib import Path
@@ -9,7 +10,7 @@ sys.path.append('../../../utils/')
 from config import *
 from dataset_utils import attempt_makedirs
 
-sys.path.append('../')
+sys.path.append('../utils/')
 
 import utils 
 
@@ -33,7 +34,7 @@ ACCOUNT = 'dbic'
 
 if __name__ == "__main__":
 
-  DATASETS = ['voxceleb2'] #'lrs3'
+  dataset = 'lrs3'
 
   logs_dir = os.path.join(BASE_DIR, 'derivatives/logs/modeling/')
   dsq_dir =  os.path.join(BASE_DIR, 'code/submit_scripts/modeling/dsq')
@@ -47,43 +48,45 @@ if __name__ == "__main__":
   script_fn = os.path.join(os.getcwd(), 'preproc_av_dataset.py')
   job_num = 0
 
-  for dataset in DATASETS:
 
-    dataset_config = utils.DATASET_CONFIGS[dataset]
-    splits = dataset_config['splits']
-    splits = splits[::-1]
+  dataset_config = utils.DATASET_CONFIGS[dataset]
+  splits = dataset_config['splits']
+  splits = splits[::-1]
 
-    output_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', dataset)
+  output_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', dataset)
 
-    for split in splits:
+  for split in splits:
 
-      # Number of subdatasets for efficient processing
-      if split == 'train':
-          N_SHARDS = 5
-          # continue
-      else:
-          N_SHARDS = 1
+    # Number of subdatasets for efficient processing
+    if split == 'train':
+        N_SHARDS = 5
+        # continue
+    else:
+        N_SHARDS = 1
 
-      # if split != 'train':
-      #   continue
+    # if split != 'train':
+    #   continue
 
-      for shard in range(N_SHARDS):
+    for shard in range(N_SHARDS):
 
-          # if shard != 4:
-          #   continue
-            
-          print(f'Making job for: {dataset} {split}, {shard+1}/{N_SHARDS} shards', flush=True)
+        # if shard != 4:
+        #   continue
+          
+        print(f'Making job for: {dataset} {split}, {shard+1}/{N_SHARDS} shards', flush=True)
 
-          cmd = [
-            f"{DSQ_MODULES.replace('dark_matter', 'prosody')} ",
-            f"python extract_dataset_audio.py --dataset {dataset} --output_dir {output_dir} --split {split} --num_jobs {CPUS_PER_TASK} --num_shards {N_SHARDS} --current_shard {shard}; ", 
-            f"python transcribe_audio.py --dataset {dataset} --output_dir {output_dir} --split {split} --batch_size 64 --num_shards {N_SHARDS} --current_shard {shard}; ", 
-            f"python prepare_corpus.py --dataset {dataset} --output_dir {output_dir} --split {split} --num_jobs {CPUS_PER_TASK} --num_shards {N_SHARDS} --current_shard {shard} ", 
-          ]
+        cmd = [
+          f"{DSQ_MODULES.replace('dark_matter', 'prosody')} ",
+          f"python normalize_videos.py --dataset {dataset} --output_dir {output_dir} --split {split} --num_shards {N_SHARDS} --current_shard {shard}; ", 
+          # f"python extract_dataset_audio.py --dataset {dataset} --output_dir {output_dir} --split {split} --num_shards {N_SHARDS} --current_shard {shard}; ", 
+          # f"python transcribe_audio.py --dataset {dataset} --output_dir {output_dir} --split {split} --batch_size 64 --num_shards {N_SHARDS} --current_shard {shard}; ", 
+          # f"python prepare_corpus.py --dataset {dataset} --output_dir {output_dir} --split {split} --num_shards {N_SHARDS} --current_shard {shard} ", 
+        ]
 
-          cmd = "".join(cmd)
-          all_cmds.append(cmd)
-          job_num += 1
+        cmd = "".join(cmd)
+        all_cmds.append(cmd)
+        job_num += 1
+        break
+    break
 
     # break
 

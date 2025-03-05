@@ -9,7 +9,7 @@ sys.path.append('../../../utils/')
 from config import *
 from dataset_utils import attempt_makedirs
 
-sys.path.append('../')
+sys.path.append('../utils/')
 
 import utils 
 
@@ -22,11 +22,11 @@ CPUS_PER_TASK = 4
 MEM_PER_CPU = '8G'
 GPU_INFO = ''
 
-# TIME = '2-12:00:00'
-# CPUS_PER_TASK = 8
-# MEM_PER_CPU = '8G'
-# PARTITION = 'v100_preemptable'
-# GPU_INFO = '--gres=gpu:1'
+TIME = '2-12:00:00'
+CPUS_PER_TASK = 8
+MEM_PER_CPU = '8G'
+PARTITION = 'v100_preemptable'
+GPU_INFO = '--gres=gpu:1'
 NODE_LIST = ''#--nodelist=a03,a04'
 EXCLUDE = ''
 ACCOUNT = 'dbic'
@@ -34,7 +34,8 @@ ACCOUNT = 'dbic'
 if __name__ == "__main__":
 
     # DATASETS = ['voxceleb2'] #'lrs3'
-    dataset = 'voxceleb2'
+    dataset = 'lrs3'
+    video_model = 'resnet18'
 
     logs_dir = os.path.join(BASE_DIR, 'derivatives/logs/modeling/')
     dsq_dir =  os.path.join(BASE_DIR, 'code/submit_scripts/modeling/dsq')
@@ -53,37 +54,38 @@ if __name__ == "__main__":
     # for dataset in DATASETS:
 
     dataset_config = utils.DATASET_CONFIGS[dataset]
+    splits = dataset_config['splits']
     output_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', dataset)
 
     if dataset in ['lrs3', 'voxceleb2', 'avspeech']:
         models = utils.DATASET_TYPES['video']
+        models['video_model'] = video_model
     else:
         models = utils.DATASET_TYPES['audio']
 
     model_types = ' '.join([f"--{k} {v} " for k, v in models.items()])
 
-    for split in dataset_config['splits']:
+    for split in splits[::-1]:
 
         # Number of subdatasets for efficient processing
         if split == 'train':
-            N_SHARDS = 10000
-            # continue
-        elif split == 'val':
-            N_SHARDS = 1000
+            N_SHARDS = 25
         else:
-            N_SHARDS = 100
+            N_SHARDS = 1
+        # else:
+        #     N_SHARDS = 1
 
         if split == 'test':
             continue
         
         for shard in range(N_SHARDS):
 
-            # if counter == 0:
+            # if counter < 6:
             #     counter += 1
             #     continue
 
             # counter += 1
-            # if shard not in [3,4]:
+            # if shard not in [3]:
             #   continue
 
             print(f'Making job for: {dataset} {split}, {shard+1}/{N_SHARDS} shards', flush=True)
@@ -97,19 +99,21 @@ if __name__ == "__main__":
             cmd = "".join(cmd)
             all_cmds.append(cmd)
             job_num += 1
+        #     break
+        # break
     # break
 
     if not all_cmds:
         print(f'No matching audio and text files found', flush=True)
         sys.exit(0)
 
-    joblist_fn = os.path.join(joblists_dir, f'dsq_{dataset}_extract_dataset_features.txt')
+    joblist_fn = os.path.join(joblists_dir, f'{dataset}_extract_dataset_features.txt')
 
     with open(joblist_fn, 'w') as f:
         for cmd in all_cmds:
             f.write(f"{cmd}\n")
 
-    dsq_base_string = f'{dataset}_extract_dataset_features'
+    dsq_base_string = f'dsq_{dataset}_extract_dataset_features'
     dsq_batch_fn = os.path.join(dsq_dir, dsq_base_string)
     dsq_out_dir = os.path.join(logs_dir, dsq_base_string)
     array_fmt_width = len(str(job_num))

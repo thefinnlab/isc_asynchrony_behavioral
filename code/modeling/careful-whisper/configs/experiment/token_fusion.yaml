@@ -1,0 +1,54 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: audio_text_dataset.yaml
+  - override /model: token_fusion.yaml
+  - override /callbacks: token_fusion.yaml
+  - override /logger: wandb.yaml
+  - override /trainer: gpu.yaml
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["token_fusion", "wav2vec2", "gpt2"]
+
+# seed: 12345
+seed: 42
+
+logger:
+  wandb:
+    project: None
+    # entity: prosody
+    tags: ["token_fusion", "wav2vec2", "gpt2"]
+    name: "run-${now:%Y-%m-%d_%H-%M-%S}-token_fusion"
+    group: "token_fusion" # Add this line to override the 'group' parameter
+    log_model: False # Add this line to override the 'log_model' parameter
+
+trainer:
+  min_epochs: 1
+  max_epochs: 15
+  gradient_clip_val: 1
+  accumulate_grad_batches: 4
+
+model:
+  optimizer:
+    lr: 0.000025 #5e-5
+    weight_decay: 0.1
+  scheduler:
+    patience: 2
+
+callbacks:
+  early_stopping:
+    patience: 3
+
+data:
+  num_workers: 8
+  batch_size: 32
+  dataset_name: None
+  data_dir: ${paths.data_dir}/
+  text_model_name: gpt2
+  audio_model_name: wav2vec2
+  video_model_name: data2vec

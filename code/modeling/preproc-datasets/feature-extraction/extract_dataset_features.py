@@ -9,17 +9,18 @@ import math
 import json
 import numpy as np
 import torch
+import torch.nn.functional as F
 from tqdm import tqdm
 from torchvision.io import read_video
 import shutil
 from transformers import AutoImageProcessor, AutoProcessor, AutoModel, AutoTokenizer
 
-sys.path.append('../')
+sys.path.append('../utils/')
 
 import utils
 
 LANGUAGE_MODELS = {
-    'gpt2': 'gpt2'
+    'gpt2': "openai-community/gpt2"
 }
 
 # Model repositories
@@ -29,8 +30,10 @@ AUDIO_MODELS = {
 }
 
 VIDEO_MODELS = {
-    'video_swin': "microsoft/videoswin-base-patch244-window877-kinetics400-1k",
-    'video_clip': "openai/clip-vit-base-patch32",
+    # 'video_swin': "microsoft/videoswin-base-patch244-window877-kinetics400-1k",
+    # 'video_clip': "openai/clip-vit-base-patch32",
+    # 'videomae': None,
+    'resnet18': "microsoft/resnet-18",
     'data2vec': "facebook/data2vec-vision-large",
 }
 
@@ -47,12 +50,14 @@ def initialize_models(args):
 
     if args.audio_model:        
         models['audio'] = {
+            'model_name': args.audio_model,
             'processor': AutoProcessor.from_pretrained(AUDIO_MODELS[args.audio_model]),
             'model': AutoModel.from_pretrained(AUDIO_MODELS[args.audio_model]).to(device)
         }
 
     if args.video_model:
         models['video'] = {
+            'model_name': args.video_model,
             'processor': AutoImageProcessor.from_pretrained(VIDEO_MODELS[args.video_model]),
             'model': AutoModel.from_pretrained(VIDEO_MODELS[args.video_model]).to(device)
         }
@@ -202,16 +207,19 @@ def process_single_file(args, dirs, models, file_name):
     ##########################################
 
     # Text information
-    text_tokens_path = os.path.join(dirs["cache_dir"], f"{file_name}_text-tokens.pt")
-    attention_mask_path = os.path.join(dirs["cache_dir"], f"{file_name}_attention-mask.pt")
+    text_tokens_path = os.path.join(dirs["text_model"], f"{file_name}_text-tokens.pt")
+    attention_mask_path = os.path.join(dirs["text_model"], f"{file_name}_attention-mask.pt")
 
     # Prosody information
-    prominence_path = os.path.join(dirs["cache_dir"], f"{file_name}_prominence.pt")
-    boundary_path = os.path.join(dirs["cache_dir"], f"{file_name}_boundary.pt")
+    prominence_path = os.path.join(dirs["prosody_model"], f"{file_name}_prominence.pt")
+    boundary_path = os.path.join(dirs["prosody_model"], f"{file_name}_boundary.pt")
 
     # Audio/video features
-    audio_features_path = os.path.join(dirs["cache_dir"], f"{file_name}_audio-features.pt")
-    video_features_path = os.path.join(dirs["cache_dir"], f"{file_name}_video-features.pt")
+    if args.audio_model:
+        audio_features_path = os.path.join(dirs["audio_model"], f"{file_name}_audio-features.pt")
+
+    if args.video_model:
+        video_features_path = os.path.join(dirs["video_model"], f"{file_name}_video-features.pt")
 
     ##########################################
     ############## Process text ##############
@@ -223,11 +231,6 @@ def process_single_file(args, dirs, models, file_name):
 
     # Get unique ids and number of tokens
     word_ids, token_counts = np.unique(text_tokens.word_ids(), return_counts=True)
-    
-    # Save token data
-    if args.overwrite or not all(os.path.exists(p) for p in [text_tokens_path, attention_mask_path]):
-        torch.save(text_tokens['input_ids'], text_tokens_path)
-        torch.save(text_tokens['attention_mask'], attention_mask_path)
     
     # Verify token counts match words
     if len(word_ids) != len(file_data['words']):
@@ -243,6 +246,11 @@ def process_single_file(args, dirs, models, file_name):
         'prominence_path': prominence_path,
         'boundary_path': boundary_path
     }
+
+    # Save token data
+    if args.overwrite or not all(os.path.exists(p) for p in [text_tokens_path, attention_mask_path]):
+        torch.save(text_tokens['input_ids'], text_tokens_path)
+        torch.save(text_tokens['attention_mask'], attention_mask_path)
 
     # Process prosody data
     if args.overwrite or not all(os.path.exists(p) for p in [prominence_path, boundary_path]):
@@ -262,6 +270,9 @@ def process_single_file(args, dirs, models, file_name):
         if audio_features is not None:
             torch.save(audio_features, audio_features_path)
             result['audio_features_path'] = audio_features_path
+        else:
+            print (f'No audio features: {str(e)}')
+            return None
     
     # Process video if requested
     if 'video' in models and (args.overwrite or not os.path.exists(video_features_path)):
@@ -274,6 +285,9 @@ def process_single_file(args, dirs, models, file_name):
         if video_features is not None:
             torch.save(video_features, video_features_path)
             result['video_features_path'] = video_features_path
+        else:
+            print (f'No video features: {str(e)}')
+            return None
     
     utils.save_json(temp_json_path, result)
     return temp_json_path
@@ -333,12 +347,12 @@ def process_video(file_data, models, text_tokens, end_tolerance=1):
     """Process video data and extract embeddings at word timepoints."""
     
     words, video_data, fps = [file_data.get(item) for item in ['words', 'video_data', 'video_fps']]
-    processor, model = [models['video'].get(item) for item in ['processor', 'model']]
+    model_name, processor, model = [models['video'].get(item) for item in ['model_name', 'processor', 'model']]
 
     # Get word token ids
     word_ids, token_counts = np.unique(text_tokens.word_ids(), return_counts=True)
 
-    # For videos, we can do this backwards --> embed the whole thing and then extract the frames to pool
+    # Because we're considering videos as images, we can do this thing here
     inputs = processor(video_data, return_tensors="pt")
 
     # Move inputs to the same device as the model
@@ -372,7 +386,20 @@ def process_video(file_data, models, text_tokens, end_tolerance=1):
         segments.extend(word_segments)
 
     # Lastly perform mean pooling over patches (spatial) and average over frames (time)
-    video_features = torch.stack([utils.pool_embeddings(segment).mean(0) for segment in segments])
+    video_features = []
+
+    for segment in segments:
+        if model_name in ['resnet18']:
+            # Pool the last two dimensions (H x W)
+            # CNN = B x D x H x W --> adaptive pool makes B x D x 1 x 1
+            segment_features = F.adaptive_avg_pool2d(segment, output_size=1).mean(0).squeeze()
+        else:
+            # If transformer, we have B x Patch x D
+            segment_features = utils.pool_embeddings(segment).mean(0)
+
+        video_features.append(segment_features)
+
+    video_features = torch.stack(video_features)
 
     return video_features.cpu()
 
@@ -428,17 +455,35 @@ if __name__ == "__main__":
         dir_names=dir_names,
     )
 
-    # Setup cache directories
-    model_combo = f"{args.text_model}"
+    model_cache_dirs = {
+        'prosody_model': 'prosody',
+        'text_model': args.text_model,
+    }
+
+    # Set name of the model combo for the metadata
+    model_combo = args.text_model
 
     if args.audio_model:
-        model_combo += f"-{args.audio_model}"
+        model_cache_dirs['audio_model'] = args.audio_model
+        model_combo += f'-{args.audio_model}'
 
     if args.video_model:
-        model_combo += f"-{args.video_model}"
+        model_cache_dirs['video_model'] = args.video_model
+        model_combo += f'-{args.video_model}'
+
 
     # Create cache for our features and a temp directory for writing progress
-    dirs["cache_dir"] = os.path.join(args.output_dir, 'features', model_combo)
+    dirs["cache_dir"] = os.path.join(args.output_dir, 'features')
+
+    # Where to save metadata info 
+    dirs["metadata_dir"] = os.path.join(dirs["cache_dir"], 'metadata', model_combo)
+
+    for model_type, dir_name in model_cache_dirs.items():
+        model_cache_dir = os.path.join(dirs["cache_dir"], dir_name)
+        os.makedirs(model_cache_dir, exist_ok=True)
+
+        # Add to the directories
+        dirs[model_type] = model_cache_dir
 
     # Initialize models used in the preprocessing 
     models = initialize_models(args)
@@ -449,11 +494,12 @@ if __name__ == "__main__":
         split_dirs = {k: os.path.join(v, split) for k, v in dirs.items()}
 
         # Make the json directories
-        split_dirs["temp_dir"] = os.path.join(split_dirs["cache_dir"], 'temp')
-        split_dirs["errors_dir"] = os.path.join(split_dirs["cache_dir"], 'errors')
+        split_dirs["temp_dir"] = os.path.join(split_dirs["metadata_dir"], 'temp')
+        split_dirs["errors_dir"] = os.path.join(split_dirs["metadata_dir"], 'errors')
 
         # Make directories if they don't exist
-        os.makedirs(split_dirs["temp_dir"], exist_ok=True)
-        os.makedirs(split_dirs["errors_dir"], exist_ok=True)
+        for _, dir_name in split_dirs.items():
+            os.makedirs(dir_name, exist_ok=True)
+        # os.makedirs(split_dirs["errors_dir"], exist_ok=True)
 
         preprocess_data(args, split_dirs, split, models, num_shards=args.num_shards, current_shard=args.current_shard)

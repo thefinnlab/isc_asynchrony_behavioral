@@ -1,0 +1,21 @@
+_target_: src.models.token_fusion_module.TokenFusionModule
+
+# Set config up as GPT2-esque default
+input_dim1: 1024 # Audio feature size
+input_dim2: 1024 # Video feature size
+input_name1: audio_features
+input_name2: video_features
+hidden_dim: 1024
+
+optimizer:
+  _target_: torch.optim.AdamW
+  _partial_: true
+  lr: 0.001
+  weight_decay: 0.0
+  
+scheduler:
+  _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+  _partial_: true
+  mode: min
+  factor: 0.1
+  patience: 2

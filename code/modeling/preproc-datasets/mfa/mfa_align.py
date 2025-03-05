@@ -4,7 +4,7 @@ import argparse
 import subprocess
 from tqdm import tqdm
 
-sys.path.append('../')
+sys.path.append('../utils/')
 
 import utils
 

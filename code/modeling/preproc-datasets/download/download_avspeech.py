@@ -19,7 +19,8 @@ sys.path.append('../../../utils/')
 from config import *
 from dataset_utils import attempt_makedirs
 
-sys.path.append('../')
+sys.path.append('../utils/')
+
 import utils
 
 def untar_file(fn: str) -> bool:

@@ -1,0 +1,16 @@
+_target_: src.data.audio_text_datamodule.AudioTextDataModule
+dataset_name: None
+data_dir: ${paths.data_dir}/
+
+batch_size: 32
+text_model_name: gpt2
+audio_model_name: wav2vec2
+video_model_name: data2vec
+token_fusion_method: null
+token_fusion_weights: null
+preload: True
+
+subset_percentage: null
+
+num_workers: 0
+pin_memory: False

@@ -9,16 +9,16 @@ sys.path.append('../../../utils/')
 from config import *
 from dataset_utils import attempt_makedirs
 
-sys.path.append('../')
+sys.path.append('../utils/')
 
 import utils 
 
-PARTITION = 'preemptable'
+PARTITION = 'standard'
 TIME = '5-00:00:00'
 N_NODES = 1
 N_TASKS_PER_NODE = 1
 N_TASKS = 1
-CPUS_PER_TASK = 4
+CPUS_PER_TASK = 8
 MEM_PER_CPU = '8G'
 GPU_INFO = ''
 
@@ -52,11 +52,7 @@ if __name__ == "__main__":
     model_types = ' '.join([f"--{k} {v} " for k, v in models.items()])
 
     for split in dataset_config['splits']:
-
-        if split != 'test':
-            continue
-
-
+        
         print(f'Making job for: {dataset} {split}', flush=True)
 
         cmd = [

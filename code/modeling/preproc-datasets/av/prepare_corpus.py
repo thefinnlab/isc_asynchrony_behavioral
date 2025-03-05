@@ -8,7 +8,7 @@ import math
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing
 
-sys.path.append('../')
+sys.path.append('../utils/')
 
 import utils
 
