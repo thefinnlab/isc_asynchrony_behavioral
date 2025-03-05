@@ -1,7 +1,7 @@
 code/wavelet_prosody_toolkit/
 code/modeling/quantifying-redundancy/
-code/modeling/joint-clm-prosody/data/
-code/modeling/joint-clm-prosody/logs/
+code/modeling/careful-whisper/data/
+code/modeling/careful-whisper/logs/
 code/modeling/prosody_files.zip
 
 experiments/next-word-prediction/experiment_orders/
