@@ -17,22 +17,18 @@ def process_corpus_file(dirs, split, audio_path):
     audio_path is the path to the existing audio file
     '''
 
-    audio_dir = os.path.join(dirs['audio'], split)
-    transcript_dir = os.path.join(dirs['transcripts'], split)
-    corpus_dir = os.path.join(dirs['corpus'], split)
-
     try:
         # Determine relative path
         base_name = os.path.splitext(os.path.basename(audio_path))[0]
-        transcript_path = os.path.join(transcript_dir, base_name + '.txt')
+        transcript_path = os.path.join(dirs['transcripts'], base_name + '.txt')
 
         # Skip if transcript doesn't exist
         if not os.path.exists(transcript_path):
             return False, transcript_path, "Missing transcript file"
         
         # Define corpus paths
-        corpus_audio_path = os.path.join(corpus_dir, f"{base_name}.wav")
-        corpus_transcript_path = os.path.join(corpus_dir, f"{base_name}.txt")
+        corpus_audio_path = os.path.join(dirs['corpus'], f"{base_name}.wav")
+        corpus_transcript_path = os.path.join(dirs['corpus'], f"{base_name}.txt")
                 
         # Copy files to corpus
         os.makedirs(os.path.dirname(corpus_audio_path), exist_ok=True)
@@ -62,12 +58,8 @@ def prepare_corpus(dirs, split, num_jobs=None, num_shards=1, current_shard=0, fo
         # Use 75% of available cores by default, but at least 1
         num_jobs = max(1, int(multiprocessing.cpu_count() * 0.75))
     
-    audio_dir = os.path.join(dirs['audio'], split)
-    transcript_dir = os.path.join(dirs['transcripts'], split)
-    corpus_dir = os.path.join(dirs['corpus'], split)
-    
     # Get all audio files
-    audio_files = sorted(glob.glob(os.path.join(audio_dir, "*.wav"), recursive=True))
+    audio_files = sorted(glob.glob(os.path.join(dirs['audio'], "*.wav"), recursive=True))
 
     # Apply sharding logic
     if num_shards > 1:
@@ -86,9 +78,9 @@ def prepare_corpus(dirs, split, num_jobs=None, num_shards=1, current_shard=0, fo
     to_process = []
     
     for audio_path in audio_files:
-        rel_path = os.path.relpath(audio_path, audio_dir)
-        corpus_audio_path = os.path.join(corpus_dir, os.path.splitext(rel_path)[0] + '.wav')
-        corpus_transcript_path = os.path.join(corpus_dir, os.path.splitext(rel_path)[0] + '.txt')
+        rel_path = os.path.relpath(audio_path, dirs['audio'])
+        corpus_audio_path = os.path.join(dirs['corpus'], os.path.splitext(rel_path)[0] + '.wav')
+        corpus_transcript_path = os.path.join(dirs['corpus'], os.path.splitext(rel_path)[0] + '.txt')
 
         if os.path.exists(corpus_audio_path) and os.path.exists(corpus_transcript_path) and not force:
             existing_count += 1
@@ -99,7 +91,7 @@ def prepare_corpus(dirs, split, num_jobs=None, num_shards=1, current_shard=0, fo
     
     if to_process_count == 0:
         print(f"All audio files already exist for {split} split. Skipping extraction.", flush=True)
-        return audio_dir
+        return dirs['audio']
     
     print(f"Found {existing_count} existing audio files and {to_process_count} files to process", flush=True)
     print(f"Using {num_jobs} worker processes for parallel extraction", flush=True)
@@ -136,24 +128,26 @@ def prepare_corpus(dirs, split, num_jobs=None, num_shards=1, current_shard=0, fo
         pbar.close()
     
     print(f"Audio extraction complete: {completed} successful, {errors} failed", flush=True)
-    return audio_dir
+    return dirs['audio']
 
 def main():
     parser = argparse.ArgumentParser(description='Process speech datasets to Praat TextGrids')
-    parser.add_argument('-d','--dataset', type=str, choices=['lrs3', 'avspeech', 'voxceleb2'],
-                      required=True, help='Which dataset to process')
+    parser.add_argument('-d','--dataset', type=str, choices=['lrs3', 'avspeech', 'voxceleb2'], required=True, 
+                    help='Which dataset to process')
     parser.add_argument('--output_dir', type=str, default=None,
-                      help='Base directory for output (default: dataset_name_processing)')
+                    help='Base directory for output (default: dataset_name_processing)')
     parser.add_argument('--split', type=str, default=None,
-                  help='Which split to process')
+                    help='Which split to process')
+    parser.add_argument('--lang_id', type=str, default='eng',
+                    help='Language ID ISO-639 code for AVSpeech')
     parser.add_argument('--num_jobs', type=int, default=None,
-                      help='Number of worker processes for parallel extraction (default: 75% of CPU cores)')
+                    help='Number of worker processes for parallel extraction (default: 75% of CPU cores)')
     parser.add_argument('--num_shards', type=int, default=1,
-              help='Number of shards to divide the dataset into')
+                    help='Number of shards to divide the dataset into')
     parser.add_argument('--current_shard', type=int, default=0,
-              help='Current shard to process (0-based indexing)')
+                    help='Current shard to process (0-based indexing)')
     parser.add_argument('--overwrite', type=int, default=0,
-              help='Force corpus copying even if files exist')
+                    help='Force corpus copying even if files exist')
     
     args = parser.parse_args()
 
@@ -177,9 +171,21 @@ def main():
         print(f"\nProcessing {args.dataset} {split} split...", flush=True)
         print(f"\nCurrent shard: {args.current_shard+1}/{args.num_shards}", flush=True)
 
-        #Prepare corpus
+        split_dirs = {k: os.path.join(v, split) for k, v in dirs.items()}
+
         print(f"\nPreparing corpus for {split} split...", flush=True)
-        prepare_corpus(dirs, split, num_jobs=args.num_jobs, num_shards=args.num_shards, current_shard=args.current_shard, force=args.overwrite)
+
+        if args.dataset == 'avspeech':
+            
+            if args.lang_id:
+                lang_dirs = {k: os.path.join(v, args.lang_id) for k, v in split_dirs.items()}
+            else:
+                continue
+
+            prepare_corpus(lang_dirs, split, num_jobs=args.num_jobs, num_shards=args.num_shards, current_shard=args.current_shard, force=args.overwrite)
+        else:
+            #Prepare corpus
+            prepare_corpus(split_dirs, split, num_jobs=args.num_jobs, num_shards=args.num_shards, current_shard=args.current_shard, force=args.overwrite)
 
     print("\nProcessing complete!", flush=True)
 

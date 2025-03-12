@@ -75,7 +75,7 @@ if __name__ == '__main__':
     df_aggregated_results = pd.concat(df_aggregated_results).reset_index(drop=True)
 
     # Calculate phoneme statistics for leakage checks
-    # df_aggregated_results = analysis.get_leakage_stats(df_aggregated_results)
+    df_aggregated_results = analysis.get_leakage_stats(df_aggregated_results, comparison_modality='text')
 
     out_fn = os.path.join(behavioral_dir, f'task-{p.task}_group-cleaned-behavior.csv')
     df_aggregated_results.to_csv(out_fn, index=False)
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     df_lemmatized_results = analysis.calculate_response_accuracy(df_lemmatized_results)
 
     # Calculate phoneme statistics for leakage checks
-    # df_lemmatized_results = analysis.get_leakage_stats(df_lemmatized_results)
+    df_lemmatized_results = analysis.get_leakage_stats(df_lemmatized_results, comparison_modality='text')
     
     out_fn = os.path.join(behavioral_dir, f'task-{p.task}_group-cleaned-behavior_lemmatized.csv')
     df_lemmatized_results.to_csv(out_fn, index=False)

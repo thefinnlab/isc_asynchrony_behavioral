@@ -19,6 +19,6 @@
 #SBATCH --output='./DownloadVoxCeleb2-%A.txt'
 
 source /optnfs/common/miniconda3/etc/profile.d/conda.sh
-conda activate reconstruction
+conda activate prosody
 
 python download_voxceleb2.py

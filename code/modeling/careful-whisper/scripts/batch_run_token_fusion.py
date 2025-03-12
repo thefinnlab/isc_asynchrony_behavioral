@@ -23,12 +23,17 @@ MEM_PER_CPU = '8G'
 PARTITION = 'v100_preemptable'
 GPU_INFO = '--gres=gpu:1'
 NODE_LIST = ''#--nodelist=a03,a04'
+EXCLUDE = ''
 ACCOUNT = 'dbic' #dbic
 
 DATASET_INFO = {
     'lrs3': [
         'data.dataset_name=lrs3',
         'data.data_dir=\${paths.data_dir}/lrs3',
+    ],
+    'voxceleb2': [
+        'data.dataset_name=voxceleb2',
+        'data.data_dir=\${paths.data_dir}/voxceleb2',
     ]
 }
 
@@ -41,7 +46,10 @@ MODEL_CONFIGS = {
 
         f"model.input_name1=audio_features",
         f"model.input_name2=video_features",
-        f"model.hidden_dim=1024"
+        f"model.hidden_dim=1024",
+
+        # f"model.loss_fn=representation_loss",
+        # f"model.optimizer.lr=5e-6"
     ],
 
 }

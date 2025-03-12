@@ -26,6 +26,7 @@ class TokenFusionModule(LightningModule):
         input_name1: str,
         input_name2: str,
         hidden_dim: int = 1024, 
+        loss_fn: str = 'MSE',
         optimizer: torch.optim.Optimizer = AdamW,
         scheduler: torch.optim.lr_scheduler = get_linear_schedule_with_warmup,
     ):
@@ -68,8 +69,14 @@ class TokenFusionModule(LightningModule):
 
     def step(self, batch: Dict[str, torch.Tensor]):
 
+        BATCH_SIZE = 32
+
         vectors = [batch[x] for x in [self.hparams.input_name1, self.hparams.input_name2]]
-        vec1, vec2 = [einops.rearrange(vec, 'b n d -> (b n) d') for vec in vectors]
+        vectors = [einops.rearrange(vec, 'b n d -> (b n) d') for vec in vectors]
+
+        # Generate random indices without replacement
+        random_indices = torch.randperm(vectors[0].shape[0])[:BATCH_SIZE]
+        vec1, vec2 = [vec[random_indices, ...] for vec in vectors]
 
         reconstructed_vec1, reconstructed_vec2, compressed = self.forward(vec1=vec1, vec2=vec2)
 
@@ -77,11 +84,17 @@ class TokenFusionModule(LightningModule):
         loss_vec1 = F.mse_loss(reconstructed_vec1, vec1)
         loss_vec2 = F.mse_loss(reconstructed_vec2, vec2)
 
-        # Total loss
-        total_loss = loss_vec1 + loss_vec2
+        # Get similarity to original vectors
+        sim_vec1 = F.cosine_similarity(vec1, compressed, dim=-1).mean(0)
+        sim_vec2 = F.cosine_similarity(vec2, compressed, dim=-1).mean(0)
 
-        sim_vec1 = F.cosine_similarity(vec1, compressed, dim=-1)
-        sim_vec2 = F.cosine_similarity(vec2, compressed, dim=-1)
+        # Total loss
+        # Reonstruct them while keeping them as similar as possible
+        # to the original representational space
+        if self.hparams.loss_fn == 'MSE':
+            total_loss = loss_vec1 + loss_vec2
+        elif self.hparams.loss_fn == 'representation_loss':
+            total_loss = (loss_vec1 - sim_vec1) + (loss_vec2 - sim_vec2)
 
         return {
             "loss": total_loss,

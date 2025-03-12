@@ -17,14 +17,27 @@ sys.path.append('../utils/')
 
 import utils
 
-def compile_features(path, check_keys=None, map_data=False):
+def compile_features(args, path, check_keys=None, map_data=False, n_token_threshold=2):
     """Load data from temp JSON and replace file paths with actual data."""
 
     try:
         # Load the metadata for the file
         data = utils.load_json(path)
+        n_words = len(data['text'].split())
+        n_tokens = torch.tensor(torch.load(data['text_tokens_path'])).shape[-1]
 
         if map_data:
+
+            if (n_words < args.min_words) or (n_words > args.max_words):
+                msg = f"Number of words {len(words)}, Min words {args.min_words}, Max words {args.max_words}"
+                print (msg, flush=True)
+                return False, None, msg
+
+            # There are sometimes errors in transcription --> a simple heuristic lets us filter tokens
+            if n_tokens > (n_words * n_token_threshold): 
+                msg = f"Number of tokens ({n_tokens}) greater than number of words ({n_words}) with token threshold {n_token_threshold}"
+                print (msg, flush=True)
+                return False, None, msg
 
             # Map of paths to load and their destination keys
             mapping = {
@@ -97,7 +110,7 @@ def compile_metadata(args, metadata, temp_dir, num_jobs=None, check_keys=None, m
 
     print(f"Found {existing_count} existing audio files and {to_process_count} files to process", flush=True)
     print(f"Using {num_jobs} worker processes for parallel extraction", flush=True)
-
+    
     # Process files in parallel
     completed = 0
     errors = 0
@@ -105,7 +118,7 @@ def compile_metadata(args, metadata, temp_dir, num_jobs=None, check_keys=None, m
     with ProcessPoolExecutor(max_workers=num_jobs) as executor:
         # Submit all tasks
         future_to_metadata = {
-            executor.submit(compile_features, fn, check_keys, map_data): fn
+            executor.submit(compile_features, args, fn, check_keys, map_data): fn
             for fn in to_process_files
         }
         
@@ -121,7 +134,7 @@ def compile_metadata(args, metadata, temp_dir, num_jobs=None, check_keys=None, m
                     metadata.append(data)
                     completed += 1
                 else:
-                    shutil.move(fn, fn.replace(temp_dir, errors_dir))
+                    # shutil.move(fn, fn.replace(temp_dir, errors_dir))
                     errors += 1
                     print(f"Error processing {fn}: {message}", flush=True)
 
@@ -149,6 +162,11 @@ if __name__ == "__main__":
                     help='Audio model to use, or "None" to skip audio processing')
     parser.add_argument('--video_model', type=str, default=None,
                     help='Video model to use, or None to skip video processing')
+
+    ### Dataset filtering setup
+    parser.add_argument('--min_words', type=int, default=4, help='Minimum number of words per sample')
+    parser.add_argument('--max_words', type=int, default=128, help='Maximum number of words per sample')
+
     parser.add_argument('-o', '--overwrite', type=int, default=0)
 
     args = parser.parse_args()

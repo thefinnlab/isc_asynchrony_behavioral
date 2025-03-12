@@ -27,8 +27,10 @@ ACCOUNT = 'dbic'
 
 if __name__ == "__main__":
 
-    # DATASETS = ['voxceleb2'] #'lrs3'
-    dataset = 'lrs3'
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--dataset', type=str)
+    parser.add_argument('-o', '--overwrite', type=int, default=0)
+    p = parser.parse_args()
 
     logs_dir = os.path.join(BASE_DIR, 'derivatives/logs/modeling/')
     dsq_dir =  os.path.join(BASE_DIR, 'code/submit_scripts/modeling/dsq')
@@ -41,10 +43,10 @@ if __name__ == "__main__":
     all_cmds = []
     job_num = 0
 
-    dataset_config = utils.DATASET_CONFIGS[dataset]
-    output_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', dataset)
+    dataset_config = utils.DATASET_CONFIGS[p.dataset]
+    output_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', p.dataset)
 
-    if dataset in ['lrs3', 'voxceleb2', 'avspeech']:
+    if p.dataset in ['lrs3', 'voxceleb2', 'avspeech']:
         models = utils.DATASET_TYPES['video']
     else:
         models = utils.DATASET_TYPES['audio']
@@ -53,12 +55,12 @@ if __name__ == "__main__":
 
     for split in dataset_config['splits']:
         
-        print(f'Making job for: {dataset} {split}', flush=True)
+        print(f'Making job for: {p.dataset} {split}', flush=True)
 
         cmd = [
             f"{DSQ_MODULES.replace('dark_matter', 'prosody')} ",
-            f"python compile_metadata.py --dataset {dataset} --output_dir {output_dir} --split {split} "
-            f"{model_types}; ", 
+            f"python compile_metadata.py --dataset {p.dataset} --output_dir {output_dir} --split {split} "
+            f"{model_types} --overwrite {p.overwrite}; ", 
         ]
 
         cmd = "".join(cmd)
@@ -70,13 +72,13 @@ if __name__ == "__main__":
         print(f'No matching audio and text files found', flush=True)
         sys.exit(0)
 
-    joblist_fn = os.path.join(joblists_dir, f'dsq_{dataset}_compile_metadata.txt')
+    joblist_fn = os.path.join(joblists_dir, f'dsq_{p.dataset}_compile_metadata.txt')
 
     with open(joblist_fn, 'w') as f:
         for cmd in all_cmds:
             f.write(f"{cmd}\n")
 
-    dsq_base_string = f'{dataset}_compile_metadata'
+    dsq_base_string = f'{p.dataset}_compile_metadata'
     dsq_batch_fn = os.path.join(dsq_dir, dsq_base_string)
     dsq_out_dir = os.path.join(logs_dir, dsq_base_string)
     array_fmt_width = len(str(job_num))

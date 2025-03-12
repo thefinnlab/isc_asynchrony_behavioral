@@ -46,7 +46,8 @@ class AudioTextDataModule(LightningDataModule):
         video_model_name: str =  'data2vec',
         token_fusion_method: str = 'average',
         token_fusion_weights: Optional[List[float]] = None,
-        preload: bool = False,
+        preload: bool = False,  # New preload option
+        ckpt_path: str = None,
         batch_size: int = 64,
         num_workers: int = 0,
         pin_memory: bool = False,
@@ -123,6 +124,7 @@ class AudioTextDataModule(LightningDataModule):
                 token_fusion_method=self.hparams.token_fusion_method,
                 token_fusion_weights=self.hparams.token_fusion_weights,
                 preload=self.hparams.preload,
+                ckpt_path=self.hparams.ckpt_path,
             )
 
             # # If specified sample a subset of the data
@@ -152,6 +154,7 @@ class AudioTextDataModule(LightningDataModule):
                 token_fusion_method=self.hparams.token_fusion_method,
                 token_fusion_weights=self.hparams.token_fusion_weights,
                 preload=self.hparams.preload,
+                ckpt_path=self.hparams.ckpt_path,
             )
 
             print (f"Validation samples: {len(self.val_dataset)}", flush=True)
@@ -165,6 +168,7 @@ class AudioTextDataModule(LightningDataModule):
                 token_fusion_method=self.hparams.token_fusion_method,
                 token_fusion_weights=self.hparams.token_fusion_weights,
                 preload=self.hparams.preload,
+                ckpt_path=self.hparams.ckpt_path,
             )
 
             print (f"Test samples: {len(self.test_dataset)}", flush=True)

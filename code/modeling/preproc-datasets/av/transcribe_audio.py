@@ -74,11 +74,8 @@ def transcribe_audio(dirs, split, model_name="openai/whisper-large-v3-turbo", ba
         str: Path to transcript directory
     """
 
-    audio_dir = os.path.join(dirs['audio'], split)
-    transcript_dir = os.path.join(dirs['transcripts'], split)
-    
     # Get all audio files
-    all_fns = sorted(glob.glob(os.path.join(audio_dir, "*.wav"), recursive=True))
+    all_fns = sorted(glob.glob(os.path.join(dirs['audio'], "*.wav"), recursive=True))
 
     # Apply sharding logic
     if num_shards > 1:
@@ -99,8 +96,8 @@ def transcribe_audio(dirs, split, model_name="openai/whisper-large-v3-turbo", ba
     audio_fns = []
     
     for fn in all_fns:
-        rel_path = os.path.relpath(fn, audio_dir)
-        transcript_path = os.path.join(transcript_dir, os.path.splitext(rel_path)[0] + '.txt')
+        rel_path = os.path.relpath(fn, dirs['audio'])
+        transcript_path = os.path.join(dirs['transcripts'], os.path.splitext(rel_path)[0] + '.txt')
         if os.path.exists(transcript_path) and not force:
             existing_count += 1
         else:
@@ -109,7 +106,7 @@ def transcribe_audio(dirs, split, model_name="openai/whisper-large-v3-turbo", ba
     
     if to_process_count == 0:
         print(f"All transcripts already exist for {split} split. Skipping transcription.", flush=True)
-        return transcript_dir
+        return dirs['transcripts']
     
     print(f"Found {existing_count} existing transcripts and {to_process_count} files to process", flush=True)
     
@@ -145,7 +142,7 @@ def transcribe_audio(dirs, split, model_name="openai/whisper-large-v3-turbo", ba
         
         # Try processing the entire batch
         try:
-            transcribe_batch(audio_dir, transcript_dir, batch, pipe)
+            transcribe_batch(dirs['audio'], dirs['transcripts'], batch, pipe)
 
         except Exception as batch_error:
             print(f"Batch processing failed. Processing files individually.", flush=True)
@@ -153,7 +150,7 @@ def transcribe_audio(dirs, split, model_name="openai/whisper-large-v3-turbo", ba
             for fn in batch:
                 try:
                     # Try processing the single file
-                    transcribe_batch(audio_dir, transcript_dir, [fn], pipe)
+                    transcribe_batch(dirs['audio'], dirs['transcripts'], [fn], pipe)
                     
                 except Exception as e:
                     # Check if this is a corrupt audio file
@@ -166,32 +163,32 @@ def transcribe_audio(dirs, split, model_name="openai/whisper-large-v3-turbo", ba
                             repair_audio_file(fn)
 
                             # Try again with the fixed file
-                            transcribe_batch(audio_dir, transcript_dir, [fn], pipe)
+                            transcribe_batch(dirs['audio'], dirs['transcripts'], [fn], pipe)
 
                             print(f"Successfully repaired and transcribed: {fn}", flush=True)
                         except Exception as repair_error:
                             print(f"Failed repair and retranscription: {fn}", flush=True)
                     else:
                         print(f"Failed to transcribe: {fn}", flush=True)
-    
-    return transcript_dir
 
 def main():
     parser = argparse.ArgumentParser(description='Process speech datasets to Praat TextGrids')
-    parser.add_argument('-d','--dataset', type=str, choices=['lrs3', 'avspeech', 'voxceleb2'],
-                      required=True, help='Which dataset to process')
+    parser.add_argument('-d','--dataset', type=str, choices=['lrs3', 'avspeech', 'voxceleb2'], required=True, 
+                    help='Which dataset to process')
     parser.add_argument('--output_dir', type=str, default=None,
-                      help='Base directory for output (default: dataset_name_processing)')
+                    help='Base directory for output (default: dataset_name_processing)')
     parser.add_argument('--split', type=str, default=None,
-                  help='Which split to process')
+                    help='Which split to process')
+    parser.add_argument('--lang_id', type=str, default='eng',
+                    help='Language ID ISO-639 code for AVSpeech')
     parser.add_argument('--batch_size', type=int, default=32,
-                      help='Batch size for processing transcripts')
+                    help='Batch size for processing transcripts')
     parser.add_argument('--num_shards', type=int, default=1,
-              help='Number of shards to divide the dataset into')
+                    help='Number of shards to divide the dataset into')
     parser.add_argument('--current_shard', type=int, default=0,
-              help='Current shard to process (0-based indexing)')
+                    help='Current shard to process (0-based indexing)')
     parser.add_argument('--overwrite', type=int, default=0,
-              help='Force transcription even if files exist')
+                    help='Force transcription even if files exist')
     
     args = parser.parse_args()
 
@@ -215,10 +212,23 @@ def main():
         print(f"\nProcessing {args.dataset} {split} split...", flush=True)
         print(f"\nCurrent shard: {args.current_shard+1}/{args.num_shards}", flush=True)
 
-        # Transcribe audio files
+        split_dirs = {k: os.path.join(v, split) for k, v in dirs.items()}
+
         print(f"Transcribing audio...", flush=True)
-        transcribe_audio(dirs, split, force=args.overwrite, batch_size=args.batch_size,
-            num_shards=args.num_shards, current_shard=args.current_shard)
+
+        if args.dataset == 'avspeech':
+
+            if args.lang_id:
+                lang_dirs = {k: os.path.join(v, args.lang_id) for k, v in split_dirs.items()}
+            else:
+                continue
+            
+            transcribe_audio(lang_dirs, split, force=args.overwrite, batch_size=args.batch_size,
+                num_shards=args.num_shards, current_shard=args.current_shard)
+        else:
+            # Transcribe audio files
+            transcribe_audio(split_dirs, split, force=args.overwrite, batch_size=args.batch_size,
+                num_shards=args.num_shards, current_shard=args.current_shard)
 
     print("\nProcessing complete!", flush=True)
 

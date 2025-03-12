@@ -112,7 +112,7 @@ def main():
     dirs, splits = utils.prepare_directory_structure(
         output_dir, 
         splits, 
-        dir_names=[ 'aligned', 'corpus', 'textgrids'],
+        dir_names=['aligned', 'corpus', 'textgrids'],
         video=video
     )
     

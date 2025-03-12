@@ -17,6 +17,16 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import warnings
 
+# Assuming these imports work in your environment
+sys.path.append('../../../../utils/')
+
+from config import *
+from dataset_utils import attempt_makedirs
+
+sys.path.append('../../utils/')
+
+import utils
+
 # Disable SSL warnings if needed
 warnings.filterwarnings('ignore', message='Unverified HTTPS request')
 
@@ -125,13 +135,26 @@ def download_metadata(url, output_path, chunk_size=8192, max_retries=5, retry_de
     """Download metadata file"""
     download_url_with_requests(url, output_path, chunk_size, max_retries, retry_delay, timeout, verify_ssl)
 
-def extract_zip(zip_path, extract_to):
+def extract_zip(zip_path, extract_to, replace_string=None, check_directory=None):
     """Extract a zip file"""
     os.makedirs(extract_to, exist_ok=True)
     
     print(f"Extracting {zip_path} to {extract_to}...", flush=True)
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(extract_to)
+
+        # Iterate through each file in the ZIP archive
+        for file_info in tqdm(zip_ref.infolist(), desc=f"Extracting files..."):
+
+            if replace_string and check_directory:
+                check_path = os.path.join(check_directory, file_info.filename.replace(replace_string, ''))
+
+                if os.path.exists(check_path):
+                    continue
+
+            # Otherwise extract
+            zip_ref.extract(file_info, extract_to)
+
+        # zip_ref.extractall(extract_to)
     print(f"Extraction complete", flush=True)
 
 def cat_files(parts, output_file):
@@ -155,20 +178,20 @@ def cat_files(parts, output_file):
                 shutil.copyfileobj(infile, outfile)
     print(f"Concatenation complete", flush=True)
 
-def find_speaker_ids(directory):
-    """Find all speaker IDs in a directory"""
-    return [d.name for d in Path(directory).iterdir() if d.is_dir()]
+# def find_speaker_ids(directory):
+#     """Find all speaker IDs in a directory"""
+#     return [d.name for d in Path(directory).iterdir() if d.is_dir()]
 
-def create_train_val_split(speaker_ids, val_ratio=0.1, seed=42):
-    """Split speaker IDs into train and validation sets"""
-    random.seed(seed)
-    random.shuffle(speaker_ids)
+# def create_train_val_split(speaker_ids, val_ratio=0.1, seed=42):
+#     """Split speaker IDs into train and validation sets"""
+#     random.seed(seed)
+#     random.shuffle(speaker_ids)
     
-    val_count = int(len(speaker_ids) * val_ratio)
-    train_speakers = speaker_ids[val_count:]
-    val_speakers = speaker_ids[:val_count]
+#     val_count = int(len(speaker_ids) * val_ratio)
+#     train_speakers = speaker_ids[val_count:]
+#     val_speakers = speaker_ids[:val_count]
     
-    return train_speakers, val_speakers
+#     return train_speakers, val_speakers
 
 def move_files(source_dir, destination_dir):
     # List all files and directories in the source directory
@@ -182,92 +205,87 @@ def move_files(source_dir, destination_dir):
     # Remove the now-empty source directory
     shutil.rmtree(source_dir)
 
-def organize_files(src_dir, dest_dir, split, speakers=None, file_ext="mp4"):
-    """
-    Organize files for a specific split (train, val, or test).
+# def organize_files(src_dir, dest_dir, split, speakers=None, file_ext="mp4"):
+#     """
+#     Organize files for a specific split (train, val, or test).
     
-    Parameters:
-        src_dir (str): Source directory containing the dataset
-        dest_dir (str): Destination directory for this specific split
-        split (str): The split type ('train', 'val', or 'test')
-        speakers (list): List of speaker IDs to include (for train/val only)
-        file_ext (str): File extension to process (default: 'mp4')
-    """
-    print(f"Organizing {split} {file_ext} files...", flush=True)
-    os.makedirs(dest_dir, exist_ok=True)
+#     Parameters:
+#         src_dir (str): Source directory containing the dataset
+#         dest_dir (str): Destination directory for this specific split
+#         split (str): The split type ('train', 'val', or 'test')
+#         speakers (list): List of speaker IDs to include (for train/val only)
+#         file_ext (str): File extension to process (default: 'mp4')
+#     """
+#     print(f"Organizing {split} {file_ext} files...", flush=True)
+#     os.makedirs(dest_dir, exist_ok=True)
     
-    # Determine source subdirectory and filtering approach based on split
-    if split in ['train', 'val']:
-        source_subdir = os.path.join(src_dir, "dev")
-        # For train/val, we only process files from the specified speakers
-        def should_process_speaker(speaker_id):
-            return speaker_id in speakers
-    elif split == 'test':
-        source_subdir = os.path.join(src_dir, "test")
-        # For test, we process all speakers
-        def should_process_speaker(speaker_id):
-            return True
-    else:
-        print(f"Error: Unknown split type '{split}'", flush=True)
-        return
+#     # Determine source subdirectory and filtering approach based on split
+#     if split in ['train', 'val']:
+#         source_subdir = os.path.join(src_dir, "dev")
+#         # For train/val, we only process files from the specified speakers
+#         def should_process_speaker(speaker_id):
+#             return speaker_id in speakers
+#     elif split == 'test':
+#         source_subdir = os.path.join(src_dir, "test")
+#         # For test, we process all speakers
+#         def should_process_speaker(speaker_id):
+#             return True
+#     else:
+#         print(f"Error: Unknown split type '{split}'", flush=True)
+#         return
     
-    if not os.path.isdir(source_subdir):
-        print(f"Warning: Directory {source_subdir} not found", flush=True)
-        return
+#     if not os.path.isdir(source_subdir):
+#         print(f"Warning: Directory {source_subdir} not found", flush=True)
+#         return
     
-    # Process all eligible speakers
-    file_count = 0
-    for speaker in os.listdir(source_subdir):
-        speaker_dir = os.path.join(source_subdir, speaker)
-        if not os.path.isdir(speaker_dir) or not should_process_speaker(speaker):
-            continue
+#     # Process all eligible speakers
+#     file_count = 0
+#     for speaker in os.listdir(source_subdir):
+#         speaker_dir = os.path.join(source_subdir, speaker)
+#         if not os.path.isdir(speaker_dir) or not should_process_speaker(speaker):
+#             continue
             
-        print(f"Processing {speaker} for {split} set...", flush=True)
+#         print(f"Processing {speaker} for {split} set...", flush=True)
         
-        # Walk through all files for this speaker
-        for root, _, files in os.walk(speaker_dir):
-            for file in files:
-                if file.endswith(f".{file_ext}"):
-                    src_file = os.path.join(root, file)
+#         # Walk through all files for this speaker
+#         for root, _, files in os.walk(speaker_dir):
+#             for file in files:
+#                 if file.endswith(f".{file_ext}"):
+#                     src_file = os.path.join(root, file)
                     
-                    # Extract components from the file path
-                    rel_path = os.path.relpath(src_file, speaker_dir)
-                    path_parts = rel_path.split(os.sep)
+#                     # Extract components from the file path
+#                     rel_path = os.path.relpath(src_file, speaker_dir)
+#                     path_parts = rel_path.split(os.sep)
                     
-                    # First part is video_id, last part is the filename
-                    video_id = path_parts[0]
-                    clip_number = os.path.splitext(path_parts[-1])[0]
+#                     # First part is video_id, last part is the filename
+#                     video_id = path_parts[0]
+#                     clip_number = os.path.splitext(path_parts[-1])[0]
                     
-                    # Create new filename with pattern: speaker_id_video_id_clip_number.file_ext
-                    new_filename = f"{speaker}_{video_id}_{clip_number}.{file_ext}"
-                    dest_file = os.path.join(dest_dir, new_filename)
+#                     # Create new filename with pattern: speaker_id_video_id_clip_number.file_ext
+#                     new_filename = f"{speaker}_{video_id}_{clip_number}.{file_ext}"
+#                     dest_file = os.path.join(dest_dir, new_filename)
                     
-                    shutil.copy2(src_file, dest_file)
-                    file_count += 1
+#                     shutil.copy2(src_file, dest_file)
+#                     file_count += 1
     
-    print(f"Copied {file_count} {file_ext} files to {split} set", flush=True)
+#     print(f"Copied {file_count} {file_ext} files to {split} set", flush=True)
 
 def main():
+
+    parser = argparse.ArgumentParser(description='Preprocess audio/video-text dataset')
     args = parse_args()
     
     # Create directory structure
-    output_dir = args.output_dir
-    src_dir = os.path.join(output_dir, "src")
-    audio_dir = os.path.join(output_dir, "audio")
-    video_dir = os.path.join(output_dir, "video")
-    
-    # # Create src subdirectories
-    # os.makedirs(src_dir, exist_ok=True)
-    # for data_type in ["audio", "video"]:
-    #     os.makedirs(os.path.join(src_dir, data_type, "dev"), exist_ok=True)
-    #     os.makedirs(os.path.join(src_dir, data_type, "test"), exist_ok=True)
-    
-    # # Create organized subdirectories
-    # for data_type in ["audio", "video"]:
-    #     os.makedirs(os.path.join(output_dir, data_type, "train"), exist_ok=True)
-    #     os.makedirs(os.path.join(output_dir, data_type, "val"), exist_ok=True)
-    #     os.makedirs(os.path.join(output_dir, data_type, "test"), exist_ok=True)
-    
+    data_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', 'voxceleb2')
+
+    splits = ['dev','test']
+    # Create source directories
+    dirs, splits = utils.prepare_directory_structure(
+        data_dir, 
+        splits=splits, 
+        dir_names=['src/audio', 'src/video']
+    )
+
     # print("=== VoxCeleb2 Dataset Downloader and Organizer ===")
     # print(f"Downloading to: {output_dir}")
     # print(f"Using key: {args.key[:10]}...{args.key[-10:]}")  # Show only part of the key for security
@@ -278,8 +296,8 @@ def main():
     # print(f"Verify SSL: {args.verify_ssl}")
     # print()
     
-    # # Download and extract audio files (dev)
-    # print("=== Downloading Audio Files (Dev) ===")
+    # Download and extract audio files (dev)
+    print("=== Downloading Audio Files (Dev) ===")
     # audio_parts = "abcdefgh"
     # audio_dev_parts_dir = os.path.join(src_dir, "audio", "parts")
     # os.makedirs(audio_dev_parts_dir, exist_ok=True)
@@ -343,15 +361,8 @@ def main():
     #         verify_ssl=args.verify_ssl
     #     )
     
-    # # Concatenate video parts
-    # video_dev_zip = os.path.join(src_dir, "video", "vox2_dev_mp4.zip")
-    # cat_files(video_dev_parts_files, video_dev_zip)
-    
-    # # Extract video dev zip
-    # extract_zip(video_dev_zip, os.path.join(src_dir, "video"))
+    # # # Concatenate video parts
 
-    # move_files(os.path.join(src_dir, "video/dev/mp4"), os.path.join(src_dir, "video/dev/"))
-    
     # # Download and extract video files (test)
     # print("=== Downloading Video Files (Test) ===")
     # video_test_zip = os.path.join(src_dir, "video", "vox2_test_mp4.zip")
@@ -363,88 +374,115 @@ def main():
     #     timeout=args.timeout,
     #     verify_ssl=args.verify_ssl
     # )
-    # extract_zip(video_test_zip, os.path.join(src_dir, "video", "test"))
 
-    # move_files(os.path.join(src_dir, "video/test/mp4"), os.path.join(src_dir, "video/test/"))
-    
-    # Create train/val split
-    print("=== Creating Train/Val Split ===", flush=True)
-    speaker_ids = find_speaker_ids(os.path.join(src_dir, "audio", "dev"))
-    train_speakers, val_speakers = create_train_val_split(
-        speaker_ids, val_ratio=args.val_ratio, seed=args.seed
-    )
 
-    speakers = {
-        'train': train_speakers,
-        'val': val_speakers,
-    }
-    
-    print(f"Found {len(speaker_ids)} speakers", flush=True)
-    print(f"Assigned {len(train_speakers)} speakers to train set", flush=True)
-    print(f"Assigned {len(val_speakers)} speakers to validation set", flush=True)
-    
-    # Save speaker lists for reference
-    with open(os.path.join(output_dir, "train_speakers.txt"), "w") as f:
-        f.write("\n".join(train_speakers))
-    
-    with open(os.path.join(output_dir, "val_speakers.txt"), "w") as f:
-        f.write("\n".join(val_speakers))
-    
-    # # Organize files
-    # organize_files(
-    #     os.path.join(src_dir, "audio"),
-    #     os.path.join(audio_dir, "train"),
-    #     os.path.join(audio_dir, "val"),
-    #     os.path.join(audio_dir, "test"),
-    #     train_speakers,
-    #     val_speakers,
-    #     "m4a"
-    # )
-    
-    # Organize files for each split
-    for split in ['train', 'val', 'test']:
-        organize_files(
-            src_dir=os.path.join(src_dir, "video"),
-            dest_dir=os.path.join(video_dir, split),
-            split=split,
-            speakers=speakers[split] if split != 'test' else None,
-            file_ext="mp4"
+
+    #####################################
+    ########### Process splits ##########
+    #####################################
+
+    for split in splits:
+
+        print (f"===== Extracting mp4s for {split} =======", flush=True)
+
+        video_zip = os.path.join(dirs['src/video'], f"vox2_{split}_mp4.zip")
+
+        # cat_files(video_dev_parts_files, video_dev_zip)
+
+        # Extract video dev zip --> extracts to the source direcotry
+        if split == 'test':
+            split_dir = os.path.join(dirs['src/video'], split)
+            replace_string = 'mp4/'
+        else:
+            split_dir = os.path.join(dirs['src/video'], split)
+            replace_string = 'mp4/'
+        
+        extract_zip(video_zip, split_dir, replace_string=replace_string, check_directory=split_dir)
+
+        move_files(
+            os.path.join(split_dir, f"mp4"), 
+            split_dir
         )
+
     
-    # Print summary
-    print("\n=== Download and Organization Complete ===", flush=True)
-    print(f"VoxCeleb2 dataset has been downloaded and organized in: {output_dir}", flush=True)
-    print("\nDirectory structure:", flush=True)
-    print("- src/: Original downloaded and extracted files", flush=True)
-    # print("- audio/: Organized audio files with train/val/test splits", flush=True)
-    print("- video/: Organized video files with train/val/test splits", flush=True)
+    # # Create train/val split
+    # print("=== Creating Train/Val Split ===", flush=True)
+    # speaker_ids = find_speaker_ids(os.path.join(src_dir, "audio", "dev"))
+    # train_speakers, val_speakers = create_train_val_split(
+    #     speaker_ids, val_ratio=args.val_ratio, seed=args.seed
+    # )
+
+    # speakers = {
+    #     'train': train_speakers,
+    #     'val': val_speakers,
+    # }
     
-    # # Count files
-    # train_audio_count = sum([len(files) for _, _, files in os.walk(os.path.join(audio_dir, "train"))])
-    # val_audio_count = sum([len(files) for _, _, files in os.walk(os.path.join(audio_dir, "val"))])
-    # test_audio_count = sum([len(files) for _, _, files in os.walk(os.path.join(audio_dir, "test"))])
+    # print(f"Found {len(speaker_ids)} speakers", flush=True)
+    # print(f"Assigned {len(train_speakers)} speakers to train set", flush=True)
+    # print(f"Assigned {len(val_speakers)} speakers to validation set", flush=True)
     
-    train_video_count = sum([len(files) for _, _, files in os.walk(os.path.join(video_dir, "train"))])
-    val_video_count = sum([len(files) for _, _, files in os.walk(os.path.join(video_dir, "val"))])
-    test_video_count = sum([len(files) for _, _, files in os.walk(os.path.join(video_dir, "test"))])
+    # # Save speaker lists for reference
+    # with open(os.path.join(output_dir, "train_speakers.txt"), "w") as f:
+    #     f.write("\n".join(train_speakers))
     
-    print("\nFile counts:", flush=True)
-    # print(f"Audio - Train: {train_audio_count}, Val: {val_audio_count}, Test: {test_audio_count}", flush=True)
-    print(f"Video - Train: {train_video_count}, Val: {val_video_count}, Test: {test_video_count}", flush=True)
+    # with open(os.path.join(output_dir, "val_speakers.txt"), "w") as f:
+    #     f.write("\n".join(val_speakers))
     
-    # Get total size
-    def get_dir_size(path):
-        total = 0
-        with os.scandir(path) as it:
-            for entry in it:
-                if entry.is_file():
-                    total += entry.stat().st_size
-                elif entry.is_dir():
-                    total += get_dir_size(entry.path)
-        return total
+    # # # Organize files
+    # # organize_files(
+    # #     os.path.join(src_dir, "audio"),
+    # #     os.path.join(audio_dir, "train"),
+    # #     os.path.join(audio_dir, "val"),
+    # #     os.path.join(audio_dir, "test"),
+    # #     train_speakers,
+    # #     val_speakers,
+    # #     "m4a"
+    # # )
     
-    total_size_gb = get_dir_size(output_dir) / (1024 * 1024 * 1024)
-    print(f"\nTotal dataset size: {total_size_gb:.2f} GB", flush=True)
+    # # Organize files for each split
+    # for split in ['train', 'val', 'test']:
+    #     organize_files(
+    #         src_dir=os.path.join(src_dir, "video"),
+    #         dest_dir=os.path.join(video_dir, split),
+    #         split=split,
+    #         speakers=speakers[split] if split != 'test' else None,
+    #         file_ext="mp4"
+    #     )
+    
+    # # Print summary
+    # print("\n=== Download and Organization Complete ===", flush=True)
+    # print(f"VoxCeleb2 dataset has been downloaded and organized in: {output_dir}", flush=True)
+    # print("\nDirectory structure:", flush=True)
+    # print("- src/: Original downloaded and extracted files", flush=True)
+    # # print("- audio/: Organized audio files with train/val/test splits", flush=True)
+    # print("- video/: Organized video files with train/val/test splits", flush=True)
+    
+    # # # Count files
+    # # train_audio_count = sum([len(files) for _, _, files in os.walk(os.path.join(audio_dir, "train"))])
+    # # val_audio_count = sum([len(files) for _, _, files in os.walk(os.path.join(audio_dir, "val"))])
+    # # test_audio_count = sum([len(files) for _, _, files in os.walk(os.path.join(audio_dir, "test"))])
+    
+    # train_video_count = sum([len(files) for _, _, files in os.walk(os.path.join(video_dir, "train"))])
+    # val_video_count = sum([len(files) for _, _, files in os.walk(os.path.join(video_dir, "val"))])
+    # test_video_count = sum([len(files) for _, _, files in os.walk(os.path.join(video_dir, "test"))])
+    
+    # print("\nFile counts:", flush=True)
+    # # print(f"Audio - Train: {train_audio_count}, Val: {val_audio_count}, Test: {test_audio_count}", flush=True)
+    # print(f"Video - Train: {train_video_count}, Val: {val_video_count}, Test: {test_video_count}", flush=True)
+    
+    # # Get total size
+    # def get_dir_size(path):
+    #     total = 0
+    #     with os.scandir(path) as it:
+    #         for entry in it:
+    #             if entry.is_file():
+    #                 total += entry.stat().st_size
+    #             elif entry.is_dir():
+    #                 total += get_dir_size(entry.path)
+    #     return total
+    
+    # total_size_gb = get_dir_size(output_dir) / (1024 * 1024 * 1024)
+    # print(f"\nTotal dataset size: {total_size_gb:.2f} GB", flush=True)
 
 if __name__ == "__main__":
     main()

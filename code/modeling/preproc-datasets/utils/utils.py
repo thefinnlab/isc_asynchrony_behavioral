@@ -3,6 +3,7 @@ import os
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
+import math
 import json
 import subprocess
 import librosa
@@ -18,8 +19,6 @@ import torch
 import torchaudio
 from torch.nn import functional as F
 from praatio import textgrid
-
-from transformers import AutoFeatureExtractor, Wav2Vec2ForSequenceClassification
 
 N_FILES = 3
 
@@ -93,7 +92,21 @@ DATASET_TYPES = {
     }
 }
 
-def prepare_directory_structure(base_dir, splits, dir_names=None, video=False):
+def get_shard_data(data, num_shards=1, current_shard=0):
+    # Apply sharding logic --> divide dataset into number of shards 
+    if num_shards > 1:
+        # Calculate shard size and starting/ending indices
+        shard_size = math.ceil(len(data) / num_shards)
+        start_idx = current_shard * shard_size
+        end_idx = min(start_idx + shard_size, len(data))
+        
+        # Get only the files for the current shard
+        data = data[start_idx:end_idx]
+
+    print(f"Processing shard {current_shard+1}/{num_shards} with {len(data)} files", flush=True)
+    return data
+
+def prepare_directory_structure(base_dir, splits=None, dir_names=None, video=False):
     """
     Create necessary directories for processing if they don't exist
     
@@ -106,7 +119,10 @@ def prepare_directory_structure(base_dir, splits, dir_names=None, video=False):
         list: List of split names
     """
     # Normalize split names (replace dots with hyphens)
-    normalized_splits = [split.replace('.', '-') for split in splits]
+    if splits:
+        normalized_splits = [split.replace('.', '-') for split in splits]
+    else:
+        normalized_splits = []
 
     if dir_names is None:
         dir_names = ['src', 'audio', 'transcripts', 'corpus', 'textgrids', 'aligned', 'prosody']
@@ -526,7 +542,19 @@ def pool_embeddings(
 ######### Language classification functions ##########
 ######################################################
 
+def prepare_audio_batch(fns, sr=16000):
+
+    batch = []
+
+    for fn in fns:
+        waveform, audio_sr = load_audio(fn)
+        waveform, audio_sr = resample_audio(waveform, orig_sr=audio_sr, target_sr=16000)
+        batch.append(waveform.squeeze())
+
+    return batch
+
 def load_language_classifier(model_name="facebook/mms-lid-256"):
+    from transformers import AutoFeatureExtractor, Wav2Vec2ForSequenceClassification
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 

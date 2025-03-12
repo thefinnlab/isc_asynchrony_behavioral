@@ -18,13 +18,15 @@ TIME = '5-00:00:00'
 N_NODES = 1
 N_TASKS_PER_NODE = 1
 N_TASKS = 1
-CPUS_PER_TASK = 16
+CPUS_PER_TASK = 31
 MEM_PER_CPU = '8G'
 GPU_INFO = ''
 
 if __name__ == "__main__":
 
-  DATASETS = ['voxceleb2'] #, 'voxceleb2']
+  parser = argparse.ArgumentParser()
+  parser.add_argument('-d', '--dataset', type=str)
+  p = parser.parse_args()
 
   logs_dir = os.path.join(BASE_DIR, 'derivatives/logs/modeling/')
   dsq_dir =  os.path.join(BASE_DIR, 'code/submit_scripts/modeling/dsq')
@@ -40,16 +42,14 @@ if __name__ == "__main__":
   job_string = job_string.replace('dark_matter', 'mfa')
   job_num = 0
 
-  for dataset in DATASETS:
-
-    dataset_config = utils.DATASET_CONFIGS[dataset]
-    output_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', dataset)
-    
-    # for split in dataset_config['splits']:
-    print(f'Making job for: {dataset}', flush=True)
-    cmd = f'{job_string} --dataset {dataset} --output_dir {output_dir} --num_jobs {CPUS_PER_TASK} '
-    all_cmds.append(cmd)
-    job_num += 1
+  dataset_config = utils.DATASET_CONFIGS[p.dataset]
+  output_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', p.dataset)
+  
+  # for split in dataset_config['splits']:
+  print(f'Making job for: {p.dataset}', flush=True)
+  cmd = f'{job_string} --dataset {p.dataset} --output_dir {output_dir} --num_jobs {CPUS_PER_TASK} '
+  all_cmds.append(cmd)
+  job_num += 1
 
     # break
 
@@ -57,13 +57,13 @@ if __name__ == "__main__":
     print(f'No matching audio and text files found', flush=True)
     sys.exit(0)
 
-  joblist_fn = os.path.join(joblists_dir, f'mfa_align_huggingface_joblist.txt')
+  joblist_fn = os.path.join(joblists_dir, f'mfa_align_dataset_joblist.txt')
 
   with open(joblist_fn, 'w') as f:
     for cmd in all_cmds:
       f.write(f"{cmd}\n")
 
-  dsq_base_string = f'dsq_mfa_align_huggingface'
+  dsq_base_string = f'mfa_align_dataset'
   dsq_batch_fn = os.path.join(dsq_dir, dsq_base_string)
   dsq_out_dir = os.path.join(logs_dir, dsq_base_string)
   array_fmt_width = len(str(job_num))

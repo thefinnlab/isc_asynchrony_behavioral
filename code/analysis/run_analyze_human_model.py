@@ -10,13 +10,9 @@ import dataset_utils as utils
 import analysis_utils as analysis
 from tommy_utils.nlp import load_word_model
 
-# WRONG_PHONE_COLS = [
-#     'wrong_resp_n_correct', 'wrong_resp_n_incorrect', 'wrong_resp_accuracy',
-#     'barnard_stat', 'barnard_pvalue', 'barnard_pvalue_fdr_bh'
-# ]
-
 WRONG_PHONE_COLS = [
-
+    'wrong_resp_n_correct', 'wrong_resp_n_incorrect', 'wrong_resp_accuracy',
+    'barnard_stat', 'barnard_pvalue', 'barnard_pvalue_fdr_bh'
 ]
 
 def add_wrong_phoneme_info(df_cleaned_results, df_results_analyzed):
@@ -94,101 +90,101 @@ if __name__ == '__main__':
     word_model = load_word_model(model_name=p.word_model_name, cache_dir=CACHE_DIR)
     word_model_info = (p.word_model_name, word_model)
 
-    # ########################################################
-    # ############ Load human results and analyze ############
-    # ########################################################
+    ########################################################
+    ############ Load human results and analyze ############
+    ########################################################
 
-    # # Analyze results from cleaned data 
-    # df_results = pd.read_csv(os.path.join(results_dir, f'task-{p.task}_group-cleaned-behavior.csv'))
-    # out_fn = os.path.join(results_dir, f'task-{p.task}_group-analyzed-behavior_human.csv')
+    # Analyze results from cleaned data 
+    df_results = pd.read_csv(os.path.join(results_dir, f'task-{p.task}_group-cleaned-behavior.csv'))
+    out_fn = os.path.join(results_dir, f'task-{p.task}_group-analyzed-behavior_human.csv')
 
-    # if not os.path.exists(out_fn) or p.overwrite:
-    #     df_analyzed_results = analysis.analyze_human_results(df_transcript, df_results, word_model_info, window_size=p.window_size, top_n=None, drop_rt=None)
+    if not os.path.exists(out_fn) or p.overwrite:
+        df_analyzed_results = analysis.analyze_human_results(df_transcript, df_results, word_model_info, window_size=p.window_size, top_n=None, drop_rt=None)
 
-    #     # Add wrong phoneme info
-    #     df_analyzed_results = add_wrong_phoneme_info(df_results, df_analyzed_results)
+        # Add wrong phoneme info
+        df_analyzed_results = add_wrong_phoneme_info(df_results, df_analyzed_results)
 
-    #     # Add in prosody columns and add to the list
+        # Add in prosody columns and add to the list
 
-    #     df_analyzed_results.loc[:, prosody_columns] = df_transcript.loc[df_analyzed_results['word_index'], prosody_columns].reset_index(drop=True)
-    #     df_analyzed_results.to_csv(out_fn, index=False)
-    # else:
-    #     df_analyzed_results = pd.read_csv(out_fn)
+        df_analyzed_results.loc[:, prosody_columns] = df_transcript.loc[df_analyzed_results['word_index'], prosody_columns].reset_index(drop=True)
+        df_analyzed_results.to_csv(out_fn, index=False)
+    else:
+        df_analyzed_results = pd.read_csv(out_fn)
     
-    # ### Now do model data
-    # if p.careful_whisper:
-    #     out_fn = os.path.join(results_dir, f'task-{p.task}_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-careful-whisper.csv')
-    # else:
-    #     out_fn = os.path.join(results_dir, f'task-{p.task}_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model.csv')
+    ### Now do model data
+    if p.careful_whisper:
+        out_fn = os.path.join(results_dir, f'task-{p.task}_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-careful-whisper.csv')
+    else:
+        out_fn = os.path.join(results_dir, f'task-{p.task}_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model.csv')
 
-    # if not os.path.exists(out_fn) or p.overwrite:
-    #     df_all_models = []
+    if not os.path.exists(out_fn) or p.overwrite:
+        df_all_models = []
 
-    #     for model_name in p.model_names:
-    #         # Load model data and add wrong phoneme information
-    #         df_model = analysis.analyze_model_accuracy(df_transcript, word_model_info=word_model_info, models_dir=models_dir, model_name=model_name, task=p.task, window_size=p.window_size, candidate_rows=candidate_rows, lemmatize=False)
-    #         df_model = add_wrong_phoneme_info(df_results, df_model)
+        for model_name in p.model_names:
+            # Load model data and add wrong phoneme information
+            df_model = analysis.analyze_model_accuracy(df_transcript, word_model_info=word_model_info, models_dir=models_dir, model_name=model_name, task=p.task, window_size=p.window_size, candidate_rows=candidate_rows, lemmatize=False)
+            df_model = add_wrong_phoneme_info(df_results, df_model)
 
-    #         # Add in prosody columns and add to the list
-    #         df_model.loc[:, prosody_columns] = df_transcript.loc[df_model['word_index'], prosody_columns].reset_index(drop=True)
-    #         df_all_models.append(df_model)
+            # Add in prosody columns and add to the list
+            df_model.loc[:, prosody_columns] = df_transcript.loc[df_model['word_index'], prosody_columns].reset_index(drop=True)
+            df_all_models.append(df_model)
 
-    #     # Concatenate models and then add to the humans dataframe
-    #     df_all_models = pd.concat(df_all_models).reset_index(drop=True)
+        # Concatenate models and then add to the humans dataframe
+        df_all_models = pd.concat(df_all_models).reset_index(drop=True)
 
-    #     df_combined = pd.concat([
-    #         df_analyzed_results.loc[:, combined_columns], 
-    #         df_all_models.loc[:, combined_columns]
-    #     ]).reset_index(drop=True)
+        df_combined = pd.concat([
+            df_analyzed_results.loc[:, combined_columns], 
+            df_all_models.loc[:, combined_columns]
+        ]).reset_index(drop=True)
 
-    #     df_combined.to_csv(out_fn, index=False)
+        df_combined.to_csv(out_fn, index=False)
 
-    # ########################################################
-    # ########## Repeat process for lemmatized words #########
-    # ########################################################
+    ########################################################
+    ########## Repeat process for lemmatized words #########
+    ########################################################
 
-    # # Analyze human lemmatized data
-    # df_lemmatized_results = pd.read_csv(os.path.join(results_dir, f'task-{p.task}_group-cleaned-behavior_lemmatized.csv'))
-    # out_fn = os.path.join(results_dir, f'task-{p.task}_group-analyzed-behavior_human-lemmatized.csv')
+    # Analyze human lemmatized data
+    df_lemmatized_results = pd.read_csv(os.path.join(results_dir, f'task-{p.task}_group-cleaned-behavior_lemmatized.csv'))
+    out_fn = os.path.join(results_dir, f'task-{p.task}_group-analyzed-behavior_human-lemmatized.csv')
     
-    # if not os.path.exists(out_fn) or p.overwrite:
-    #     df_analyzed_lemmatized = analysis.analyze_human_results(df_transcript, df_lemmatized_results, word_model_info, window_size=p.window_size, top_n=None, drop_rt=None)
+    if not os.path.exists(out_fn) or p.overwrite:
+        df_analyzed_lemmatized = analysis.analyze_human_results(df_transcript, df_lemmatized_results, word_model_info, window_size=p.window_size, top_n=None, drop_rt=None)
 
-    #     # Add wrong phoneme info
-    #     df_analyzed_results = add_wrong_phoneme_info(df_lemmatized_results, df_analyzed_lemmatized)
+        # Add wrong phoneme info
+        df_analyzed_results = add_wrong_phoneme_info(df_lemmatized_results, df_analyzed_lemmatized)
 
-    #     # Add in prosody columns and add to the list
-    #     df_analyzed_lemmatized.loc[:, prosody_columns] = df_transcript.loc[df_analyzed_lemmatized['word_index'], prosody_columns].reset_index(drop=True)
-    #     df_analyzed_lemmatized.to_csv(out_fn, index=False)
-    # else:
-    #     df_analyzed_lemmatized = pd.read_csv(out_fn)
+        # Add in prosody columns and add to the list
+        df_analyzed_lemmatized.loc[:, prosody_columns] = df_transcript.loc[df_analyzed_lemmatized['word_index'], prosody_columns].reset_index(drop=True)
+        df_analyzed_lemmatized.to_csv(out_fn, index=False)
+    else:
+        df_analyzed_lemmatized = pd.read_csv(out_fn)
 
-    # ### Now do model data
-    # if p.careful_whisper:
-    #     out_fn = os.path.join(results_dir, f'task-{p.task}_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-careful-whisper-lemmatized.csv')
-    # else:
-    #     out_fn = os.path.join(results_dir, f'task-{p.task}_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-lemmatized.csv')
+    ### Now do model data
+    if p.careful_whisper:
+        out_fn = os.path.join(results_dir, f'task-{p.task}_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-careful-whisper-lemmatized.csv')
+    else:
+        out_fn = os.path.join(results_dir, f'task-{p.task}_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-lemmatized.csv')
 
-    # if not os.path.exists(out_fn) or p.overwrite:
-    #     df_lemmatized_models = []
+    if not os.path.exists(out_fn) or p.overwrite:
+        df_lemmatized_models = []
 
-    #     for model_name in p.model_names:
-    #         df_model = analysis.analyze_model_accuracy(df_transcript, word_model_info=word_model_info, models_dir=models_dir, model_name=model_name, task=p.task, window_size=p.window_size, candidate_rows=candidate_rows, lemmatize=True)
-    #         df_model = add_wrong_phoneme_info(df_lemmatized_results, df_model)
+        for model_name in p.model_names:
+            df_model = analysis.analyze_model_accuracy(df_transcript, word_model_info=word_model_info, models_dir=models_dir, model_name=model_name, task=p.task, window_size=p.window_size, candidate_rows=candidate_rows, lemmatize=True)
+            df_model = add_wrong_phoneme_info(df_lemmatized_results, df_model)
 
-    #         # Add in prosody columns and add to the list
-    #         df_model.loc[:, prosody_columns] = df_transcript.loc[df_model['word_index'], prosody_columns].reset_index(drop=True)
-    #         df_lemmatized_models.append(df_model)
+            # Add in prosody columns and add to the list
+            df_model.loc[:, prosody_columns] = df_transcript.loc[df_model['word_index'], prosody_columns].reset_index(drop=True)
+            df_lemmatized_models.append(df_model)
 
-    #     # Concatenate models and then add to the humans dataframe
-    #     df_lemmatized_models = pd.concat(df_lemmatized_models).reset_index(drop=True)
+        # Concatenate models and then add to the humans dataframe
+        df_lemmatized_models = pd.concat(df_lemmatized_models).reset_index(drop=True)
 
-    #     df_lemmatized_combined = pd.concat([
-    #         df_analyzed_lemmatized.loc[:, combined_columns], 
-    #         df_lemmatized_models.loc[:, combined_columns]
-    #     ]).reset_index(drop=True)
+        df_lemmatized_combined = pd.concat([
+            df_analyzed_lemmatized.loc[:, combined_columns], 
+            df_lemmatized_models.loc[:, combined_columns]
+        ]).reset_index(drop=True)
 
-    #     df_lemmatized_combined.to_csv(out_fn, index=False)
+        df_lemmatized_combined.to_csv(out_fn, index=False)
 
     ########################################################
     ########### Conduct distribution comparison ############

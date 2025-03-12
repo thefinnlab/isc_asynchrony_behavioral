@@ -307,39 +307,39 @@ tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE, show.df = TRUE)
 #   group_by(task, word_index) %>%
 #   summarize(mean_accuracy_difference = mean(accuracy_difference, na.rm = TRUE))
 
-plot_model(model, type="pred", terms=c("model_entropy", "modality"))
+# plot_model(model, type="pred", terms=c("model_entropy", "modality"))
 
-# preds <- data.frame(get_model_data(model, type='pred', terms = c("model_entropy", "modality")))
+preds <- data.frame(get_model_data(model, type='pred', terms = c("model_entropy", "modality")))
 # 
-# head(preds)
-# 
-# colors <- c('#82C564', '#F7CD84')
-# 
-# ggplot(preds, aes(x=x, y=predicted, color=group)) + 
-#   geom_point(
-#     data = df_accuracy_contrast, 
-#     aes(x=model_entropy, y=human_model_accuracy_diff, color=modality), 
-#     stroke=1,
-#     alpha=0.075) +
-#   geom_line(size=1) + 
-#   geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.3, color=NA) + 
-#   geom_hline(yintercept = 0, linetype = "dashed", color = "black", size = 1) +
-#   theme(
-#     aspect.ratio = 6/7,
-#     axis.line = element_line(colour = "black"),
-#     panel.grid.major = element_blank(),
-#     panel.grid.minor = element_blank(),
-#     panel.border = element_blank(),
-#     panel.background = element_blank()
-#   ) +
-#   scale_color_manual(values=colors) +
-#   scale_fill_manual(values=colors) +
-#   labs(
-#     x = "Model Entropy",
-#     y = "Accuracy Difference",
-#     title = "Difference of human and model accuracy") 
-# 
-# ggsave('human-llm_accuracy-difference-entropy.pdf', device = "pdf")
+head(preds)
+
+colors <- c('#F068A1', '#82C564', '#F7CD84')
+
+ggplot(preds, aes(x=x, y=predicted, color=group)) +
+  geom_point(
+    data = df_accuracy_contrast,
+    aes(x=model_entropy, y=human_model_accuracy_diff, color=modality),
+    stroke=1,
+    alpha=0.035) +
+  geom_line(size=1) +
+  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.3, color=NA) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", size = 1) +
+  theme(
+    aspect.ratio = 16/9,
+    axis.line = element_line(colour = "black"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank()
+  ) +
+  scale_color_manual(values=colors) +
+  scale_fill_manual(values=colors) +
+  labs(
+    x = "Model Entropy",
+    y = "Accuracy Difference",
+    title = "Difference of human and model accuracy")
+
+ggsave('human-llm_accuracy-difference-entropy.pdf', device = "pdf")
 
 ```
 ### Now include prosody
@@ -360,23 +360,23 @@ plot_model(model, type="pred", terms=c("model_entropy", "modality", "prominence_
 
 ```{r}
 
-preds <- data.frame(get_model_data(model, type='pred', terms = c("prominence_mean", "baseline_modality")))
+preds <- data.frame(get_model_data(model, type='pred', terms = c("prominence_mean", "modality")))
 
 head(preds)
 
-colors <- c('#82C564', '#F7CD84')
+colors <- c('#F068A1', '#82C564', '#F7CD84')
 
 ggplot(preds, aes(x=x, y=predicted, color=group)) + 
   geom_point(
     data = df_accuracy_contrast, 
-    aes(x=prominence_mean, y=accuracy_difference, color=baseline_modality), 
+    aes(x=prominence_mean, y=human_model_accuracy_diff, color=modality), 
     stroke=1,
-    alpha=0.05) +
+    alpha=0.035) +
   geom_line(size=1) + 
   geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.3, color=NA) + 
   geom_hline(yintercept = 0, linetype = "dashed", color = "black", size = 1) +
   theme(
-    aspect.ratio = 6/7,
+    aspect.ratio = 5/4,
     axis.line = element_line(colour = "black"),
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
@@ -390,7 +390,7 @@ ggplot(preds, aes(x=x, y=predicted, color=group)) +
     y = "Accuracy Difference",
     title = "Prosody drives difference of human and LLM accuracy ") 
 
-# ggsave('human-llm_accuracy-difference-prosody-interaction.pdf', device = "pdf")
+ggsave('human-llm_accuracy-difference-prosody-interaction.pdf', device = "pdf")
 ```
 
 # Supplementary analyses

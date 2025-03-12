@@ -19,8 +19,6 @@ import torchaudio
 from torch.nn import functional as F
 from praatio import textgrid
 
-from transformers import AutoFeatureExtractor, Wav2Vec2ForSequenceClassification
-
 N_FILES = 3
 
 DATASET_CONFIGS = {
@@ -69,12 +67,6 @@ DATASET_CONFIGS = {
         'segment_key': 'id',
         'target_sr': 16000  # Use original sampling rate
     },
-
-    ## Audiovisual datasets
-    'lrs3': {
-        'splits': ['train', 'validation', 'test'],
-
-    }
 }
 
 # Add audiovisual datasets
@@ -527,6 +519,8 @@ def pool_embeddings(
 ######################################################
 
 def load_language_classifier(model_name="facebook/mms-lid-256"):
+    
+    from transformers import AutoFeatureExtractor, Wav2Vec2ForSequenceClassification
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -548,6 +542,9 @@ def classify_language(batch, processor, model, audio_sr=16000, return_probs=Fals
 
     with torch.no_grad():
         outputs = model(**inputs).logits
+
+    # Move off GPU memory
+    outputs = outputs.detach().cpu()
 
     # Find highest probability language
     lang_ids = torch.argmax(outputs, dim=-1)

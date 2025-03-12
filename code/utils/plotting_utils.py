@@ -39,10 +39,12 @@ def plot_comparison_identity(ds_a, ds_b, lim):
     return fig
 
 def create_colormap(dtype='spoken-written', continuous=True, N=256):
-
+    # Make color palette: https://eltos.github.io/gradient/
     if dtype == 'human-model':
+        # purple to green colormap
         cmap = clr.LinearSegmentedColormap.from_list('human-model', ['#B2B800', '#E3E3E3', '#C2ADDA'], N=N).reversed()
-    else:
+
+    elif dtype == 'spoken-written' or dtype == 'audio-text':
         if continuous:
             # spoken_written_cmap = clr.LinearSegmentedColormap.from_list('spoken-written', ['#005208', '#72D16B', '#808080', '#E4B266', '#623800'], N=256)
             cmap = clr.LinearSegmentedColormap.from_list('spoken-written', ['#2C8E00', '#E2E2E2', '#DE8C00'], N=N)
@@ -52,13 +54,30 @@ def create_colormap(dtype='spoken-written', continuous=True, N=256):
             cmap.insert(0, '#82C564')
             cmap.insert(1, '#F7CD84')
 
+    elif dtype == 'multimodal' or dtype == 'video-text':
+        if continuous:
+            # spoken_written_cmap = clr.LinearSegmentedColormap.from_list('spoken-written', ['#005208', '#72D16B', '#808080', '#E4B266', '#623800'], N=256)
+            cmap = clr.LinearSegmentedColormap.from_list('multimodal-written', ['#D8005A', '#E2E2E2', '#DE8C00'], N=N)
+            cmap = cmap.reversed()
+        else:
+            cmap = sns.color_palette('BuPu', n_colors=9)
+            cmap.insert(0, '#F068A1')
+            cmap.insert(1, '#82C564')
+            cmap.insert(2, '#F7CD84')
+
+    elif dtype == 'video-audio':
+        if continuous:
+            # spoken_written_cmap = clr.LinearSegmentedColormap.from_list('spoken-written', ['#005208', '#72D16B', '#808080', '#E4B266', '#623800'], N=256)
+            cmap = clr.LinearSegmentedColormap.from_list('multimodal-spoken', ['#D8005A', '#E2E2E2', '#2C8E00'], N=N)
+            cmap = cmap.reversed()
+
     return cmap
 
 ###############################
 ####### Bar plot utility ######
 ###############################
 
-def plot_bar_results(df, x, y, hue, cmap, alpha=0.75, figsize=(6,5), order=None, hue_order=None, add_points=True):
+def plot_bar_results(df, x, y, hue, cmap, alpha=0.75, figsize=(6,5), size=4, order=None, hue_order=None, add_points=True):
 
     if figsize:
         sns.set(style='white', rc={'figure.figsize': figsize})
@@ -66,8 +85,8 @@ def plot_bar_results(df, x, y, hue, cmap, alpha=0.75, figsize=(6,5), order=None,
     ax = sns.barplot(data=df, x=x, y=y, hue=hue, palette=cmap, alpha=alpha, order=order, hue_order=hue_order) 
 
     if add_points:
-        ax = sns.stripplot(data=df, x=x, y=y,  hue=hue,  palette=cmap, size=4,
-            edgecolor='black', linewidth=0.25, dodge=True, alpha=0.3, ax=ax)
+        ax = sns.stripplot(data=df, x=x, y=y,  hue=hue,  palette=cmap, size=size, linewidth=0.25, dodge=True, alpha=0.3, ax=ax) 
+            #edgecolor='black',
     
     sns.despine()
     return ax
@@ -159,25 +178,80 @@ def load_task_model_quadrants(preproc_dir, models_dir, task_list, model_names, w
     df_quadrants = pd.concat(all_quadrants).reset_index(drop=True).sort_values(by=['task', 'word_index'])
     return df_quadrants
 
-# Calculate weights comparing 
-def calculate_weights(df_distributions):
+def calculate_weights(df_distributions, comparison_modality='text'):
+    """
+    Calculate weights comparing different modalities, with one designated as the comparison modality.
+    
+    Parameters:
+    -----------
+    df_distributions : pandas.DataFrame
+        DataFrame containing distribution data with columns: modality, task, word_index, model_name, human_model_accuracy_diff
+    comparison_modality : str, default='text'
+        The modality to use as the baseline for comparison
+        
+    Returns:
+    --------
+    pandas.DataFrame
+        DataFrame containing various weight calculations
+    """
     df_distributions = df_distributions.sort_values(by=['modality', 'task', 'word_index'])
 
     # Put models as columns and modality, task, word_index as rows
     df_distributions = pd.pivot(df_distributions, index=['modality', 'task', 'word_index'], columns='model_name', values='human_model_accuracy_diff')
     
-    # Separate into audio and text (these are contrasts of audio & text)
-    audio, text = [df.to_numpy() for i, df in df_distributions.groupby('modality')]
-
-    # Create DataFrame with all weight types
-    df_weights = pd.DataFrame({
-        'audio>model': np.nanmean(audio, axis=1),
-        'text>model': np.nanmean(text, axis=1),
-        'human>model': np.nanmean((audio + text) / 2, axis=1),
-        'audio>text': np.nanmean((audio - text), axis=1),
-    })
-
+    # Get unique modalities
+    modalities = df_distributions.index.get_level_values('modality').unique()
+    
+    # Create a dictionary to store each modality's data
+    modality_data = {}
+    
+    # Separate data by modality
+    for modality in modalities:
+        modality_data[modality] = df_distributions.xs(modality, level='modality').to_numpy()
+    
+    # Create DataFrame for storing weights
+    weights_dict = {}
+    
+    # Calculate individual modality > model for all modalities
+    for modality in modalities:
+        weights_dict[f'{modality}>model'] = np.nanmean(modality_data[modality], axis=1)
+    
+    # Calculate human > model (average across all modalities)
+    all_modality_arrays = [modality_data[modality] for modality in modalities]
+    weights_dict['human>model'] = np.nanmean(sum(all_modality_arrays) / len(modalities), axis=1)
+    
+    # Calculate contrasts: each modality vs comparison modality
+    if comparison_modality in modalities:
+        comparison_data = modality_data[comparison_modality]
+        for modality in modalities:
+            if modality != comparison_modality:
+                weights_dict[f'{modality}>{comparison_modality}'] = np.nanmean(
+                    (modality_data[modality] - comparison_data), axis=1
+                )
+    
+    df_weights = pd.DataFrame(weights_dict)
+    
     return df_weights
+
+# # Calculate weights comparing 
+# def calculate_weights(df_distributions):
+#     df_distributions = df_distributions.sort_values(by=['modality', 'task', 'word_index'])
+
+#     # Put models as columns and modality, task, word_index as rows
+#     df_distributions = pd.pivot(df_distributions, index=['modality', 'task', 'word_index'], columns='model_name', values='human_model_accuracy_diff')
+
+#     # Separate into audio and text (these are contrasts of audio & text)
+#     audio, text = [df.to_numpy() for i, df in df_distributions.groupby('modality')]
+
+#     # Create DataFrame with all weight types
+#     df_weights = pd.DataFrame({
+#         'audio>model': np.nanmean(audio, axis=1),
+#         'text>model': np.nanmean(text, axis=1),
+#         'human>model': np.nanmean((audio + text) / 2, axis=1),
+#         'audio>text': np.nanmean((audio - text), axis=1),
+#     })
+
+#     return df_weights
 
 ###############################
 #### Custom 3D heatmap plot ####

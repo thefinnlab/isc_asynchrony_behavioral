@@ -145,6 +145,8 @@ model <- lmer(entropy_formula, data = df_results)
 tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE,  show.df = TRUE)
 report (model)
 
+plot_model(model, type=c("pred"))
+
 ```
 
 ### Task-wise effects
@@ -242,36 +244,36 @@ report (model)
 
 plot_model(model, type="pred", terms=c("prominence_mean", "modality"))
 
-# preds <- data.frame(get_model_data(model, type='pred', terms = c("prominence_mean", "modality")))
+preds <- data.frame(get_model_data(model, type='pred', terms = c("prominence_mean", "modality")))
 
-# head(preds)
+head(preds)
 # 
-# colors <- c('#82C564', '#F7CD84')
-# 
-# ggplot(preds, aes(x=x, y=predicted, color=group)) + 
-#   geom_point(
-#     data = df_results, 
-#     aes(x=prominence_mean, y=entropy, color=modality), 
-#     stroke=1,
-#     alpha=0.15) +
-#   geom_line(size=1) + 
-#   geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.3, color=NA) + 
-#   theme(
-#     aspect.ratio = 6/7,
-#     axis.line = element_line(colour = "black"),
-#     panel.grid.major = element_blank(),
-#     panel.grid.minor = element_blank(),
-#     panel.border = element_blank(),
-#     panel.background = element_blank()
-#   ) +
-#   scale_color_manual(values=colors) +
-#   scale_fill_manual(values=colors) +
-#   labs(
-#     x = "Prosodic Prominence",
-#     y = "Entropy",
-#     title = "Prosody reduces entropy of prediction distributions") 
+colors <- c('#F068A1', '#82C564', '#F7CD84')
 
-# ggsave('human_entropy-prosody-interaction.pdf', device = "pdf")
+ggplot(preds, aes(x=x, y=predicted, color=group)) +
+  geom_point(
+    data = df_results,
+    aes(x=prominence_mean, y=entropy, color=modality),
+    stroke=1,
+    alpha=0.1) +
+  geom_line(size=1) +
+  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, fill=group), alpha=0.3, color=NA) +
+  theme(
+    aspect.ratio = 5/4,
+    axis.line = element_line(colour = "black"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank()
+  ) +
+  scale_color_manual(values=colors) +
+  scale_fill_manual(values=colors) +
+  labs(
+    x = "Prosodic Prominence",
+    y = "Entropy",
+    title = "Prosody reduces entropy of prediction distributions")
+
+ggsave('human_entropy-prosody-interaction.pdf', device = "pdf")
 ```
 
 

@@ -17,7 +17,6 @@ import utils
 from video_process import VideoProcessor
 from detector import LandmarksDetector
 
-
 def process_video_file(landmarks_detector, processor, video_path, output_dir):
     """
     Process a single video file

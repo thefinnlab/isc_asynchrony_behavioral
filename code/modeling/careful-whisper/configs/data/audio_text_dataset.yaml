@@ -8,7 +8,8 @@ audio_model_name: wav2vec2
 video_model_name: data2vec
 token_fusion_method: null
 token_fusion_weights: null
-preload: True
+preload: False
+ckpt_path: null
 
 subset_percentage: null
 

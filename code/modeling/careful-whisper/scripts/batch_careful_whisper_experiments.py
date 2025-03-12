@@ -49,148 +49,12 @@ DATASET_INFO = {
     'lrs3': [
         'data.dataset_name=lrs3',
         'data.data_dir=\${paths.data_dir}/lrs3',
+    ],
+    'voxceleb2': [
+        'data.dataset_name=voxceleb2',
+        'data.data_dir=\${paths.data_dir}/voxceleb2',
     ]
 }
-
-MODEL_CONFIGS = {
-
-    # # General GPT2-esque model
-    # 'text-careful-whisper_no-xattn': [
-    #     f"model.config.cross_attention=False",
-    #     f"model.config.use_causal_cross_attention=False",
-    # ],
-
-    # # Whisper w/ CLM integration
-    # 'audio-careful-whisper_causal-xattn': [
-    #     f"model.config.cross_attention=True",
-    #     f"model.config.use_causal_cross_attention=True",
-
-    #     # Add in dropout and position embedding
-    #     f"model.config.context_embed_dropout=0.1",
-    #     f"model.config.context_pos_embed=True",
-    # ],
-
-    # Whisper w/ CLM integration
-    'audiovisual-careful-whisper_causal-xattn_weighted-mlerp-0.7-0.3': [
-        f"model.config.cross_attention=True",
-        f"model.config.use_causal_cross_attention=True",
-
-        # Prosody embedding information
-        f"model.config.context_type=audiovisual_features",
-        f"model.config.context_embed_dropout=0.1",
-        f"model.config.context_pos_embed=True",
-
-        # How to fusion AV tokens
-        f'data.token_fusion_method=mlerp',
-        f'data.token_fusion_weights="[0.7, 0.3]"'
-    ],
-
-    # # Whisper w/ CLM integration
-    # 'prosody-careful-whisper_causal-xattn': [
-    #     f"model.config.cross_attention=True",
-    #     f"model.config.use_causal_cross_attention=True",
-
-    #     # Prosody embedding information
-    #     f"model.config.context_type=prominence",
-    #     f"model.config.context_dim=1",
-    #     f"model.config.context_embed_dropout=0.1",
-    #     f"model.config.context_pos_embed=True",
-
-    # ],
-
-    # # Whisper w/ CLM integration
-    # 'visual-careful-whisper_causal-xattn': [
-    #     f"model.config.cross_attention=True",
-    #     f"model.config.use_causal_cross_attention=True",
-
-    #     # Prosody embedding information
-    #     f"model.config.context_type=video_features",
-    #     f"model.config.context_embed_dropout=0.1",
-    #     f"model.config.context_pos_embed=True",
-
-    # ],
-
-    # # Whisper w/ CLM integration
-    # 'careful-whisper_audio-token-fusion': [
-    #     f"model.config.token_fusion=True",
-    # ],
-
-    # # Whisper w/ CLM integration
-    # 'prosody-whisper_token-fusion': [
-    #     f"model.config.token_fusion=True",
-
-    #     # Prosody embedding information
-    #     f"model.config.context_type=prominence",
-    #     f"model.config.context_dim=1",
-    # ],
-
-
-    # # Whisper w/ CLM integration
-    # 'careful-whisper_audio-xattn_shuffled': [
-    # 	f"model.config.shuffle_context=True",
-    # 	f"model.config.cross_attention=True",
-    # 	f"model.config.use_causal_cross_attention=True",
-    # ],
-
-
-    # # Whisper w/ CLM integration
-    # 'careful-whisper_audio-embed-only': [
-    # 	f"model.config.embed_type=audio_inputs",
-    # 	f"model.config.cross_attention=False",
-    # 	f"model.config.use_causal_cross_attention=False",
-    # ]
-
-    # # Switch self-attention to audio paying attention to text
-    # 'careful-whisper_causal-xattn_inverse-audio-text': [
-    # 	f"model.config.cross_attention=True",
-    # 	f"model.config.use_causal_cross_attention=True",
-
-    # 	# Audio information
-    # 	f"model.config.context_embed_dropout=0.1",
-    # 	f"model.config.context_pos_embed=True",
-    # 	f"model.config.inverse_audio_text=True",
-
-    # ],
-
-    # Controlling for the number of model parameters
-    # 'careful-whisper_no-xattn_parameter-control': [
-    # 	f"model.config.num_layers=18",
-    # ],
-
-    # Seeing if bidirectional cross attention works
-    # 'careful-whisper_causal-bi-xattn': [
-    # 	f"model.config.bidirectional_cross_attention=True",
-    # 	f"model.config.use_causal_cross_attention=True",
-    # ],
-
-    # # Matched architecture to GPT2 (same embed dim + num_heads)
-    # 'careful-whisper_gpt2-control': [
-    # 	f"model.config.embed_dim=768",
-    # 	f"model.config.num_heads=12",
-    # 	f"model.config.cross_attention=False",
-    # 	f"model.config.use_causal_cross_attention=False",
-    # ],
-
-    # # Whisper w/ CLM integration
-    # 'careful-whisper_causal-xattn_num-layers-6': [
-    #     f"model.config.num_layers=6",
-    #     f"model.config.cross_attention=True",
-    #     f"model.config.use_causal_cross_attention=True",
-
-    #     # Add in dropout and position embedding
-    #     f"model.config.context_embed_dropout=0.1",
-    #     f"model.config.context_pos_embed=True",
-    # ],
-
-    # # General GPT2-esque model
-    # 'careful-whisper_no-xattn_num-layers-6': [
-    #     f"model.config.num_layers=6",
-    #     f"model.config.cross_attention=False",
-    #     f"model.config.use_causal_cross_attention=False",
-    # ],
-
-}
-
 def create_model_variations(base_configs, subset_percentages=None):
     """Create model config variations for different subset sizes."""
     variations = {}
@@ -210,16 +74,154 @@ def create_model_variations(base_configs, subset_percentages=None):
     return variations
 
 if __name__ == "__main__":
-
-    EXPERIMENT_NAME = 'careful_whisper'
-    MODEL_CONFIG_NAME = ''
  
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--dataset', type=str)
     parser.add_argument('-subsets', '--subsets', type=int, default=0)
-
     # parser.add_argument('-o', '--overwrite', type=int, default=0)
+    
     p = parser.parse_args()
+
+    EXPERIMENT_NAME = 'careful_whisper'
+    MODEL_CONFIG_NAME = ''
+
+    MODEL_CONFIGS = {
+
+        # # General GPT2-esque model
+        # 'text-careful-whisper_no-xattn': [
+        #     f"model.config.cross_attention=False",
+        #     f"model.config.use_causal_cross_attention=False",
+        # ],
+
+        # # Whisper w/ CLM integration
+        # 'audio-careful-whisper_causal-xattn': [
+        #     f"model.config.cross_attention=True",
+        #     f"model.config.use_causal_cross_attention=True",
+
+        #     # Add in dropout and position embedding
+        #     f"model.config.context_embed_dropout=0.1",
+        #     f"model.config.context_pos_embed=True",
+        # ],
+
+        # # Whisper w/ CLM integration
+        # 'audiovisual-careful-whisper_causal-xattn_token-fusion-mlp_representation-loss': [
+        #     f"model.config.cross_attention=True",
+        #     f"model.config.use_causal_cross_attention=True",
+
+        #     # Prosody embedding information
+        #     f"model.config.context_type=audiovisual_features",
+        #     f"model.config.context_embed_dropout=0.1",
+        #     f"model.config.context_pos_embed=True",
+
+        #     # How to fusion AV tokens
+        #     f'data.token_fusion_method=mlp',
+        #     "data.ckpt_path=\${paths.log_dir}train/token-fusion/" + f"{p.dataset}/{utils.DATASET_CONFIG[p.dataset]['ckpt_path']}"
+        # ],
+
+        # Whisper w/ CLM integration
+        'prosody-careful-whisper_causal-xattn': [
+            f"model.config.cross_attention=True",
+            f"model.config.use_causal_cross_attention=True",
+
+            # Prosody embedding information
+            f"model.config.context_type=prominence",
+            f"model.config.context_dim=1",
+            f"model.config.context_embed_dropout=0.1",
+            f"model.config.context_pos_embed=True",
+
+        ],
+
+        # # Whisper w/ CLM integration
+        # 'visual-careful-whisper_causal-xattn': [
+        #     f"model.config.cross_attention=True",
+        #     f"model.config.use_causal_cross_attention=True",
+
+        #     # Prosody embedding information
+        #     f"model.config.context_type=video_features",
+        #     f"model.config.context_embed_dropout=0.1",
+        #     f"model.config.context_pos_embed=True",
+
+        # ],
+
+        # # Whisper w/ CLM integration
+        # 'careful-whisper_audio-token-fusion': [
+        #     f"model.config.token_fusion=True",
+        # ],
+
+        # # Whisper w/ CLM integration
+        # 'prosody-whisper_token-fusion': [
+        #     f"model.config.token_fusion=True",
+
+        #     # Prosody embedding information
+        #     f"model.config.context_type=prominence",
+        #     f"model.config.context_dim=1",
+        # ],
+
+
+        # # Whisper w/ CLM integration
+        # 'careful-whisper_audio-xattn_shuffled': [
+        # 	f"model.config.shuffle_context=True",
+        # 	f"model.config.cross_attention=True",
+        # 	f"model.config.use_causal_cross_attention=True",
+        # ],
+
+
+        # # Whisper w/ CLM integration
+        # 'careful-whisper_audio-embed-only': [
+        # 	f"model.config.embed_type=audio_inputs",
+        # 	f"model.config.cross_attention=False",
+        # 	f"model.config.use_causal_cross_attention=False",
+        # ]
+
+        # # Switch self-attention to audio paying attention to text
+        # 'careful-whisper_causal-xattn_inverse-audio-text': [
+        # 	f"model.config.cross_attention=True",
+        # 	f"model.config.use_causal_cross_attention=True",
+
+        # 	# Audio information
+        # 	f"model.config.context_embed_dropout=0.1",
+        # 	f"model.config.context_pos_embed=True",
+        # 	f"model.config.inverse_audio_text=True",
+
+        # ],
+
+        # Controlling for the number of model parameters
+        # 'careful-whisper_no-xattn_parameter-control': [
+        # 	f"model.config.num_layers=18",
+        # ],
+
+        # Seeing if bidirectional cross attention works
+        # 'careful-whisper_causal-bi-xattn': [
+        # 	f"model.config.bidirectional_cross_attention=True",
+        # 	f"model.config.use_causal_cross_attention=True",
+        # ],
+
+        # # Matched architecture to GPT2 (same embed dim + num_heads)
+        # 'careful-whisper_gpt2-control': [
+        # 	f"model.config.embed_dim=768",
+        # 	f"model.config.num_heads=12",
+        # 	f"model.config.cross_attention=False",
+        # 	f"model.config.use_causal_cross_attention=False",
+        # ],
+
+        # # Whisper w/ CLM integration
+        # 'careful-whisper_causal-xattn_num-layers-6': [
+        #     f"model.config.num_layers=6",
+        #     f"model.config.cross_attention=True",
+        #     f"model.config.use_causal_cross_attention=True",
+
+        #     # Add in dropout and position embedding
+        #     f"model.config.context_embed_dropout=0.1",
+        #     f"model.config.context_pos_embed=True",
+        # ],
+
+        # # General GPT2-esque model
+        # 'careful-whisper_no-xattn_num-layers-6': [
+        #     f"model.config.num_layers=6",
+        #     f"model.config.cross_attention=False",
+        #     f"model.config.use_causal_cross_attention=False",
+        # ],
+    }
 
     # make directories
     dsq_dir = os.path.join(SUBMIT_DIR, 'dsq')

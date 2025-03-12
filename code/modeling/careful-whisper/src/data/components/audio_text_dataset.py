@@ -11,6 +11,13 @@ import torch
 from torch.utils.data import Dataset
 from torch.nn import functional as F
 
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import multiprocessing
+
+from src.models.token_fusion_module import (
+    TokenFusionModule,
+)
+
 class AudioTextDataset(Dataset):
     def __init__(
         self, 
@@ -20,6 +27,7 @@ class AudioTextDataset(Dataset):
         token_fusion_method: str = None,
         token_fusion_weights: Optional[List[float]] = None,
         preload: bool = False,  # New preload option
+        ckpt_path: str = None,
     ):
         super().__init__()
 
@@ -36,9 +44,27 @@ class AudioTextDataset(Dataset):
         self.token_fusion_method = token_fusion_method
         self.token_fusion_weights = token_fusion_weights
         self.preload = preload
+        self.ckpt_path = ckpt_path
+
+        if self.token_fusion_method == 'mlp':
+            
+            # Option 1: If you have the original Lightning Module class
+            model = TokenFusionModule.load_from_checkpoint(
+                checkpoint_path=self.ckpt_path
+            ).to('cpu')
+
+            model.eval()
+
+            # Detach the model from the computation graph and set requires_grad=False
+            for param in model.parameters():
+                param.requires_grad = False
+            
+            self.token_fusion_mlp = model
+
 
         # Preload data if required
         if self.preload:
+            # self.preloaded_data = self._preload_multiprocessing(split)
             preloaded_data = []
             for idx in tqdm(range(len(self.metadata)), desc=f"Preloading {split} data"):
                 preloaded_data.append(self._load_data(idx))
@@ -48,6 +74,34 @@ class AudioTextDataset(Dataset):
     #############################################
     ############ Metadata functions #############
     #############################################
+
+    # def _preload_multiprocessing(self, split):
+    #     # Use 75% of available cores by default, but at least 1
+    #     print (multiprocessing.cpu_count(), flush=True)
+    #     num_jobs = max(1, int(multiprocessing.cpu_count() * 0.9))
+    #     print (num_jobs, flush=True)
+    #     idxs = range(len(self.metadata))
+
+    #     preloaded = []
+
+    #     with ProcessPoolExecutor(max_workers=num_jobs) as executor:
+    #         # Submit all tasks
+    #         future_to_preload = {
+    #             executor.submit(self._load_data, idx)
+    #             for idx in idxs
+    #         }
+            
+    #         # Process results as they complete
+    #         pbar = tqdm(total=len(idxs), desc=f"Preloading {split}")
+            
+    #         for future in as_completed(future_to_preload):
+    #             data = future.result()
+
+    #             preloaded.append(data)
+    #             pbar.update(1)
+            
+    #         pbar.close()
+    #     return preloaded
 
     def _load_metadata(self, path):
         # Load or create metadata
@@ -59,6 +113,7 @@ class AudioTextDataset(Dataset):
     
     def _load_data(self, idx):
         """Helper function to preload data"""
+        
         data = self.metadata[idx]
         item = {'text': data['text']}
         
@@ -68,28 +123,42 @@ class AudioTextDataset(Dataset):
         
         # Load audio features if exists
         if 'audio_features_path' in data:
-            item['audio_features'] = torch.load(data['audio_features_path'])
-            item['audio_features'] = torch.nan_to_num(item['audio_features'])
+            audio_features = torch.load(data['audio_features_path'])
+            item['audio_features'] = torch.nan_to_num(audio_features)
 
          # Load video features if exists
         if 'video_features_path' in data:
-            item['video_features'] = torch.load(data['video_features_path'])
-            item['video_features'] = torch.nan_to_num(item['video_features'])
+            video_features = torch.load(data['video_features_path'])
+            item['video_features'] = torch.nan_to_num(video_features)
 
         if self.token_fusion_method is not None:
             if self.token_fusion_method == 'average':
-                item['audiovisual_features'] = torch.mean(torch.stack([item['audio_features'], item['video_features']]), dim=0)
+                # take mean of the features
+                av_features = torch.mean(torch.stack([audio_features, video_features]), dim=0)
             elif self.token_fusion_method == 'mlerp':
-                item['audiovisual_features'] = mlerp(
-                    token_list=[item['audio_features'], item['video_features']],
+                # maximum norm lerp
+                av_features = mlerp(
+                    token_list=[audio_features, video_features],
                     weights=self.token_fusion_weights
                 )
             elif self.token_fusion_method == 'summation':
                 # take sum and then normalize
-                item['audiovisual_features']  = item['audio_features'] + item['video_features']
-                item['audiovisual_features'] = item['audiovisual_features'] / torch.norm(item['audiovisual_features'])
-        
+                av_features = audio_features + video_features
+                av_features = av_features / torch.norm(av_features)
+            elif self.token_fusion_method == 'mlp':
+                # use an mlp to fuse the two features together
+                # if audio_features.device != self.token_fusion_mlp.device:
+                #     self.token_fusion_mlp = self.token_fusion_mlp.to(audio_features.device)
+                with torch.no_grad():  # Add this line to disable gradient tracking
+                    av_features = self.token_fusion_mlp(
+                        vec1=audio_features,
+                        vec2=video_features
+                    )[-1]
+
+            item['audiovisual_features'] = torch.nan_to_num(av_features)
+
         return item
+    
     def __len__(self):
         return len(self.metadata)
 

@@ -19,8 +19,8 @@ TIME = '5-00:00:00'
 N_NODES = 1
 N_TASKS_PER_NODE = 1
 N_TASKS = 1
-CPUS_PER_TASK = 31
-MEM_PER_CPU = '4G'
+CPUS_PER_TASK = 8
+MEM_PER_CPU = '8G'
 GPU_INFO = ''
 
 TIME = '2-12:00:00'
@@ -34,7 +34,12 @@ ACCOUNT = 'dbic'
 
 if __name__ == "__main__":
 
-  dataset = 'lrs3'
+  parser = argparse.ArgumentParser(description='Process speech datasets to Praat TextGrids')
+  parser.add_argument('-d','--dataset', type=str, choices=['lrs3', 'avspeech', 'voxceleb2'])
+  parser.add_argument('--overwrite', type=int, default=0,
+            help='Force extraction even if files exist')
+
+  p = parser.parse_args()
 
   logs_dir = os.path.join(BASE_DIR, 'derivatives/logs/modeling/')
   dsq_dir =  os.path.join(BASE_DIR, 'code/submit_scripts/modeling/dsq')
@@ -49,20 +54,20 @@ if __name__ == "__main__":
   job_num = 0
 
 
-  dataset_config = utils.DATASET_CONFIGS[dataset]
+  dataset_config = utils.DATASET_CONFIGS[p.dataset]
   splits = dataset_config['splits']
   splits = splits[::-1]
 
-  output_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', dataset)
+  output_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', p.dataset)
 
   for split in splits:
 
     # Number of subdatasets for efficient processing
     if split == 'train':
-        N_SHARDS = 5
+        N_SHARDS = 25
         # continue
     else:
-        N_SHARDS = 1
+        N_SHARDS = 5
 
     # if split != 'train':
     #   continue
@@ -72,35 +77,31 @@ if __name__ == "__main__":
         # if shard != 4:
         #   continue
           
-        print(f'Making job for: {dataset} {split}, {shard+1}/{N_SHARDS} shards', flush=True)
+        print(f'Making job for: {p.dataset} {split}, {shard+1}/{N_SHARDS} shards', flush=True)
 
         cmd = [
           f"{DSQ_MODULES.replace('dark_matter', 'prosody')} ",
-          f"python normalize_videos.py --dataset {dataset} --output_dir {output_dir} --split {split} --num_shards {N_SHARDS} --current_shard {shard}; ", 
-          # f"python extract_dataset_audio.py --dataset {dataset} --output_dir {output_dir} --split {split} --num_shards {N_SHARDS} --current_shard {shard}; ", 
-          # f"python transcribe_audio.py --dataset {dataset} --output_dir {output_dir} --split {split} --batch_size 64 --num_shards {N_SHARDS} --current_shard {shard}; ", 
-          # f"python prepare_corpus.py --dataset {dataset} --output_dir {output_dir} --split {split} --num_shards {N_SHARDS} --current_shard {shard} ", 
+          # f"python normalize_videos.py --dataset {dataset} --output_dir {output_dir} --split {split} --num_shards {N_SHARDS} --current_shard {shard}; ", 
+          # f"python extract_dataset_audio.py --dataset {p.dataset} --output_dir {output_dir} --split {split} --num_shards {N_SHARDS} --current_shard {shard} --num_jobs {CPUS_PER_TASK}; ", 
+          f"python transcribe_audio.py --dataset {p.dataset} --output_dir {output_dir} --split {split} --batch_size 64 --num_shards {N_SHARDS} --current_shard {shard}; ", 
+          f"python prepare_corpus.py --dataset {p.dataset} --output_dir {output_dir} --split {split} --num_shards {N_SHARDS} --current_shard {shard} --num_jobs {CPUS_PER_TASK}", 
         ]
 
         cmd = "".join(cmd)
         all_cmds.append(cmd)
         job_num += 1
-        break
-    break
-
-    # break
 
   if not all_cmds:
     print(f'No matching audio and text files found', flush=True)
     sys.exit(0)
 
-  joblist_fn = os.path.join(joblists_dir, f'dsq_preproc_av_dataset.txt')
+  joblist_fn = os.path.join(joblists_dir, f'{p.dataset}_preproc_av_dataset.txt')
 
   with open(joblist_fn, 'w') as f:
     for cmd in all_cmds:
       f.write(f"{cmd}\n")
 
-  dsq_base_string = f'dsq_preproc_av_dataset'
+  dsq_base_string = f'{p.dataset}_preproc_av_dataset'
   dsq_batch_fn = os.path.join(dsq_dir, dsq_base_string)
   dsq_out_dir = os.path.join(logs_dir, dsq_base_string)
   array_fmt_width = len(str(job_num))

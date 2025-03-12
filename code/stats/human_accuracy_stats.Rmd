@@ -188,6 +188,47 @@ summary (model)
 report(model)
 ```
 
+#### Task-wise effects
+
+```{r}
+
+continuous_accuracy_formula <- 'fasttext_top_word_accuracy ~ modality + (1|word_index:task)'
+
+task <- 'black'
+df_task <- df_results[df_results$task == task,]
+
+# Fit the logistic mixed-effects model
+model <- lmer(continuous_accuracy_formula, data=df_task)
+
+tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
+summary (model)
+report(model)
+emmeans(model, pairwise ~ modality)
+
+task <- 'wheretheressmoke'
+df_task <- df_results[df_results$task == task,]
+
+# Fit the logistic mixed-effects model
+model <- lmer(continuous_accuracy_formula, data=df_task)
+
+tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
+summary (model)
+report(model)
+emmeans(model, pairwise ~ modality)
+
+task <- 'howtodraw'
+df_task <- df_results[df_results$task == task,]
+
+# Fit the logistic mixed-effects model
+model <- lmer(continuous_accuracy_formula, data=df_task)
+
+tab_model(model, show.se=TRUE, show.stat=TRUE, show.r2=TRUE)
+summary (model)
+report(model)
+emmeans(model, pairwise ~ modality)
+
+```
+
 ### Include prosody within model
 
 ```{r}

@@ -213,11 +213,12 @@ def load_participant_results(sub_dir, sub):
     # Filter down to get the responses
     response_indices = df_results['experiment_phase'] == 'test'
 
-    if 'video' in sub_dir:
-        response_indices = np.where(response_indices)[0]
-        responses = df_results.iloc[response_indices[:-1], :].reset_index(drop=True)
-    else:
-        responses = df_results[response_indices]   
+    ## TLB DOUBLE CHECK THAT AN EQUIVALENT THING WAS IMPLEMENTED IN THE CLEANING NOTEBOOK
+    # if 'video' in sub_dir:
+    #     response_indices = np.where(response_indices)[0]
+    #     responses = df_results.iloc[response_indices[:-1], :].reset_index(drop=True)
+    # else:
+    responses = df_results[response_indices]   
 
     responses.loc[:,'response'] = responses['response'].str.lower()
     responses = responses[['critical_word', 'word_index', 'entropy_group', 'accuracy_group', 'response', 'rt']].reset_index(drop=True)
@@ -357,80 +358,120 @@ def compare_wrong_phonemes(responses, ground_truth, n_phones=1):
 
     return wrong_resp_correct, wrong_resp_incorrect, wrong_resp_accuracy
 
-def get_leakage_stats(df_cleaned_behavior, stat_test='barnard', correction='fdr_bh'):
-
+def get_leakage_stats(df_cleaned_behavior, comparison_modality='text', stat_test='barnard', correction='fdr_bh'):
+    """
+    Calculate leakage statistics by comparing each modality to a specified comparison modality.
+    
+    Parameters:
+    -----------
+    df_cleaned_behavior : pandas.DataFrame
+        DataFrame containing behavior data
+    comparison_modality : str
+        The modality to compare all other modalities against (default: 'text')
+    stat_test : str
+        Statistical test to use ('barnard', 'fisher', or 'chi2')
+    correction : str
+        Multiple comparison correction method
+        
+    Returns:
+    --------
+    pandas.DataFrame
+        DataFrame with added statistics columns
+    """
     df_stack = []
     phone_columns = ['wrong_resp_n_correct', 'wrong_resp_n_incorrect', 'wrong_resp_accuracy']
     stats_columns = [f'{stat_test}_stat', f'{stat_test}_pvalue']
 
     # Go through each word index for the current task
     for word_index, df_index in df_cleaned_behavior.groupby(['word_index']): 
-
-        _df = []
-        contingency = []
-
-        # Get phoneme comparisons for wrong words separately for each modality 
+        
+        # First, calculate phoneme comparisons for all modalities
+        modality_data = {}
         for modality, df_modality in df_index.groupby('modality'):
-
             # Grab ground truth and responses
             ground_truth = df_modality['ground_truth'].unique()[0]
             responses = df_modality['response'].to_numpy()
-
-            # # Filter out missing responses
-            # responses = list(filter(None, responses))
-
+            
             # Compare response phonemes to the ground truth
             phoneme_match = compare_wrong_phonemes(responses, ground_truth, n_phones=1)
-
-            # Make the contingency table
-            contingency.append(phoneme_match[:-1])
-
-            # Save all phoneme info
-            df_modality.loc[:, phone_columns] = phoneme_match
-            _df.append(df_modality)
-
-        # Conduct stats now that we have both modalities
-        _df = pd.concat(_df).reset_index(drop=True)
-
-        # Create a contingency table
-        contingency = np.stack(contingency)
-
-        ## Now conduct stats on it --> groupby word index within task modality 
-        if not np.isnan(contingency).any():
-            if stat_test == 'barnard':
-                results = stats.barnard_exact(contingency, alternative='greater')
-            elif stat_test == 'fisher':
-                results = stats.fisher_exact(contingency, alternative='greater')
-            elif stat_test == 'chi2':
-                results = stats.chi2_contingency((contingency + 1))
-            statistic, pvalue = results.statistic, results.pvalue
-        else:
-            statistic, pvalue = np.nan, np.nan
-
-        _df.loc[:, stats_columns] = statistic, pvalue
-        df_stack.append(_df)
-
+            
+            # Save the contingency data and dataframe for this modality
+            modality_data[modality] = {
+                'contingency': phoneme_match[:-1],  # Exclude accuracy which is the last element
+                'df': df_modality.assign(**dict(zip(phone_columns, phoneme_match)))
+            }
+        
+        # Skip if we don't have the comparison modality
+        if comparison_modality not in modality_data:
+            continue
+            
+        comparison_contingency = modality_data[comparison_modality]['contingency']
+        
+        # Now compare each modality to the comparison modality
+        for modality, data in modality_data.items():
+            # Skip comparing the comparison modality to itself
+            if modality == comparison_modality:
+                # Just add NaN for stat and pvalue for the comparison modality
+                data['df'].loc[:, stats_columns] = np.nan, np.nan
+                df_stack.append(data['df'])
+                continue
+                
+            # Create a 2x2 contingency table for this modality vs comparison
+            contingency = np.stack([data['contingency'], comparison_contingency])
+            
+            # Conduct statistical test
+            if not np.isnan(contingency).any():
+                if stat_test == 'barnard':
+                    results = stats.barnard_exact(contingency, alternative='greater')
+                elif stat_test == 'fisher':
+                    results = stats.fisher_exact(contingency, alternative='greater')
+                elif stat_test == 'chi2':
+                    results = stats.chi2_contingency((contingency + 1))
+                statistic, pvalue = results.statistic, results.pvalue
+            else:
+                statistic, pvalue = np.nan, np.nan
+                
+            # Add statistics to the dataframe
+            data['df'].loc[:, stats_columns] = statistic, pvalue
+            df_stack.append(data['df'])
+    
+    # Concatenate all dataframes
+    if not df_stack:
+        return pd.DataFrame()  # Return empty DataFrame if no data
+        
     df_stack = pd.concat(df_stack).reset_index(drop=True)
-
+    
     # Correct for multiple comparisons across word indices
     if correction is not None:
-
         # Add stat in as modified column
-        _df = []
         stat_name = stats_columns[-1] + f'_{correction}'
-
-        # Get all unique word indices (operating on subjectwise df, so need to find unique)
-        word_indices = df_stack['word_index'].unique()
-
-        # Grab each unique pvalue 
-        pvalues = np.asarray([df_stack[df_stack['word_index'] == idx][stats_columns[-1]].unique()[0] for idx in word_indices])
-
-        # Filter nans before correcting for multiple comparisons
-        nan_filter = ~np.isnan(pvalues)
-        pvalues[nan_filter] = multipletests(pvalues[nan_filter], method=correction)[1]
-
-        for idx, pval in zip(word_indices, pvalues):
-            df_stack.loc[df_stack['word_index'] == idx, stat_name] = pval
+        
+        # Correct for multiple comparisons separately for each modality
+        for modality in df_stack['modality'].unique():
+            # Skip the comparison modality
+            if modality == comparison_modality:
+                continue
+                
+            df_modality = df_stack[df_stack['modality'] == modality]
+            word_indices = df_modality['word_index'].unique()
+            
+            # Grab each unique pvalue
+            pvalues = np.asarray([
+                df_modality[df_modality['word_index'] == idx][stats_columns[-1]].unique()[0]
+                for idx in word_indices
+            ])
+            
+            # Filter nans before correcting for multiple comparisons
+            nan_filter = ~np.isnan(pvalues)
+            if np.any(nan_filter):
+                pvalues[nan_filter] = multipletests(pvalues[nan_filter], method=correction)[1]
+            
+            # Update the values in the original dataframe
+            for idx, pval in zip(word_indices, pvalues):
+                df_stack.loc[
+                    (df_stack['modality'] == modality) & (df_stack['word_index'] == idx),
+                    stat_name
+                ] = pval
     
     df_stack = df_stack.sort_values(by=['modality', 'subject']).reset_index(drop=True)
     

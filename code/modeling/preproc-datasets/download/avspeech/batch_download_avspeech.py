@@ -61,6 +61,8 @@ if __name__ == "__main__":
         all_cmds.append(cmd)
         job_num += 1
 
+        break
+
     if not all_cmds:
         print(f'No splits for AVSpeech', flush=True)
         sys.exit(0)

@@ -64,7 +64,7 @@ def initialize_models(args):
 
     return models
 
-def preprocess_data(args, dirs, split, models, num_shards=1, current_shard=0):
+def preprocess_data(args, dirs, split, models):
     """Preprocess all data with temporary file handling."""
 
     temp_dir, errors_dir = [dirs.get(item) for item in ['temp_dir', 'errors_dir']]
@@ -74,16 +74,7 @@ def preprocess_data(args, dirs, split, models, num_shards=1, current_shard=0):
     all_fns = [os.path.splitext(fn)[0] for fn in all_fns]
 
     # Apply sharding logic --> divide dataset into number of shards 
-    if num_shards > 1:
-        # Calculate shard size and starting/ending indices
-        shard_size = math.ceil(len(all_fns) / num_shards)
-        start_idx = current_shard * shard_size
-        end_idx = min(start_idx + shard_size, len(all_fns))
-        
-        # Get only the files for the current shard
-        all_fns = all_fns[start_idx:end_idx]
-        
-        print(f"Processing shard {current_shard+1}/{num_shards} with {len(all_fns)} files", flush=True)
+    all_fns = utils.get_shard_data(all_fns, num_shards=args.num_shards, current_shard=args.current_shard)
 
     # Count existing json files
     existing_count = 0
@@ -145,7 +136,7 @@ def load_file_data(args, dirs, models, file_name):
             return None
 
         # If there aren't enough or too many words we skip
-        if len(words) < args.min_words or len(words) > args.max_words:
+        if (len(words) < args.min_words) or (len(words) > args.max_words):
             print (f"Number of words {len(words)}, Min words {args.min_words}, Max words {args.max_words}")
             return None
             
@@ -260,34 +251,44 @@ def process_single_file(args, dirs, models, file_name):
         torch.save(boundary, boundary_path)
 
     # Process audio if requested
-    if 'audio' in models and (args.overwrite or not os.path.exists(audio_features_path)):
-        try:
-            audio_features = process_audio(file_data, models, text_tokens)
-        except Exception as e:
-            print (f'Problem extracting audio features: {str(e)}')
-            return None
-        
-        if audio_features is not None:
-            torch.save(audio_features, audio_features_path)
-            result['audio_features_path'] = audio_features_path
-        else:
-            print (f'No audio features: {str(e)}')
-            return None
+    if 'audio' in models:
+        # If we've either specified overwriting or the path doesn't exist
+        if (args.overwrite or not os.path.exists(audio_features_path)):
+            try:
+                audio_features = process_audio(file_data, models, text_tokens)
+            except Exception as e:
+                print (f'Problem extracting audio features: {str(e)}')
+                return None
+
+            # we need to save the features
+            if audio_features is not None:
+                torch.save(audio_features, audio_features_path)
+            else:
+                print (f'No audio features: {str(e)}')
+                return None
+
+        # Otherwise the path exists --> put into the file
+        result['audio_features_path'] = audio_features_path
     
     # Process video if requested
-    if 'video' in models and (args.overwrite or not os.path.exists(video_features_path)):
-        try:
-            video_features = process_video(file_data, models, text_tokens,)
-        except Exception as e:
-            print (f'Problem extracting video features: {str(e)}')
-            return None
-        
-        if video_features is not None:
-            torch.save(video_features, video_features_path)
-            result['video_features_path'] = video_features_path
-        else:
-            print (f'No video features: {str(e)}')
-            return None
+    if 'video' in models:
+        # If we've either specified overwriting or the path doesn't exist
+        if (args.overwrite or not os.path.exists(video_features_path)):
+            try:
+                video_features = process_video(file_data, models, text_tokens)
+            except Exception as e:
+                print (f'Problem extracting video features: {str(e)}')
+                return None
+            
+            # we need to save the features
+            if video_features is not None:
+                torch.save(video_features, video_features_path)
+            else:
+                print (f'No video features: {str(e)}')
+                return None
+
+        # Otherwise the path exists --> put into the file      
+        result['video_features_path'] = video_features_path
     
     utils.save_json(temp_json_path, result)
     return temp_json_path
@@ -407,18 +408,20 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Preprocess audio/video-text dataset')
     parser.add_argument('-d','--dataset', type=str,required=True, 
-                      help='Which dataset to process')
+                    help='Which dataset to process')
     parser.add_argument('--output_dir', type=str, required=True,
-                      help='Base directory for output (default: dataset_name_processing)')
+                    help='Base directory for output (default: dataset_name_processing)')
     parser.add_argument('--split', type=str, default=None,
-                      help='Which split to process')
+                    help='Which split to process')
+    parser.add_argument('--lang_id', type=str, default='eng',
+                    help='Language ID ISO-639 code for AVSpeech')
 
     ### Model names
     parser.add_argument('--text_model', type=str, default='gpt2', help='Text model to use')
     parser.add_argument('--audio_model', type=str, default='wav2vec2', choices=list(AUDIO_MODELS.keys()) + [None], 
-                        help='Audio model to use, or "None" to skip audio processing')
+                    help='Audio model to use, or "None" to skip audio processing')
     parser.add_argument('--video_model', type=str, default=None, choices=list(VIDEO_MODELS.keys()) + [None], 
-                        help='Video model to use, or None to skip video processing')
+                    help='Video model to use, or None to skip video processing')
 
     ### Dataset filtering setup
     parser.add_argument('--min_words', type=int, default=4, help='Minimum number of words per sample')
@@ -426,12 +429,11 @@ if __name__ == "__main__":
 
     ### Sharding for more efficient processing
     parser.add_argument('--num_shards', type=int, default=1,
-                        help='Number of shards to divide the dataset into')
+                    help='Number of shards to divide the dataset into')
     parser.add_argument('--current_shard', type=int, default=0,
-                        help='Current shard to process (0-based indexing)')
-    
+                    help='Current shard to process (0-based indexing)')
     parser.add_argument('--overwrite', type=int, default=0,
-                        help='Force extraction even if files exist')
+                    help='Force extraction even if files exist')
 
     args = parser.parse_args()
 
@@ -493,6 +495,12 @@ if __name__ == "__main__":
         print(f"\nCurrent shard: {args.current_shard+1}/{args.num_shards}", flush=True)
         split_dirs = {k: os.path.join(v, split) for k, v in dirs.items()}
 
+        if args.dataset == 'avspeech':
+            if args.lang_id:
+                split_dirs = {k: os.path.join(v, args.lang_id) for k, v in split_dirs.items()}
+            else:
+                continue
+        
         # Make the json directories
         split_dirs["temp_dir"] = os.path.join(split_dirs["metadata_dir"], 'temp')
         split_dirs["errors_dir"] = os.path.join(split_dirs["metadata_dir"], 'errors')
@@ -502,4 +510,4 @@ if __name__ == "__main__":
             os.makedirs(dir_name, exist_ok=True)
         # os.makedirs(split_dirs["errors_dir"], exist_ok=True)
 
-        preprocess_data(args, split_dirs, split, models, num_shards=args.num_shards, current_shard=args.current_shard)
+        preprocess_data(args, split_dirs, split, models)

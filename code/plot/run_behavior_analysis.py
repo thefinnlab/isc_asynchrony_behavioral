@@ -11,8 +11,6 @@ from config import *
 from dataset_utils import attempt_makedirs
 import plotting_utils as utils
 
-FIG_SIZE = (3,5)
-
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -20,7 +18,7 @@ if __name__ == "__main__":
     # type of analysis we're running --> linked to the name of the regressors
     parser.add_argument('-task_list', '--task_list', type=str, nargs='+')
     parser.add_argument('-word_model', '--word_model', type=str, default='fasttext')
-    parser.add_argument('-modality_list', '--modality_list', type=str, nargs='+', default=['audio', 'text'])
+    parser.add_argument('-modality_list', '--modality_list', type=str, nargs='+', default=['video', 'audio', 'text'])
     parser.add_argument('-o', '--overwrite', type=int, default=0)
     p = parser.parse_args()
 
@@ -28,6 +26,17 @@ if __name__ == "__main__":
     plots_dir = os.path.join(BASE_DIR, 'derivatives/plots/final/behavioral/')
 
     attempt_makedirs(plots_dir)
+
+    if len(p.modality_list) == 3:
+        CMAP_DTYPE = 'multimodal'
+        FIG_SIZE = (3.5,5)
+        modality_pairs = [('video', 'text'), ('audio', 'text')]
+        size = 3
+    else:
+        CMAP_DTYPE = 'spoken-written'
+        FIG_SIZE = (3,5)
+        modality_pairs = [('audio', 'text')]
+        size = 4
 
     ###################################
     ###### Subject-wise analysis ######
@@ -56,8 +65,9 @@ if __name__ == "__main__":
     df_subject_accuracy['modality'] = pd.Categorical(df_subject_accuracy['modality'], categories=p.modality_list, ordered=True)
     df_subject_accuracy = df_subject_accuracy.sort_values('modality') 
 
-    cmap = utils.create_colormap(continuous=False)
-    ax = utils.plot_bar_results(df_subject_accuracy, x='task', y='accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE)
+    cmap = utils.create_colormap(dtype=CMAP_DTYPE, continuous=False)
+    
+    ax = utils.plot_bar_results(df_subject_accuracy, x='task', y='accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE, size=size)
 
     plt.xlabel('Task')
     plt.ylabel('Accuracy (Percent Correct)')
@@ -99,7 +109,7 @@ if __name__ == "__main__":
     df_results = df_results.sort_values('modality') 
 
     # no points for binary since it's 0 or 1
-    cmap = utils.create_colormap(continuous=False)
+    cmap = utils.create_colormap(dtype=CMAP_DTYPE, continuous=False)
     ax = utils.plot_bar_results(df_results, x='task', y='accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE, add_points=False)
     
     plt.xlabel('Task')
@@ -118,8 +128,8 @@ if __name__ == "__main__":
     #######################################
 
     # plot top word accuracy for humans
-    cmap = utils.create_colormap(continuous=False)
-    ax = utils.plot_bar_results(df_results, x='task', y=f'{p.word_model}_top_word_accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE)
+    cmap = utils.create_colormap(dtype=CMAP_DTYPE, continuous=False)
+    ax = utils.plot_bar_results(df_results, x='task', y=f'{p.word_model}_top_word_accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE, size=size)
 
     plt.xlabel('Task')
     plt.ylabel('Cosine similarity')
@@ -136,8 +146,8 @@ if __name__ == "__main__":
     #######################################
 
     # plot top word accuracy for humans
-    cmap = utils.create_colormap(continuous=False)
-    ax = utils.plot_bar_results(df_results, x='task', y=f'weighted_accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE)
+    cmap = utils.create_colormap(dtype=CMAP_DTYPE, continuous=False)
+    ax = utils.plot_bar_results(df_results, x='task', y=f'weighted_accuracy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE, size=size)
 
     plt.xlabel('Task')
     plt.ylabel('Cosine similarity')
@@ -154,8 +164,8 @@ if __name__ == "__main__":
     ###################################
 
     # plot entropy of human distributions
-    cmap = utils.create_colormap(continuous=False)
-    ax = utils.plot_bar_results(df_results, x='task', y='entropy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE)
+    cmap = utils.create_colormap(dtype=CMAP_DTYPE, continuous=False)
+    ax = utils.plot_bar_results(df_results, x='task', y='entropy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE, size=size)
 
     plt.xlabel('Task')
     plt.ylabel('Entropy')
@@ -173,8 +183,8 @@ if __name__ == "__main__":
     ##########################################
 
     # plot entropy of human distributions
-    cmap = utils.create_colormap(continuous=False)
-    ax = utils.plot_bar_results(df_results, x='task', y='normalized_entropy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE)
+    cmap = utils.create_colormap(dtype=CMAP_DTYPE, continuous=False)
+    ax = utils.plot_bar_results(df_results, x='task', y='normalized_entropy', hue='modality', order=p.task_list, cmap=cmap, figsize=FIG_SIZE, size=size)
 
     plt.xlabel('Task')
     plt.ylabel('Entropy')
@@ -187,38 +197,49 @@ if __name__ == "__main__":
     plt.savefig(os.path.join(plots_dir, "all-task_human-behavior_normalized-entropy.pdf"), bbox_inches='tight', dpi=600)
     plt.close('all')
 
-    # ##########################################
-    # ########## Plot 7: Predictability ########
-    # ##########################################
+    ##########################################
+    ########## Plot 7: Predictability ########
+    ##########################################
 
-    # # predictability is the percentage of participants predicting the correct word
-    # # create colors of the plot based on how different the scores were between modalities 
-    # df_predictability = pd.pivot(df_results, index=['task', 'word_index'], columns='modality', values='predictability')
-    # colors = df_predictability['audio'] - df_predictability['text']
-    # colors = utils.linear_norm(colors.to_numpy(), -1, 1)
+    # predictability is the percentage of participants predicting the correct word
+    # create colors of the plot based on how different the scores were between modalities 
+    sns.set(style='white', rc={'figure.figsize':(4, 2.5), 'font.size': 8})  # Reduced font size
+    df_predictability = pd.pivot(df_results, index=['task', 'word_index'], columns='modality', values='predictability')
+    df_predictability.columns = df_predictability.columns.add_categories(['colors'])
 
-    # df_predictability['colors'] = colors
+    for mod1, mod2 in modality_pairs:
+        colors = df_predictability[mod1] - df_predictability[mod2]
+        colors = utils.linear_norm(colors.to_numpy(), -1, 1)
 
-    # # get the continuous colormap
-    # cmap = utils.create_colormap()
-    # sns.set(style='white', rc={'figure.figsize':(5,5)})
+        df_predictability['colors'] = colors
 
-    # # set the color of the individual lines for each task
-    # line_cmap = sns.color_palette("gist_earth", 3)
-    # fig, ax = plt.subplots(1,1)
+        # get the continuous colormap
+        if f'{mod1}-{mod2}' == 'video-text':
+            cmap = utils.create_colormap(continuous=True, dtype='multimodal')
+        else:
+            cmap = utils.create_colormap(continuous=True, dtype='spoken-written')
 
-    # for i, (task, df) in enumerate(df_predictability.groupby('task')):
-    #     # lines of color to average skew = cmap(df['colors'].mean())
-    #     ax = sns.scatterplot(data=df, x='audio', y='text', color=cmap(df['colors']), alpha=0.75, s=25, ax=ax, legend=False)
-    #     ax = sns.regplot(data=df, x='audio', y='text', color=line_cmap[i], scatter=False, label=task, ax=ax)
+        # set the color of the individual lines for each task
+        line_cmap = sns.color_palette("gist_earth", 3)
+        fig, ax = plt.subplots(1,1)
 
-    # plt.plot((0,1), (0, 1), 'k--')
-    # plt.legend(title='Tasks')
+        for i, (task, df) in enumerate(df_predictability.groupby('task')):
+            # lines of color to average skew = cmap(df['colors'].mean())
+            ax = sns.scatterplot(data=df, x=mod2, y=mod1,  color=cmap(df['colors']), alpha=0.75, s=25, ax=ax, legend=False)
+            ax = sns.regplot(data=df, x=mod2, y=mod1, color=line_cmap[i], scatter=False, label=task, ax=ax)
 
-    # plt.ylabel('Written predictability')
-    # plt.xlabel('Spoken predictability') 
-    # plt.title(f'All task - human predictability relationship')
-    # plt.tight_layout()
-    # sns.despine()
+        plt.plot((0,1), (0, 1), 'k--')
+        plt.legend(title='Tasks')
 
-    # plt.savefig(os.path.join(plots_dir, "all-task_human-behavior_predictability.pdf"), bbox_inches='tight', dpi=600)
+        plt.ylabel(f'{mod1} predictability')
+        plt.xlabel(f'{mod2} predictability') 
+
+        # Setting 5 ticks on both axes
+        plt.yticks([0, 0.25, 0.5, 0.75, 1])
+        plt.xticks([0, 0.25, 0.5, 0.75, 1])
+
+        plt.title(f'All task - {mod1} {mod2} human predictability relationship')
+        plt.tight_layout()
+        sns.despine()
+
+        plt.savefig(os.path.join(plots_dir, f"all-task_human-behavior_{mod1}-{mod2}-predictability.pdf"), bbox_inches='tight', dpi=600)

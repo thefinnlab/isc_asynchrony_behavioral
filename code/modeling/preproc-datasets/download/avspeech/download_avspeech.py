@@ -12,10 +12,10 @@ import numpy as np
 from natsort import natsorted
 import concurrent.futures
 from typing import Dict, List, Tuple
-from copy import deepcopy
 
 # Assuming these imports work in your environment
 sys.path.append('../../../utils/')
+
 from config import *
 from dataset_utils import attempt_makedirs
 
@@ -117,44 +117,43 @@ def process_tar_file(fn, split_info, dirs, processor, model, processed_files=Non
                         'x_coord': row.get('x_coord'),
                         'y_coord': row.get('y_coord')
                     }
-
-            # Prepare the batch and detect languages
-            batch = prepare_audio_batch(vid_fns)
-            detected_langs, probs =  utils.classify_language(batch, processor, model, return_probs=True)
-
-            # Get counts of each language
-            unique_langs, counts = np.unique(detected_langs, return_counts=True)
-
-            # Find the most common language
-            max_count = np.argmax(counts)
-            lang_ratio = np.max(counts) / len(detected_langs)
-            most_common_lang = unique_langs[max_count]
-
-            # Create destination directory with language subfolder
-            dest_path = os.path.join(dirs['src'], split, most_common_lang, vid)
-            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-
-            # Log language data for each clip
-            for i, (clip_id, lang, prob) in enumerate(zip(clip_ids, detected_langs, probs)):
-                # Add to language log
-                lang_info = {
-                    'video_id': vid,
-                    'clip_id': clip_id,
-                    'lang_id': lang,
-                    'prob': prob.item(),
-                    'split': split,
-                    'most_common_lang': most_common_lang,
-                    'percent_clips_lang': lang_ratio,
-                }
-
-                # Add in segment information
-                lang_info.update(segment_info)
-
-                # Append to processed files information
-                processed_files[split]['lang_data'].append(lang_info)
-            
-            # Move the video directory to the destination
             try:
+                # Prepare the batch and detect languages
+                batch = prepare_audio_batch(vid_fns)
+                detected_langs, probs =  utils.classify_language(batch, processor, model, return_probs=True)
+
+                # Get counts of each language
+                unique_langs, counts = np.unique(detected_langs, return_counts=True)
+
+                # Find the most common language
+                max_count = np.argmax(counts)
+                lang_ratio = np.max(counts) / len(detected_langs)
+                most_common_lang = unique_langs[max_count]
+
+                # Create destination directory with language subfolder
+                dest_path = os.path.join(dirs['src'], split, most_common_lang, vid)
+                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+
+                # Log language data for each clip
+                for i, (clip_id, lang, prob) in enumerate(zip(clip_ids, detected_langs, probs)):
+                    # Add to language log
+                    lang_info = {
+                        'video_id': vid,
+                        'clip_id': clip_id,
+                        'lang_id': lang,
+                        'prob': prob.item(),
+                        'split': split,
+                        'most_common_lang': most_common_lang,
+                        'percent_clips_lang': lang_ratio,
+                    }
+
+                    # Add in segment information
+                    lang_info.update(segment_info)
+
+                    # Append to processed files information
+                    processed_files[split]['lang_data'].append(lang_info)
+            
+                # Move the video directory to the destination
                 shutil.move(vid_dir, dest_path)
                 processed_files[split]['video_ids'].append(vid)
             except Exception as e:
@@ -238,6 +237,11 @@ if __name__ == "__main__":
         
         print(f"Processing shard {args.current_shard+1}/{args.num_shards} with {len(tar_fns)} files", flush=True)
 
+    # tar_fns = sorted(glob.glob(os.path.join(dataset_dir, 'clips/xa[o-z].tar')))
+    # tar_fns.append(os.path.join(dataset_dir, 'clips/xba.tar'))
+
+    # print (f"Total files: {tar_fns}", flush=True)
+
     # Load models for language classification
     processor, model = utils.load_language_classifier()
 
@@ -262,7 +266,7 @@ if __name__ == "__main__":
                 video_ids = info['video_ids']
                 lang_info = info['lang_data']
 
-                all_processed_files[split]['video_ids'].extend(video_ids)
+                all_processed_files[splxit]['video_ids'].extend(video_ids)
                 all_processed_files[split]['lang_data'].extend(lang_info)
 
                 total_files += len(video_ids)
@@ -275,7 +279,21 @@ if __name__ == "__main__":
     for split, data in all_processed_files.items():
         if data:  # Only create CSV if we have data for this split
             split_lang_df = pd.DataFrame(data['lang_data'])
-            lang_log_path = os.path.join(dataset_dir, f'{split}_metadata-{str(args.current_shard + 1).zfill(5)}.csv')
+            lang_log_path = os.path.join(dataset_dir, 'src', split, f'{split}_metadata-{str(args.current_shard + 1).zfill(5)}.csv')
+
+            if os.path.exists(lang_log_path) and not args.overwrite:
+                # Load existing dataframe
+                existing_df = pd.read_csv(lang_log_path)
+                
+                # Get unique clip_ids from existing dataframe
+                existing_clip_ids = set(existing_df['clip_id'])
+                
+                # Filter out rows from the new dataframe that have clip_ids already in the existing dataframe
+                split_lang_df = split_lang_df[~split_lang_df['clip_id'].isin(existing_clip_ids)]
+                
+                # Concatenate the existing and filtered new dataframes
+                split_lang_df = pd.concat([existing_df, split_lang_df], ignore_index=True)
+            
             split_lang_df.to_csv(lang_log_path, index=False)
             print(f"Created {split} language classification log at {lang_log_path} with {len(split_lang_df)} entries", flush=True)
 
