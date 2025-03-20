@@ -140,7 +140,7 @@ class AudioTextDataset(Dataset):
                         vec2=video_features
                     )[-1]
 
-                item['audiovisual_features'] = torch.nan_to_num(av_features)
+            item['audiovisual_features'] = torch.nan_to_num(av_features)
 
         return item
     

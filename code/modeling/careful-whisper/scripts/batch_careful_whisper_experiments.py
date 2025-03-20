@@ -16,7 +16,7 @@ CPUS_PER_TASK = 8
 MEM_PER_CPU = '8G'
 GPU_INFO = ''
 
-TIME = '16:00:00'
+TIME = '8:00:00'
 EXCLUDE = ''#'p02,p03'
 CPUS_PER_TASK = 16
 MEM_PER_CPU = '8G'
@@ -101,44 +101,44 @@ if __name__ == "__main__":
         #     f"model.config.use_causal_cross_attention=False",
         # ],
 
+        # # Whisper w/ CLM integration
+        # 'audio-careful-whisper_causal-xattn': [
+        #     f"model.config.cross_attention=True",
+        #     f"model.config.use_causal_cross_attention=True",
+
+        #     # Add in dropout and position embedding
+        #     f"model.config.context_embed_dropout=0.1",
+        #     f"model.config.context_pos_embed=True",
+        # ],
+
         # Whisper w/ CLM integration
-        'audio-careful-whisper_causal-xattn': [
+        'audiovisual-careful-whisper_causal-xattn_token-fusion-mlp': [
             f"model.config.cross_attention=True",
             f"model.config.use_causal_cross_attention=True",
 
-            # Add in dropout and position embedding
+            # Prosody embedding information
+            f"model.config.context_type=audiovisual_features",
             f"model.config.context_embed_dropout=0.1",
             f"model.config.context_pos_embed=True",
+            # f"model.optimizer.lr=5e-5",
+
+            # How to fusion AV tokens
+            f'data.token_fusion_method=mlp',
+            "data.ckpt_path=\${paths.log_dir}train/token-fusion/" + f"{p.dataset}/{utils.DATASET_CONFIG[p.dataset]['ckpt_path']}"
         ],
 
-        # # Whisper w/ CLM integration
-        # 'audiovisual-careful-whisper_causal-xattn_token-fusion-mlp': [
-        #     f"model.config.cross_attention=True",
-        #     f"model.config.use_causal_cross_attention=True",
+        # Whisper w/ CLM integration
+        'prosody-careful-whisper_causal-xattn': [
+            f"model.config.cross_attention=True",
+            f"model.config.use_causal_cross_attention=True",
 
-        #     # Prosody embedding information
-        #     f"model.config.context_type=audiovisual_features",
-        #     f"model.config.context_embed_dropout=0.1",
-        #     f"model.config.context_pos_embed=True",
-        #     # f"model.optimizer.lr=5e-5",
+            # Prosody embedding information
+            f"model.config.context_type=prominence",
+            f"model.config.context_dim=1",
+            f"model.config.context_embed_dropout=0.1",
+            f"model.config.context_pos_embed=True",
 
-        #     # How to fusion AV tokens
-        #     f'data.token_fusion_method=mlp',
-        #     "data.ckpt_path=\${paths.log_dir}train/token-fusion/" + f"{p.dataset}/{utils.DATASET_CONFIG[p.dataset]['ckpt_path']}"
-        # ],
-
-        # # Whisper w/ CLM integration
-        # 'prosody-careful-whisper_causal-xattn': [
-        #     f"model.config.cross_attention=True",
-        #     f"model.config.use_causal_cross_attention=True",
-
-        #     # Prosody embedding information
-        #     f"model.config.context_type=prominence",
-        #     f"model.config.context_dim=1",
-        #     f"model.config.context_embed_dropout=0.1",
-        #     f"model.config.context_pos_embed=True",
-
-        # ],
+        ],
 
         # # Whisper w/ CLM integration
         # 'visual-careful-whisper_causal-xattn': [
@@ -259,7 +259,7 @@ if __name__ == "__main__":
     #     subset_percentages,
     #     np.arange(0.3, 0.5, 0.1)
     # ))
-    subset_percentages = subset_percentages[np.logical_and(subset_percentages > 0.1, subset_percentages < 0.15)]
+    subset_percentages = subset_percentages[np.logical_and(subset_percentages > 0.1, subset_percentages < 0.14)]
 
     # Scale to percentages and apply if needed
     subset_percentages = (100 * np.sort(np.round(subset_percentages, 2))).astype(int) if p.subsets else None

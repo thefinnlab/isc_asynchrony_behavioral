@@ -14,11 +14,11 @@ sys.path.append('../utils/')
 import utils 
 
 PARTITION = 'preemptable'
-TIME = '8:00:00'
+TIME = '1-00:00:00'
 N_NODES = 1
 N_TASKS_PER_NODE = 1
 N_TASKS = 1
-CPUS_PER_TASK = 31
+CPUS_PER_TASK = 8
 MEM_PER_CPU = '8G'
 GPU_INFO = ''
 
@@ -28,7 +28,7 @@ ACCOUNT = 'dbic'
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--dataset', type=str)
+    parser.add_argument('-d', '--datasets', type=str, nargs='+')
     parser.add_argument('-o', '--overwrite', type=int, default=0)
     p = parser.parse_args()
 
@@ -43,42 +43,39 @@ if __name__ == "__main__":
     all_cmds = []
     job_num = 0
 
-    dataset_config = utils.DATASET_CONFIGS[p.dataset]
-    output_dir = os.path.join(DATASETS_DIR, 'nlp-datasets', p.dataset)
+    dataset_group = [d in ['lrs3', 'voxceleb2', 'avspeech'] for d in p.datasets]
 
-    if p.dataset in ['lrs3', 'voxceleb2', 'avspeech']:
+    if any(dataset_group):
         models = utils.DATASET_TYPES['video']
     else:
         models = utils.DATASET_TYPES['audio']
 
     model_types = ' '.join([f"--{k} {v} " for k, v in models.items()])
 
-    for split in dataset_config['splits']:
-        
-        print(f'Making job for: {p.dataset} {split}', flush=True)
+    dataset = ' '.join(p.datasets)
 
-        cmd = [
-            f"{DSQ_MODULES.replace('dark_matter', 'prosody')} ",
-            f"python compile_metadata.py --dataset {p.dataset} --output_dir {output_dir} --split {split} "
-            f"{model_types} --overwrite {p.overwrite}; ", 
-        ]
+    print(f'Making job for: {dataset}', flush=True)
 
-        cmd = "".join(cmd)
-        all_cmds.append(cmd)
-        job_num += 1
-    # break
+    cmd = [
+        f"{DSQ_MODULES.replace('dark_matter', 'prosody')} ",
+        f"python make_metadata_subsets.py --d {dataset} {model_types} --overwrite {p.overwrite}; ", 
+    ]
+
+    cmd = "".join(cmd)
+    all_cmds.append(cmd)
+    job_num += 1
 
     if not all_cmds:
         print(f'No matching audio and text files found', flush=True)
         sys.exit(0)
 
-    joblist_fn = os.path.join(joblists_dir, f'dsq_{p.dataset}_compile_metadata.txt')
+    joblist_fn = os.path.join(joblists_dir, f"dsq_{'-'.join(p.datasets)}_make_subsets.txt")
 
     with open(joblist_fn, 'w') as f:
         for cmd in all_cmds:
             f.write(f"{cmd}\n")
 
-    dsq_base_string = f'{p.dataset}_compile_metadata'
+    dsq_base_string = f"{'-'.join(p.datasets)}_make_subsets"
     dsq_batch_fn = os.path.join(dsq_dir, dsq_base_string)
     dsq_out_dir = os.path.join(logs_dir, dsq_base_string)
     array_fmt_width = len(str(job_num))

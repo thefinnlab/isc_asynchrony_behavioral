@@ -73,7 +73,8 @@ def get_dataset_models(model_names, datasets, subsets=None):
             # Add full dataset version
             if subsets is not None:
                 for subset in subsets:
-                    variations[f'{dataset}_{model_name}-subset-{subset:.2f}'] = f'{model_type}'
+                    # variations[f'{dataset}_{model_name}-subset-{subset:.2f}'] = f'{model_type}'
+                    variations[f"{model_name}_subset-{str(subset).zfill(3)}"] = f'{model_type}'
 
                 # Also add base model
                 variations[f'{dataset}_{model_name}'] = model_type
@@ -83,15 +84,21 @@ def get_dataset_models(model_names, datasets, subsets=None):
     return variations
 
 MODEL_GROUPS = {
-    'main': {
-        f'careful-whisper_causal-xattn': 'AudioXAttn',
-        f'prosody-whisper_causal-xattn': 'ProsodyXAttn',
-        f'careful-whisper_no-xattn': 'GPT2',
+    'audio-main': {
+        # f'careful-whisper_causal-xattn': 'AudioXAttn',
+        # f'prosody-whisper_causal-xattn': 'ProsodyXAttn',
+        # f'careful-whisper_no-xattn': 'GPT2',
     },
-    'subsets': {
-        f'careful-whisper_causal-xattn': 'AudioXAttn',
-        f'prosody-whisper_causal-xattn': 'ProsodyXAttn',
-        f'careful-whisper_no-xattn': 'GPT2',
+    'av-main': {
+        f'audiovisual-careful-whisper_causal-xattn_token-fusion-mlp': 'AudioVisualXAttn',
+        f'audio-careful-whisper_causal-xattn': 'AudioXAttn',
+        f'prosody-careful-whisper_causal-xattn': 'ProsodyXAttn',
+        f'text-careful-whisper_no-xattn': 'GPT2',
+    },
+    'av-subsets': {
+        # f'careful-whisper_causal-xattn': 'AudioXAttn',
+        # f'prosody-whisper_causal-xattn': 'ProsodyXAttn',
+        # f'careful-whisper_no-xattn': 'GPT2',
     }
 }
 if __name__ == "__main__":
@@ -214,7 +221,7 @@ if __name__ == "__main__":
 
     df_results = df_results.sort_values(by=['dataset', 'accuracy'], ascending=[True, False])
 
-    if p.group == 'main':
+    if 'main' in p.group:
 
         # Save to a csv file
         if len(p.datasets) > 1:
@@ -222,8 +229,8 @@ if __name__ == "__main__":
         else:
             out_fn = os.path.join(results_dir, f'{p.datasets[0]}-{p.group}_careful-whisper_all-results_batch-size-{p.batch_size}.csv')
 
-        # df_results.to_csv(out_fn, index=False)
-        # df_results = pd.read_csv(out_fn)
+        df_results.to_csv(out_fn, index=False)
+        df_results = pd.read_csv(out_fn)
 
         #################################################
         ########## Plot 1: Plot model accuracy  #########
@@ -243,7 +250,11 @@ if __name__ == "__main__":
         plt.title(f'All models – test set accuracy')
         plt.xticks(rotation=45, ha='right')
 
-        plt.ylim([0.1, 0.325])
+        if p.group == 'av-main':
+
+            plt.ylim([0.15, 0.425])
+        elif p.group == 'audio-main':
+            plt.ylim([0.1, 0.325])
         # if p.dataset == 'helsinki':
         #     plt.ylim([0.18, 0.26])
         # elif p.dataset == 'gigaspeech':
@@ -292,7 +303,10 @@ if __name__ == "__main__":
         plt.title(f'All models – test set perplexity')
         plt.xticks(rotation=45, ha='right')
 
-        plt.ylim(0, 350)
+        if p.group == 'av-main':
+            plt.ylim(0, 200)
+        elif p.group == 'audio-main':
+            plt.ylim(0, 350)
 
         plt.axhline(y=perplexity_chance, color='k', linestyle='--')
         sns.despine()
@@ -323,7 +337,7 @@ if __name__ == "__main__":
     ############ Subset comparison plots ##############
     ###################################################
 
-    elif p.group == 'subsets':
+    elif 'subsets' in p.group:
 
         # if p.datasets[0] == 'gigaspeech-m':
         #     hours = 950
