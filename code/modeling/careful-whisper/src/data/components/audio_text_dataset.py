@@ -57,7 +57,7 @@ class AudioTextDataset(Dataset):
         self.preload = preload
         self.ckpt_path = ckpt_path
 
-        if self.token_fusion_method == 'mlp':
+        if self.token_fusion_method == 'mlp' and self.ckpt_path is not None:
             
             # Option 1: If you have the original Lightning Module class
             model = TokenFusionModule.load_from_checkpoint(
@@ -71,6 +71,8 @@ class AudioTextDataset(Dataset):
                 param.requires_grad = False
             
             self.token_fusion_mlp = model
+        else:
+            self.token_fusion_mlp = None
 
 
         # Preload data if required
@@ -85,34 +87,6 @@ class AudioTextDataset(Dataset):
     #############################################
     ############ Metadata functions #############
     #############################################
-
-    # def _preload_multiprocessing(self, split):
-    #     # Use 75% of available cores by default, but at least 1
-    #     print (multiprocessing.cpu_count(), flush=True)
-    #     num_jobs = max(1, int(multiprocessing.cpu_count() * 0.9))
-    #     print (num_jobs, flush=True)
-    #     idxs = range(len(self.metadata))
-
-    #     preloaded = []
-
-    #     with ProcessPoolExecutor(max_workers=num_jobs) as executor:
-    #         # Submit all tasks
-    #         future_to_preload = {
-    #             executor.submit(self._load_data, idx)
-    #             for idx in idxs
-    #         }
-            
-    #         # Process results as they complete
-    #         pbar = tqdm(total=len(idxs), desc=f"Preloading {split}")
-            
-    #         for future in as_completed(future_to_preload):
-    #             data = future.result()
-
-    #             preloaded.append(data)
-    #             pbar.update(1)
-            
-    #         pbar.close()
-    #     return preloaded
 
     def _load_metadata(self, path):
         # Load or create metadata
@@ -156,7 +130,7 @@ class AudioTextDataset(Dataset):
                 # take sum and then normalize
                 av_features = audio_features + video_features
                 av_features = av_features / torch.norm(av_features)
-            elif self.token_fusion_method == 'mlp':
+            elif self.token_fusion_method == 'mlp' and self.token_fusion_mlp is not None:
                 # use an mlp to fuse the two features together
                 # if audio_features.device != self.token_fusion_mlp.device:
                 #     self.token_fusion_mlp = self.token_fusion_mlp.to(audio_features.device)
@@ -166,7 +140,7 @@ class AudioTextDataset(Dataset):
                         vec2=video_features
                     )[-1]
 
-            item['audiovisual_features'] = torch.nan_to_num(av_features)
+                item['audiovisual_features'] = torch.nan_to_num(av_features)
 
         return item
     

@@ -18,7 +18,7 @@ import pandas as pd
 import numpy as np
 
 sys.path.append('../utils/')
-sys.path.append('../modeling/joint-clm-prosody/')
+sys.path.append('../modeling/careful-whisper/')
 
 from config import *
 from dataset_utils import attempt_makedirs
@@ -79,10 +79,13 @@ if __name__ == "__main__":
     parser.add_argument('-model_name', '--model_name', type=str)
     parser.add_argument('-ckpt_path', '--ckpt_path', type=str)
     parser.add_argument('-overrides', '--overrides', type=str, nargs='+')
+    parser.add_argument('-subset_percentage', '--subset_percentage', type=int, default=None)
+    parser.add_argument('-token_fusion_ckpt', '--token_fusion_ckpt', type=str, default=None)
+    parser.add_argument('-av', '--audiovisual', type=int, default=1)
     parser.add_argument('-o', '--overwrite', type=int, default=0)
     p = parser.parse_args()
 
-    modeling_dir = os.path.join(BASE_DIR, 'code/modeling/joint-clm-prosody/')
+    modeling_dir = os.path.join(BASE_DIR, 'code/modeling/careful-whisper/')
     results_dir = os.path.join(BASE_DIR, f'derivatives/results/careful-whisper/{p.dataset}/')
 
     if p.dataset == 'gigaspeech-m':
@@ -117,14 +120,18 @@ if __name__ == "__main__":
     ###### Initialize dataloader #######
     ####################################
 
-    # create dataset for the test split
-    dataset = AudioTextDataset(
-        dataset_dir=dataset_dir,
-        cache_dir=cache_dir,
-        split=p.split,
-    )
+    if p.audiovisual:
+        model_combo = 'gpt2-wav2vec2-data2vec'
+        dataset_path = os.path.join(dataset_dir, 'features', 'metadata', model_combo)
+        metadata_fn = f"metadata_subset-{str(p.subset_percentage).zfill(3)}.json" if p.subset_percentage else None
 
-    dataset.preprocess_data()
+    dataset = AudioTextDataset(
+        data_dir=dataset_path,
+        split=p.split, 
+        token_fusion_method='mlp' if p.token_fusion_ckpt else None,
+        metadata_file=metadata_fn,
+        ckpt_path=p.token_fusion_ckpt,
+    )
 
     dataloader = DataLoader(
         dataset=dataset,

@@ -92,8 +92,7 @@ if __name__ == "__main__":
     p = parser.parse_args()
 
     EXPERIMENT_NAME = 'careful_whisper'
-    MODEL_CONFIG_NAME = ''
-
+    
     MODEL_CONFIGS = {
 
         # # General GPT2-esque model
@@ -282,8 +281,7 @@ if __name__ == "__main__":
         print (model_name)
 
         # Model config --> change model configurations
-        model_name += MODEL_CONFIG_NAME
-        model_config_str = ' '.join(model_config)
+        model_config = ' '.join(model_config)
         
         # Logger overrides --> change the name based on the dataset
         wandb_config = (
@@ -302,7 +300,7 @@ if __name__ == "__main__":
         cmd = (
             f"{job_string} "
             f"experiment={EXPERIMENT_NAME}.yaml "
-            f"{model_config_str} "
+            f"{model_config} "
             f"{dataset_config} "
             f"{wandb_config} "
             f"{hydra_config} "

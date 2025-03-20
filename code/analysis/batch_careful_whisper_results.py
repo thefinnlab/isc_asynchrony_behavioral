@@ -12,7 +12,11 @@ import subprocess
 sys.path.append('../utils/')
 
 from config import *
-import dataset_utils as utils
+from dataset_utils import attempt_makedirs
+
+sys.path.append('../modeling/careful-whisper/scripts/')
+
+import utils
 
 PARTITION = 'standard'
 TIME = '12:00:00'
@@ -63,70 +67,45 @@ DATASET_INFO = {
             'data.dataset_name=pfka-moth-stories',
             'data.data_dir=\${paths.data_dir}/pfka-moth-speech',
             'data.cache_dir=\${paths.cache_dir}/nlp-datasets/pfka-moth-speech',
-    ]}
-}
+    ]},
 
-MODEL_ARGS = {
+    'lrs3': {
+        'splits': ['test'],
+        'data_config': [
+            'data.dataset_name=lrs3',
+            'data.data_dir=\${paths.data_dir}/lrs3',
+    ]},
 
-    # # General GPT2-esque model
-    # 'careful-whisper_no-xattn': [
-    #     f"model.config.cross_attention=False",
-    #     f"model.config.use_causal_cross_attention=False",
-    # ],
+    'voxceleb2': {
+        'splits': ['test'],
+        'data_config': [
+            'data.dataset_name=voxceleb2',
+            'data.data_dir=\${paths.data_dir}/voxceleb2',
+    ]},
 
-    # # Whisper w/ CLM integration
-    # 'careful-whisper_causal-xattn': [
-    #     f"model.config.cross_attention=True",
-    #     f"model.config.use_causal_cross_attention=True",
-
-    #     # Add in dropout and position embedding
-    #     f"model.config.context_embed_dropout=0.1",
-    #     f"model.config.context_pos_embed=True",
-    # ],
-
-    # # Whisper w/ CLM integration
-    # 'careful-whisper_audio-token-fusion': [
-    #     f"model.config.token_fusion=True",
-    # ],
-
-    # Whisper w/ CLM integration
-    'prosody-whisper_causal-xattn': [
-        f"model.config.cross_attention=True",
-        f"model.config.use_causal_cross_attention=True",
-
-        # Prosody embedding information
-        f"model.config.context_type=prominence",
-        f"model.config.context_dim=1",
-        f"model.config.context_embed_dropout=0.1",
-        f"model.config.context_pos_embed=True",
-
-    ],
-
-    # # Whisper w/ CLM integration
-    # 'prosody-whisper_token-fusion': [
-    #     f"model.config.token_fusion=True",
-
-    #     # Prosody embedding information
-    #     f"model.config.context_type=prominence",
-    #     f"model.config.context_dim=1",
-    # ],
+    'avspeech': {
+        'splits': ['test'],
+        'data_config': [
+            'data.dataset_name=avspeech',
+            'data.data_dir=\${paths.data_dir}/avspeech',
+    ]},
 }
 
 def create_model_variations(base_configs, subset_percentages=None):
     """Create model config variations for different subset sizes."""
     variations = {}
     
-    for model_name, config in base_configs.items():
-        # Add full dataset version
-        if subset_percentages is None:
-            variations[model_name] = config.copy()
-            continue
-        
+    for model_name, config in base_configs.items():        
         # Add subset versions
-        for subset in subset_percentages:
-            subset_name = f"{model_name}-subset-{subset:.2f}"
-            subset_config = config.copy()
-            variations[subset_name] = subset_config
+        if subset_percentages is not None:
+            for subset in subset_percentages:
+                subset_name = f"{model_name}_subset-{str(subset).zfill(3)}"
+                subset_config = config.copy()
+                subset_config.append(f"data.subset_percentage={subset}")
+                variations[subset_name] = subset_config
+        else:
+            # Full dataset version
+            variations[model_name] = config.copy()
             
     return variations
 
@@ -144,64 +123,90 @@ if __name__ == '__main__':
     if not p.test_dataset:
         p.test_dataset = p.train_dataset
 
-    print (p.test_dataset)
-
-    MODELS_DIR = os.path.join(BASE_DIR, 'code/modeling/joint-clm-prosody/')
-    EXPERIMENT = ["experiment=careful_whisper.yaml"]
-
+    EXPERIMENT_NAME = 'careful_whisper'
+    MODELS_DIR = os.path.join(BASE_DIR, 'code/modeling/careful-whisper/')
     CKPTS_DIR = os.path.join(MODELS_DIR, f'logs/train/careful-whisper/{p.train_dataset}/')
 
-    # grab the tasks
-    all_cmds = []
-    script_fn = os.path.join(os.getcwd(), 'run_careful_whisper_results.py')
-    job_string = f'{DSQ_MODULES} srun python {script_fn}'
+    MODEL_CONFIGS = {
 
-    # Sub in the conda environment
-    job_string = job_string.replace('dark_matter', 'prosody')
-    job_num = 0
+        # General GPT2-esque model
+        'text-careful-whisper_no-xattn': [
+            f"model.config.cross_attention=False",
+            f"model.config.use_causal_cross_attention=False",
+        ],
+
+        # Whisper w/ CLM integration
+        'audio-careful-whisper_causal-xattn': [
+            f"model.config.cross_attention=True",
+            f"model.config.use_causal_cross_attention=True",
+
+            # Add in dropout and position embedding
+            f"model.config.context_embed_dropout=0.1",
+            f"model.config.context_pos_embed=True",
+        ],
+
+        # Whisper w/ CLM integration
+        'audiovisual-careful-whisper_causal-xattn_token-fusion-mlp': [
+            f"model.config.cross_attention=True",
+            f"model.config.use_causal_cross_attention=True",
+
+            # Prosody embedding information
+            f"model.config.context_type=audiovisual_features",
+            f"model.config.context_embed_dropout=0.1",
+            f"model.config.context_pos_embed=True",
+        ],
+
+        # Whisper w/ CLM integration
+        'prosody-careful-whisper_causal-xattn': [
+            f"model.config.cross_attention=True",
+            f"model.config.use_causal_cross_attention=True",
+
+            # Prosody embedding information
+            f"model.config.context_type=prominence",
+            f"model.config.context_dim=1",
+            f"model.config.context_embed_dropout=0.1",
+            f"model.config.context_pos_embed=True",
+
+        ],
+    }
 
     # Set up dataset info as the test dataset
-    dataset_config = DATASET_INFO[p.test_dataset]['data_config']
+    dataset_config = ' '.join(DATASET_INFO[p.test_dataset]['data_config'])
     splits = DATASET_INFO[p.test_dataset]['splits']
 
-    if p.subsets:
-        # Log space 2 - 25% 
-        subset_percentages = np.logspace(0.3, 1.4, 10) / 100 if p.subsets else []
-        
-        # 1-10%
-        # subset_percentages = np.arange(0.01, 0.1, 0.01) if p.subsets else []
-        # print (subset_percentages)
+    # # Log space 2 - 25% 
+    subset_percentages = np.logspace(0.3, 1.4, 10) / 100
 
-        # # 10-100%
-        # subset_percentages = np.arange(0.1, 1, 0.1) if p.subsets else []
+    # # 30% - 100% 
+    # subset_percentages = np.concatenate((
+    #     subset_percentages,
+    #     np.arange(0.3, 0.5, 0.1)
+    # ))
+    subset_percentages = subset_percentages[np.logical_and(subset_percentages > 0.1, subset_percentages < 0.15)]
 
-        MODEL_ARGS = create_model_variations(MODEL_ARGS, subset_percentages)
+    # Scale to percentages and apply if needed
+    subset_percentages = (100 * np.sort(np.round(subset_percentages, 2))).astype(int) if p.subsets else None
 
-        # print (MODEL_ARGS.keys())
-        # sys.exit(0)
+    MODEL_CONFIGS = create_model_variations(MODEL_CONFIGS, subset_percentages)
 
-    # TOP_N = 1
-    # WINDOW_SIZE = 25
-    counter = 0
+    #####################################
+    ############ Create jobs ############
+    #####################################
 
-    for i, (model_name, cfg_args) in enumerate(MODEL_ARGS.items()):
+    all_cmds = []
+    script_fn = os.path.join(os.getcwd(), 'run_careful_whisper_results.py')
+    job_string = f"{DSQ_MODULES.replace('dark_matter', 'prosody')} srun python {script_fn}"
+    job_num = 0
 
+    for i, (model_name, model_config) in enumerate(MODEL_CONFIGS.items()):
+
+        # This becomes the name of the output file
         dataset_model = f'{p.train_dataset}_{model_name}'
+        model_config = ' '.join(model_config)
 
         for split in splits:
 
-            # if counter not in [9]:
-            #     counter += 1
-            #     continue
-            
-            # counter += 1
-
             print (dataset_model)
-
-            # if p.train_dataset == 'peoples-speech' and (counter not in [4,7]):
-            #     continue
-            # if p.train_dataset == 'tedlium' and (counter not in [8, 10, 11]):
-            #     continue
             
             if p.test_dataset == 'pfka-moth-stories':
                 out_dir = os.path.join(BASE_DIR, 'derivatives/model-predictions', split, 'careful-whisper', dataset_model, f'window-size-{str(WINDOW_SIZE).zfill(5)}')
@@ -221,12 +226,27 @@ if __name__ == '__main__':
             
             ckpt_path = glob.glob(os.path.join(CKPTS_DIR, model_name, 'checkpoints', 'epoch*.ckpt'))[-1]
 
-            cfg = EXPERIMENT + dataset_config + cfg_args
-            cfg = ' '.join(cfg)
+            cfg = (
+                f"experiment={EXPERIMENT_NAME}.yaml "
+                f"{model_config} "
+                f"{dataset_config} "
+            )
+    
+            cmd = (
+                f"{job_string} "
+                f"-d {p.test_dataset} "
+                f"-s {split} "
+                f"-model_name {dataset_model} "
+                f"-ckpt_path {ckpt_path} "
+                f"-overrides {cfg} "
+            )
 
-            cmd = ''.join([
-                f"{job_string} -d {p.test_dataset} -s {split} -model_name {dataset_model} -ckpt_path {ckpt_path} -overrides {cfg}"
-            ])
+            if 'audiovisual-careful-whisper' in model_name:
+                token_fusion_ckpt = os.path.join(MODELS_DIR, 'logs/train/token-fusion', f"{p.train_dataset}/{utils.DATASET_CONFIG[p.train_dataset]['ckpt_path']}")
+
+                cmd += (
+                    f"-token_fusion_ckpt {token_fusion_ckpt}"
+                )
 
             all_cmds.append(cmd)
             job_num += 1
@@ -236,9 +256,9 @@ if __name__ == '__main__':
     dsq_dir =  os.path.join(BASE_DIR, 'code/submit_scripts/behavioral/dsq')
     joblists_dir = os.path.join(BASE_DIR, 'code/submit_scripts/behavioral/joblists')
 
-    utils.attempt_makedirs(logs_dir)
-    utils.attempt_makedirs(dsq_dir)
-    utils.attempt_makedirs(joblists_dir)
+    attempt_makedirs(logs_dir)
+    attempt_makedirs(dsq_dir)
+    attempt_makedirs(joblists_dir)
 
     joblist_fn = os.path.join(joblists_dir, f'{p.train_dataset}_run_careful_whisper_results.txt')
 
