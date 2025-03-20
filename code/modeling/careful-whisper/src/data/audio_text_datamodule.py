@@ -51,7 +51,7 @@ class AudioTextDataModule(LightningDataModule):
         batch_size: int = 64,
         num_workers: int = 0,
         pin_memory: bool = False,
-        subset_percentage: float = None, 
+        subset_percentage: int = None, 
     ):
         super().__init__()
 
@@ -114,15 +114,19 @@ class AudioTextDataModule(LightningDataModule):
             ######## EXTRACT TRAIN DATA ########
             ####################################
 
-            # # create datasets
-            # if self.hparams.subset_percentage:
-            #     pass
-            # else:
+            # create datasets
+            if self.hparams.subset_percentage:
+                metadata_fn = f"metadata_subset-{str(self.hparams.subset_percentage).zfill(3)}.json"
+            else:
+                metadata_fn = None
+
+            # # else:
             self.train_dataset = AudioTextDataset(
                 data_dir=self.dataset_path,
                 split=self.hparams.train_split, 
                 token_fusion_method=self.hparams.token_fusion_method,
                 token_fusion_weights=self.hparams.token_fusion_weights,
+                metadata_file=metadata_fn,
                 preload=self.hparams.preload,
                 ckpt_path=self.hparams.ckpt_path,
             )

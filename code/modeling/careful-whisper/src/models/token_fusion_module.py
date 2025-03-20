@@ -69,15 +69,19 @@ class TokenFusionModule(LightningModule):
 
     def step(self, batch: Dict[str, torch.Tensor]):
 
-        BATCH_SIZE = 32
+        # BATCH_SIZE = 32
 
-        vectors = [batch[x] for x in [self.hparams.input_name1, self.hparams.input_name2]]
-        vectors = [einops.rearrange(vec, 'b n d -> (b n) d') for vec in vectors]
+        # vectors = [batch[x] for x in [self.hparams.input_name1, self.hparams.input_name2]]
+        # vectors = [einops.rearrange(vec, 'b n d -> (b n) d') for vec in vectors]
 
-        # Generate random indices without replacement
-        random_indices = torch.randperm(vectors[0].shape[0])[:BATCH_SIZE]
-        vec1, vec2 = [vec[random_indices, ...] for vec in vectors]
+        # # Generate random indices without replacement
+        # random_indices = torch.randperm(vectors[0].shape[0])[:BATCH_SIZE]
+        # vec1, vec2 = [vec[random_indices, ...] for vec in vectors]
 
+        # reconstructed_vec1, reconstructed_vec2, compressed = self.forward(vec1=vec1, vec2=vec2)
+        vec1 = batch[self.hparams.input_name1]
+        vec2 = batch[self.hparams.input_name2]
+        
         reconstructed_vec1, reconstructed_vec2, compressed = self.forward(vec1=vec1, vec2=vec2)
 
         # Compute reconstruction losses
@@ -95,6 +99,8 @@ class TokenFusionModule(LightningModule):
             total_loss = loss_vec1 + loss_vec2
         elif self.hparams.loss_fn == 'representation_loss':
             total_loss = (loss_vec1 - sim_vec1) + (loss_vec2 - sim_vec2)
+        elif self.hparams.loss_fn == 'orthogonality_loss':
+            total_loss = (loss_vec1 + sim_vec1) + (loss_vec2 + sim_vec2)
 
         return {
             "loss": total_loss,

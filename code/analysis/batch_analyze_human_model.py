@@ -12,7 +12,7 @@ from config import *
 import dataset_utils as utils
 from tommy_utils.nlp import MLM_MODELS_DICT, CLM_MODELS_DICT
 
-PARTITION = 'preemptable'
+PARTITION = 'standard'
 TIME = '12:00:00'
 N_NODES = 1
 N_TASKS_PER_NODE = 1
@@ -32,9 +32,9 @@ if __name__ == '__main__':
     task_list = ['black', 'wheretheressmoke', 'howtodraw'] # black
     window_sizes = [25]
 
-    # # model_names = sorted(CLM_MODELS_DICT.keys())
+    # model_names = sorted(CLM_MODELS_DICT.keys())
     # window_sizes = [
-    #     2, 3, 4, 5, 10, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300
+    #     2, 3, 4, 5, 10, 50, 75, 125, 150, 175, 200, 225, 250, 275, 300
     # ]
 
     # failed_jobs = [

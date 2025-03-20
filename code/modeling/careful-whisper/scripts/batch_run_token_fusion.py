@@ -18,9 +18,9 @@ GPU_INFO = ''
 
 TIME = '2-12:00:00'
 EXCLUDE = ''
-CPUS_PER_TASK = 8
+CPUS_PER_TASK = 16
 MEM_PER_CPU = '8G'
-PARTITION = 'v100_preemptable'
+PARTITION = 'gpuq'
 GPU_INFO = '--gres=gpu:1'
 NODE_LIST = ''#--nodelist=a03,a04'
 EXCLUDE = ''
@@ -34,6 +34,14 @@ DATASET_INFO = {
     'voxceleb2': [
         'data.dataset_name=voxceleb2',
         'data.data_dir=\${paths.data_dir}/voxceleb2',
+    ],
+    'avspeech': [
+        'data.dataset_name=avspeech',
+        'data.data_dir=\${paths.data_dir}/avspeech',
+    ],
+    'av-combined': [
+        'data.dataset_name=av-combined',
+        'data.data_dir=\${paths.data_dir}/av-combined',
     ]
 }
 
@@ -47,9 +55,8 @@ MODEL_CONFIGS = {
         f"model.input_name1=audio_features",
         f"model.input_name2=video_features",
         f"model.hidden_dim=1024",
-
-        # f"model.loss_fn=representation_loss",
-        # f"model.optimizer.lr=5e-6"
+        # f"model.loss_fn=orthogonality_loss",
+        # f"model.optimizer.lr=5e-5"
     ],
 
 }

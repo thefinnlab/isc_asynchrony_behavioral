@@ -238,6 +238,10 @@ def process_single_file(args, dirs, models, file_name):
         'boundary_path': boundary_path
     }
 
+    if 'waveform' in file_data:
+        duration = file_data['waveform'] / file_data['audio_sr']
+        result['duration'] = duration
+
     # Save token data
     if args.overwrite or not all(os.path.exists(p) for p in [text_tokens_path, attention_mask_path]):
         torch.save(text_tokens['input_ids'], text_tokens_path)
@@ -501,7 +505,7 @@ if __name__ == "__main__":
             else:
                 continue
         
-        # Make the json directories
+        # Make the json directories --> move this earlier TLB 3/14/25
         split_dirs["temp_dir"] = os.path.join(split_dirs["metadata_dir"], 'temp')
         split_dirs["errors_dir"] = os.path.join(split_dirs["metadata_dir"], 'errors')
 

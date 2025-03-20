@@ -64,7 +64,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # type of analysis we're running --> linked to the name of the regressors
-    parser.add_argument('-task_list', '--task_list', type=str, nargs='+')
+    parser.add_argument('-task_list', '--task_list', type=str, nargs='+', default=['black', 'wheretheressmoke', 'howtodraw'])
     parser.add_argument('-word_model', '--word_model', type=str, default='fasttext')
     parser.add_argument('-m', '--model_name', type=str, default='gpt2-xl')
     parser.add_argument('-window', '--window_size', type=int, default=25)
@@ -261,16 +261,16 @@ if __name__ == "__main__":
 
     df_distributions = pd.concat(df_distributions).reset_index(drop=True)
 
-    # if p.careful_whisper:
-    #     df_distributions = split_model_name(df_distributions, input_col='model_name', dataset_col='dataset', model_col='model_name')
+    if p.careful_whisper:
+        df_distributions = split_model_name(df_distributions, input_col='model_name', dataset_col='dataset', model_col='model_name')
 
-    #     # Map values using dictionary, keeping original value if no mapping exists
-    #     df_distributions['model_name'] = df_distributions['model_name'].map(MODEL_NAME_MAPPING).fillna(df_distributions['model_name'])
-    #     out_fn = os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-careful-whisper-distributions-lemmatized.csv')
-    # else:
-    #     out_fn = os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-distributions-lemmatized.csv')
+        # Map values using dictionary, keeping original value if no mapping exists
+        df_distributions['model_name'] = df_distributions['model_name'].map(MODEL_NAME_MAPPING).fillna(df_distributions['model_name'])
+        out_fn = os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-careful-whisper-distributions-lemmatized.csv')
+    else:
+        out_fn = os.path.join(results_dir, f'all-task_group-analyzed-behavior_window-size-{str(p.window_size).zfill(5)}_human-model-distributions-lemmatized.csv')
 
-    # df_distributions.to_csv(out_fn, index=False)
+    df_distributions.to_csv(out_fn, index=False)
 
     # # cmap = create_spoken_written_cmap(continuous=False)
     # sns.set(style='white', rc={'figure.figsize':(8,5)})

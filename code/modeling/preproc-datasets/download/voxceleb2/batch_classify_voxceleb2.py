@@ -24,7 +24,7 @@ MEM_PER_CPU = '8G'
 TIME = '2-12:00:00'
 CPUS_PER_TASK = 8
 MEM_PER_CPU = '8G'
-PARTITION = 'v100_preemptable'
+PARTITION = 'gpuq'
 GPU_INFO = '--gres=gpu:1'
 NODE_LIST = ''#--nodelist=a03,a04'
 EXCLUDE = ''

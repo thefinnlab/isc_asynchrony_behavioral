@@ -25,7 +25,7 @@ GPU_INFO = ''
 TIME = '2-12:00:00'
 CPUS_PER_TASK = 8
 MEM_PER_CPU = '8G'
-PARTITION = 'gpuq'
+PARTITION = 'v100_preemptable'
 GPU_INFO = '--gres=gpu:1'
 NODE_LIST = ''#--nodelist=a03,a04'
 EXCLUDE = ''
@@ -79,12 +79,12 @@ if __name__ == "__main__":
         # else:
             # N_SHARDS = 1
 
-        # if split != 'train':
-        #     continue
+        if split != 'train':
+            continue
         
         for shard in range(N_SHARDS):
 
-            if counter < 12:
+            if counter < 35:
                 counter += 1
                 continue
 

@@ -82,17 +82,9 @@ def extract_audio_from_video(dirs, split, target_sr=16000, force=False, num_jobs
     # Get all video files
     video_files = sorted(glob.glob(os.path.join(dirs['video'], "*.mp4"), recursive=True))
 
-    # Apply sharding logic
-    if num_shards > 1:
-        # Calculate shard size and starting/ending indices
-        shard_size = math.ceil(len(video_files) / num_shards)
-        start_idx = current_shard * shard_size
-        end_idx = min(start_idx + shard_size, len(video_files))
-        
-        # Get only the files for the current shard
-        video_files = video_files[start_idx:end_idx]
-        
-        print(f"Processing shard {current_shard+1}/{num_shards} with {len(video_files)} files", flush=True)
+    utils.get
+
+    video_files = utils.get_shard_data(video_files, num_shards=num_shards, current_shard=current_shard)
     
     # Count existing audio files and find files to process
     existing_count = 0

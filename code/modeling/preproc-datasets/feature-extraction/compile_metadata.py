@@ -17,8 +17,36 @@ sys.path.append('../utils/')
 
 import utils
 
-def compile_features(args, path, check_keys=None, map_data=False, n_token_threshold=2):
+def logarithmic_decay(initial_value, decay_rate, time_steps, min_value=2, max_value=4):
+    """
+    Implements a logarithmic decay function with specified minimum and maximum bounds.
+    
+    Parameters:
+    initial_value (float): The starting value (will be clamped to max_value).
+    decay_rate (float): The rate of decay (positive value).
+    time_steps (int or array): The number of time steps or an array of time points.
+    min_value (float): The minimum value the function will decay to (default: 2).
+    max_value (float): The maximum value the function can have (default: 4).
+    
+    Returns:
+    numpy.ndarray: Array of values following logarithmic decay, bounded between min_value and max_value.
+    """
+    # Convert time_steps to numpy array if it's not already
+    t = np.asarray(time_steps)
+    
+    # Ensure initial_value doesn't exceed max_value
+    initial_value = min(initial_value, max_value)
+    
+    # Calculate the decay
+    decay = initial_value * (1 - decay_rate * np.log1p(t))
+    
+    # Clip values to be between min_value and max_value
+    return np.clip(decay, min_value, max_value)
+
+def compile_features(args, path, check_keys=None, map_data=False, n_token_threshold=4):
     """Load data from temp JSON and replace file paths with actual data."""
+
+    threshold_fx = lambda x: np.round(logarithmic_decay(initial_value=4, decay_rate=0.12, time_steps=x))
 
     try:
         # Load the metadata for the file
@@ -28,13 +56,10 @@ def compile_features(args, path, check_keys=None, map_data=False, n_token_thresh
 
         if map_data:
 
-            if (n_words < args.min_words) or (n_words > args.max_words):
-                msg = f"Number of words {len(words)}, Min words {args.min_words}, Max words {args.max_words}"
-                print (msg, flush=True)
-                return False, None, msg
-
             # There are sometimes errors in transcription --> a simple heuristic lets us filter tokens
-            if n_tokens > (n_words * n_token_threshold): 
+            if (n_tokens // n_words) > threshold_fx(n_words): 
+                print (f"Error for file {path}", flush=True)
+                print (f"Sample words: {data['text']}", flush=True)
                 msg = f"Number of tokens ({n_tokens}) greater than number of words ({n_words}) with token threshold {n_token_threshold}"
                 print (msg, flush=True)
                 return False, None, msg
@@ -51,6 +76,9 @@ def compile_features(args, path, check_keys=None, map_data=False, n_token_thresh
                 for x in check_keys:
                     if x not in data:
                         raise Exception(f'Missing {x} data: {path}')
+
+                    # # Test loading the item
+                    # _ = torch.load(data[x])
             
             # Load data from paths and replace paths with data
             for k, v in mapping.items():
@@ -155,6 +183,8 @@ if __name__ == "__main__":
                     help='Base directory for output (default: dataset_name_processing)')
     parser.add_argument('--split', type=str, default=None,
                     help='Which split to process')
+    parser.add_argument('--lang_id', type=str, default='eng',
+                help='Language ID ISO-639 code for AVSpeech')
 
     ### Model names
     parser.add_argument('--text_model', type=str, default='gpt2', help='Text model to use')
@@ -196,16 +226,34 @@ if __name__ == "__main__":
         temp_dir = os.path.join(cache_dir, split, 'temp')
         errors_dir = os.path.join(cache_dir, split, 'errors')
 
+        if args.dataset == 'avspeech':
+            temp_dir = os.path.join(cache_dir, split, args.lang_id, 'temp')
+            errors_dir = os.path.join(cache_dir, split, args.lang_id, 'errors')
+        elif args.dataset == 'voxceleb2':
+        # if args.dataset in ['avspeech', 'voxceleb2']:
+            if args.lang_id:
+                temp_dir = os.path.join(temp_dir, args.lang_id)
+                errors_dir = os.path.join(errors_dir, args.lang_id)
+            else:
+                continue
+        
         # Metadata paths
         metadata_path = os.path.join(cache_dir, split, 'metadata.json')
         error_metadata_path = os.path.join(cache_dir, split, 'error_metadata.json')
 
         # Load or create metadata --> if doesn't exist, will return an empty list
-        metadata = utils.load_json(metadata_path)
+        if args.overwrite:
+            print (f"Overwriting existing metadata", flush=True)
+            metadata = []
+            error_metadata = []
+        else:
+            print (f"Updating metadata if exists", flush=True)
+            metadata = utils.load_json(metadata_path)
+            error_metadata = utils.load_json(error_metadata_path)
+
         metadata = compile_metadata(args, metadata, temp_dir, check_keys=['audio_features_path', 'video_features_path'], map_data=True)
         utils.save_json(metadata_path, metadata)
 
         # Repeat same process for errors information
-        error_metadata = utils.load_json(error_metadata_path)
         error_metadata = compile_metadata(args, error_metadata, errors_dir)
         utils.save_json(error_metadata_path, error_metadata)

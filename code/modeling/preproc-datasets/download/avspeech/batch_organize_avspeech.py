@@ -4,17 +4,14 @@ import subprocess
 from pathlib import Path
 import glob
 
-sys.path.append('../../../utils/')
+# Assuming these imports work in your environment
+sys.path.append('../../../../utils/')
 
 from config import *
 from dataset_utils import attempt_makedirs
 
-sys.path.append('../')
-
-import utils 
-
-PARTITION = 'preemptable'
-TIME = '5-00:00:00'
+PARTITION = 'standard'
+TIME = '1-00:00:00'
 N_NODES = 1
 N_TASKS_PER_NODE = 1
 N_TASKS = 1

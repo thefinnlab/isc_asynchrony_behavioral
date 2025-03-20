@@ -28,7 +28,6 @@ EXPERIMENT_VERSION = {
 if __name__ == '__main__':
 
 	task_list = ['black', 'wheretheressmoke', 'howtodraw']
-
 	modalities = ['video', 'audio', 'text']
 
 	# grab the tasks

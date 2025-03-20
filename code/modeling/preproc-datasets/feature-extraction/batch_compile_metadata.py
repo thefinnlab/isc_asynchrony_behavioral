@@ -13,12 +13,12 @@ sys.path.append('../utils/')
 
 import utils 
 
-PARTITION = 'standard'
-TIME = '5-00:00:00'
+PARTITION = 'preemptable'
+TIME = '1-00:00:00'
 N_NODES = 1
 N_TASKS_PER_NODE = 1
 N_TASKS = 1
-CPUS_PER_TASK = 8
+CPUS_PER_TASK = 31
 MEM_PER_CPU = '8G'
 GPU_INFO = ''
 

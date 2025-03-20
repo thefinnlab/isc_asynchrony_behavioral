@@ -22,7 +22,7 @@ MEM_PER_CPU = '4G'
 if __name__ == '__main__':
 
 	task_list = ['black', 'wheretheressmoke', 'howtodraw']
-	past_n_words = 5
+	past_n_words = [3, 5, 7, 9]
 
 	# grab the tasks
 	all_cmds = []
@@ -32,8 +32,10 @@ if __name__ == '__main__':
 
 	for i, task in enumerate(task_list):
 
+		num_words = ' '.join(map(str, past_n_words))
+
 		cmd = ''.join([
-			f"{job_string} -t {task} -n_word {past_n_words}"
+			f"{job_string} -t {task} -num_words {num_words}"
 		])
 
 		all_cmds.append(cmd)

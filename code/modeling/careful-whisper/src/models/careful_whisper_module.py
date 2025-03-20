@@ -92,13 +92,6 @@ class CarefulWhisperModule(LightningModule):
         }
 
     def training_step(self, batch: Dict[str, torch.tensor], batch_idx: int):
-
-        print (batch_idx, flush=True)
-        print (f"Tokens shape: {batch['text_tokens'].shape}", flush=True)
-        print (f"Prominence shape: {batch['prominence'].shape}", flush=True)
-        print (f"Attention mask shape: {batch['attention_mask'].shape}", flush=True)
-        print (f"\n", flush=True)
-
         return self._shared_step(batch, 'train')
 
     def validation_step(self, batch: Dict[str, torch.tensor], batch_idx: int):

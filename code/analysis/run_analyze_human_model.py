@@ -12,21 +12,35 @@ from tommy_utils.nlp import load_word_model
 
 WRONG_PHONE_COLS = [
     'wrong_resp_n_correct', 'wrong_resp_n_incorrect', 'wrong_resp_accuracy',
-    'barnard_stat', 'barnard_pvalue', 'barnard_pvalue_fdr_bh'
+    'barnard_stat', 'barnard_pvalue', 'filter_for_leakage'
 ]
 
-def add_wrong_phoneme_info(df_cleaned_results, df_results_analyzed):
+N_WORDS_PROSODY = [3, 5, 7, 9]
 
-    for word_index, df_index in df_results_analyzed.groupby('word_index'):
+def add_wrong_phoneme_info(df_cleaned_results, df_results_analyzed, model_name=None):
 
-        # Find rows in the analyzed results
-        analyzed_rows = df_results_analyzed['word_index'] == word_index
+    create_filter = lambda df, modality, word_index: (df['modality'] == modality) & (df['word_index'] == word_index)
 
+    # If we're using a model name, we can ignore
+    if model_name:
+        wrong_phone_cols = ['filter_for_leakage']
+    else:
+        wrong_phone_cols = WRONG_PHONE_COLS
+
+    for (modality, word_index), _ in df_results_analyzed.groupby(['modality', 'word_index']):
+
+        if model_name:
+            # Place into our analyzed data 
+            modality = 'text'
+            dest_filter = create_filter(df_results_analyzed, model_name, word_index)
+        else:
+            dest_filter = create_filter(df_results_analyzed, modality, word_index)
+        
         # Get the phoneme information
-        wrong_phoneme_info = df_cleaned_results.loc[df_cleaned_results['word_index'] == word_index, WRONG_PHONE_COLS].iloc[0]
+        src_filter = create_filter(df_cleaned_results, modality, word_index)
+        wrong_phoneme_info = df_cleaned_results.loc[src_filter, wrong_phone_cols].iloc[0]
 
-        # Add phoneme info
-        df_results_analyzed.loc[analyzed_rows, WRONG_PHONE_COLS] = wrong_phoneme_info.to_numpy()
+        df_results_analyzed.loc[dest_filter, wrong_phone_cols] = wrong_phoneme_info.to_numpy()
 
     return df_results_analyzed
 
@@ -69,10 +83,14 @@ if __name__ == '__main__':
     candidate_rows = np.where(df_preproc_transcript['NWP_Candidate'])[0]
 
     prosody_columns = [
-        'prominence', 'prominence_mean', 'prominence_std', 
-        'relative_prominence', 'relative_prominence_norm',
-        'boundary', 'boundary_mean', 'boundary_std', 
+        'prominence', 'boundary', #'prominence_mean', 'prominence_std', 
+        #'relative_prominence', 'relative_prominence_norm',
+         # 'boundary_mean', 'boundary_std', 
     ]
+
+    # Add in the additional columns
+    additional_prosody_columns = [f"{col}_mean_words{n_words}" for col in prosody_columns for n_words in N_WORDS_PROSODY]
+    prosody_columns += additional_prosody_columns
 
     # select the columns that we want to save out for gross-comparison
     combined_columns = [
@@ -105,7 +123,6 @@ if __name__ == '__main__':
         df_analyzed_results = add_wrong_phoneme_info(df_results, df_analyzed_results)
 
         # Add in prosody columns and add to the list
-
         df_analyzed_results.loc[:, prosody_columns] = df_transcript.loc[df_analyzed_results['word_index'], prosody_columns].reset_index(drop=True)
         df_analyzed_results.to_csv(out_fn, index=False)
     else:
@@ -123,7 +140,7 @@ if __name__ == '__main__':
         for model_name in p.model_names:
             # Load model data and add wrong phoneme information
             df_model = analysis.analyze_model_accuracy(df_transcript, word_model_info=word_model_info, models_dir=models_dir, model_name=model_name, task=p.task, window_size=p.window_size, candidate_rows=candidate_rows, lemmatize=False)
-            df_model = add_wrong_phoneme_info(df_results, df_model)
+            df_model = add_wrong_phoneme_info(df_results, df_model, model_name=model_name)
 
             # Add in prosody columns and add to the list
             df_model.loc[:, prosody_columns] = df_transcript.loc[df_model['word_index'], prosody_columns].reset_index(drop=True)
@@ -133,8 +150,8 @@ if __name__ == '__main__':
         df_all_models = pd.concat(df_all_models).reset_index(drop=True)
 
         df_combined = pd.concat([
-            df_analyzed_results.loc[:, combined_columns], 
-            df_all_models.loc[:, combined_columns]
+            df_analyzed_results.reindex(columns=combined_columns), 
+            df_all_models.reindex(columns=combined_columns)
         ]).reset_index(drop=True)
 
         df_combined.to_csv(out_fn, index=False)
@@ -170,7 +187,7 @@ if __name__ == '__main__':
 
         for model_name in p.model_names:
             df_model = analysis.analyze_model_accuracy(df_transcript, word_model_info=word_model_info, models_dir=models_dir, model_name=model_name, task=p.task, window_size=p.window_size, candidate_rows=candidate_rows, lemmatize=True)
-            df_model = add_wrong_phoneme_info(df_lemmatized_results, df_model)
+            df_model = add_wrong_phoneme_info(df_lemmatized_results, df_model, model_name=model_name)
 
             # Add in prosody columns and add to the list
             df_model.loc[:, prosody_columns] = df_transcript.loc[df_model['word_index'], prosody_columns].reset_index(drop=True)
@@ -180,8 +197,8 @@ if __name__ == '__main__':
         df_lemmatized_models = pd.concat(df_lemmatized_models).reset_index(drop=True)
 
         df_lemmatized_combined = pd.concat([
-            df_analyzed_lemmatized.loc[:, combined_columns], 
-            df_lemmatized_models.loc[:, combined_columns]
+            df_analyzed_lemmatized.reindex(columns=combined_columns), 
+            df_lemmatized_models.reindex(columns=combined_columns)
         ]).reset_index(drop=True)
 
         df_lemmatized_combined.to_csv(out_fn, index=False)
@@ -201,10 +218,8 @@ if __name__ == '__main__':
         df_all_comparisons = []
 
         for model_name in p.model_names:
-            print (model_name)
-
             df_comparison = analysis.compare_human_model_distributions(df_lemmatized_results, word_model_info, models_dir=logits_dir, model_name=model_name, task=p.task, lemmatize=True)
-            df_comparison = add_wrong_phoneme_info(df_lemmatized_results, df_comparison)
+            df_comparison = add_wrong_phoneme_info(df_lemmatized_results, df_comparison, model_name=model_name)
             df_comparison.loc[:, prosody_columns] = df_transcript.loc[df_comparison['word_index'], prosody_columns].reset_index(drop=True)
             df_all_comparisons.append(df_comparison)
 

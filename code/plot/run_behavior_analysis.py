@@ -16,7 +16,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # type of analysis we're running --> linked to the name of the regressors
-    parser.add_argument('-task_list', '--task_list', type=str, nargs='+')
+    parser.add_argument('-task_list', '--task_list', type=str, nargs='+', default=['black', 'wheretheressmoke', 'howtodraw'])
     parser.add_argument('-word_model', '--word_model', type=str, default='fasttext')
     parser.add_argument('-modality_list', '--modality_list', type=str, nargs='+', default=['video', 'audio', 'text'])
     parser.add_argument('-o', '--overwrite', type=int, default=0)

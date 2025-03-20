@@ -46,7 +46,7 @@ callbacks:
 
 data:
   num_workers: 8
-  batch_size: 32
+  batch_size: 1
   dataset_name: None
   data_dir: ${paths.data_dir}/
   text_model_name: gpt2

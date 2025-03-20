@@ -23,6 +23,7 @@ class AudioTextDataset(Dataset):
         self, 
         data_dir: str,
         split: str = 'test',
+        lang_id: str = 'eng',
         metadata_file: str = None,
         token_fusion_method: str = None,
         token_fusion_weights: Optional[List[float]] = None,
@@ -32,10 +33,20 @@ class AudioTextDataset(Dataset):
         super().__init__()
 
         # Metadata paths
+
+        ## TLB HARDCODING FOR NOW --> FIX THIS LATER FOR DIRECTORY STRUCTURE
+        # Apparently don't need
+        
+        # if 'avspeech' in data_dir:
+        #     metadata_dir = os.path.join(data_dir, split, lang_id)
+        # else:
+        #     metadata_dir = os.path.join(data_dir, split)
+
         if not metadata_file:
             metadata_path = os.path.join(data_dir, split, 'metadata.json')
         else:
             metadata_path = os.path.join(data_dir, split, metadata_file)
+            print (metadata_path, flush=True)
         
         # Load or create metadata
         self.metadata_path = metadata_path

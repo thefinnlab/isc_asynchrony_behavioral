@@ -358,7 +358,7 @@ def compare_wrong_phonemes(responses, ground_truth, n_phones=1):
 
     return wrong_resp_correct, wrong_resp_incorrect, wrong_resp_accuracy
 
-def get_leakage_stats(df_cleaned_behavior, comparison_modality='text', stat_test='barnard', correction='fdr_bh'):
+def get_leakage_stats(df_cleaned_behavior, comparison_modality='text', stat_test='barnard', alpha=0.05, correction=None):
     """
     Calculate leakage statistics by comparing each modality to a specified comparison modality.
     
@@ -406,14 +406,14 @@ def get_leakage_stats(df_cleaned_behavior, comparison_modality='text', stat_test
             continue
             
         comparison_contingency = modality_data[comparison_modality]['contingency']
-        
+        comparison_results = {}
+
         # Now compare each modality to the comparison modality
         for modality, data in modality_data.items():
             # Skip comparing the comparison modality to itself
             if modality == comparison_modality:
                 # Just add NaN for stat and pvalue for the comparison modality
-                data['df'].loc[:, stats_columns] = np.nan, np.nan
-                df_stack.append(data['df'])
+                comparison_results[modality] = [np.nan, np.nan]
                 continue
                 
             # Create a 2x2 contingency table for this modality vs comparison
@@ -431,11 +431,22 @@ def get_leakage_stats(df_cleaned_behavior, comparison_modality='text', stat_test
             else:
                 statistic, pvalue = np.nan, np.nan
                 
-            # Add statistics to the dataframe
-            data['df'].loc[:, stats_columns] = statistic, pvalue
-            df_stack.append(data['df'])
-    
-    # Concatenate all dataframes
+            # Store the statistics
+            comparison_results[modality] = [statistic, pvalue]
+
+        # Grab the significant for all modalities tested
+        pvals = np.array([results[-1] for modality, results in comparison_results.items() if modality != comparison_modality])
+        filter_significant = (pvals < alpha).all()
+
+        # Now add the results into the dataframe including the filter column
+        for modality, leakage_stats in comparison_results.items():
+            data = modality_data[modality]
+
+            insert_columns = stats_columns + ['filter_for_leakage'] 
+            insert_values = leakage_stats + [filter_significant]
+            data['df'].loc[:, insert_columns] = insert_values
+            df_stack.append(data['df'])    # Concatenate all dataframes
+
     if not df_stack:
         return pd.DataFrame()  # Return empty DataFrame if no data
         
@@ -511,7 +522,7 @@ def analyze_human_results(df_transcript, df_results, word_model_info, window_siz
     modality = np.unique(df_results['modality'])[0]
 
     # Clean responses for nans
-    df_results.loc[:, 'response'] = df_results['response'].apply(lambda x: strip_punctuation(x) if isinstance(x, str) else '')
+    df_results.loc[:, 'response'] = df_results['response'].apply(lambda x: strip_punctuation(x).strip() if isinstance(x, str) else '')
 
     # Instantiate the dataframe
     df_analysis = pd.DataFrame(columns=[

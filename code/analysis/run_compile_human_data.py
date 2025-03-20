@@ -16,7 +16,7 @@ N_ORDERS = {
     'howtodraw': 3
 }
 
-MODALITIES = ['audio', 'text']
+N_WORDS_PROSODY = [3, 5, 7, 9] #[5, 10, 15]
 
 if __name__ == '__main__':
 
@@ -25,7 +25,7 @@ if __name__ == '__main__':
     # type of analysis we're running --> linked to the name of the regressors
     parser.add_argument('-t', '--task', type=str)
     parser.add_argument('-v', '--experiment_version', type=str)
-    parser.add_argument('-modality_list', '--modality_list', type=str, nargs='+', default=['audio', 'text'])
+    parser.add_argument('-modality_list', '--modality_list', type=str, nargs='+', default=['video','audio', 'text'])
     parser.add_argument('-o', '--overwrite', type=int, default=0)
     p = parser.parse_args()
 
@@ -50,10 +50,14 @@ if __name__ == '__main__':
     df_transcript = df_transcript.rename(columns={'Word_Written': 'word', 'Punctuation': 'punctuation'})
 
     prosody_columns = [
-        'prominence', 'prominence_mean', 'prominence_std', 
-        'relative_prominence', 'relative_prominence_norm',
-        'boundary', 'boundary_mean', 'boundary_std', 
+        'prominence', 'boundary', #'prominence_mean', 'prominence_std', 
+        #'relative_prominence', 'relative_prominence_norm',
+         # 'boundary_mean', 'boundary_std', 
     ]
+
+    # Add in the additional columns
+    additional_prosody_columns = [f"{col}_mean_words{n_words}" for col in prosody_columns for n_words in N_WORDS_PROSODY]
+    prosody_columns += additional_prosody_columns
 
     ########################################################
     #### Aggregate results across audio/text modalities ####

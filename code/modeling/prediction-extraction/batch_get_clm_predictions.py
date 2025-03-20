@@ -40,10 +40,11 @@ if __name__ == '__main__':
 	# model_names = ['gpt2']
 
 	# model_names = sorted(CLM_MODELS_DICT.keys())
-	# window_sizes = [
-	# 	2, 3, 4, 5, 10, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300
-	# ]
-	window_sizes = [100]
+	window_sizes = [
+		2, 3, 4, 5, 10, 50, 75, 125, 150, 175, 200, 225, 250, 275, 300
+	]
+	
+	# window_sizes = [100]
 	top_ns = [1] #, 5] #, 10]
 
 	all_cmds = []
@@ -51,9 +52,9 @@ if __name__ == '__main__':
 	job_string = f'{DSQ_MODULES} srun python {script_fn}'
 	job_num = 0
 
-	# TLB -- 3/7/25 need to rerun the following
+	# TLB -- 3/12/25 need to rerun the following
 	failed_jobs = [
-		6, 23,
+		20,31,43,59,76,223,299
 	]
 
 	for i, (task, model, window) in enumerate(product(task_names, model_names, window_sizes)):

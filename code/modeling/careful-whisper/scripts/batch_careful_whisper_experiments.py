@@ -16,11 +16,11 @@ CPUS_PER_TASK = 8
 MEM_PER_CPU = '8G'
 GPU_INFO = ''
 
-TIME = '2-12:00:00'
-EXCLUDE = ''
-CPUS_PER_TASK = 8
+TIME = '16:00:00'
+EXCLUDE = ''#'p02,p03'
+CPUS_PER_TASK = 16
 MEM_PER_CPU = '8G'
-PARTITION = 'v100_preemptable'
+PARTITION = 'gpuq'
 GPU_INFO = '--gres=gpu:1'
 NODE_LIST = ''#--nodelist=a03,a04'
 ACCOUNT = 'dbic' #dbic
@@ -53,19 +53,28 @@ DATASET_INFO = {
     'voxceleb2': [
         'data.dataset_name=voxceleb2',
         'data.data_dir=\${paths.data_dir}/voxceleb2',
+    ],
+    'avspeech': [
+        'data.dataset_name=avspeech',
+        'data.data_dir=\${paths.data_dir}/avspeech',
+    ],
+    'av-combined': [
+        'data.dataset_name=av-combined',
+        'data.data_dir=\${paths.data_dir}/av-combined',
     ]
 }
+
 def create_model_variations(base_configs, subset_percentages=None):
     """Create model config variations for different subset sizes."""
     variations = {}
     
     for model_name, config in base_configs.items():        
         # Add subset versions
-        if subset_percentages:
+        if subset_percentages is not None:
             for subset in subset_percentages:
-                subset_name = f"{model_name}-subset-{subset:.2f}"
+                subset_name = f"{model_name}_subset-{str(subset).zfill(3)}"
                 subset_config = config.copy()
-                subset_config.append(f"data.subset_percentage={subset:.2f}")
+                subset_config.append(f"data.subset_percentage={subset}")
                 variations[subset_name] = subset_config
         else:
             # Full dataset version
@@ -93,18 +102,18 @@ if __name__ == "__main__":
         #     f"model.config.use_causal_cross_attention=False",
         # ],
 
-        # # Whisper w/ CLM integration
-        # 'audio-careful-whisper_causal-xattn': [
-        #     f"model.config.cross_attention=True",
-        #     f"model.config.use_causal_cross_attention=True",
+        # Whisper w/ CLM integration
+        'audio-careful-whisper_causal-xattn': [
+            f"model.config.cross_attention=True",
+            f"model.config.use_causal_cross_attention=True",
 
-        #     # Add in dropout and position embedding
-        #     f"model.config.context_embed_dropout=0.1",
-        #     f"model.config.context_pos_embed=True",
-        # ],
+            # Add in dropout and position embedding
+            f"model.config.context_embed_dropout=0.1",
+            f"model.config.context_pos_embed=True",
+        ],
 
         # # Whisper w/ CLM integration
-        # 'audiovisual-careful-whisper_causal-xattn_token-fusion-mlp_representation-loss': [
+        # 'audiovisual-careful-whisper_causal-xattn_token-fusion-mlp': [
         #     f"model.config.cross_attention=True",
         #     f"model.config.use_causal_cross_attention=True",
 
@@ -112,24 +121,25 @@ if __name__ == "__main__":
         #     f"model.config.context_type=audiovisual_features",
         #     f"model.config.context_embed_dropout=0.1",
         #     f"model.config.context_pos_embed=True",
+        #     # f"model.optimizer.lr=5e-5",
 
         #     # How to fusion AV tokens
         #     f'data.token_fusion_method=mlp',
         #     "data.ckpt_path=\${paths.log_dir}train/token-fusion/" + f"{p.dataset}/{utils.DATASET_CONFIG[p.dataset]['ckpt_path']}"
         # ],
 
-        # Whisper w/ CLM integration
-        'prosody-careful-whisper_causal-xattn': [
-            f"model.config.cross_attention=True",
-            f"model.config.use_causal_cross_attention=True",
+        # # Whisper w/ CLM integration
+        # 'prosody-careful-whisper_causal-xattn': [
+        #     f"model.config.cross_attention=True",
+        #     f"model.config.use_causal_cross_attention=True",
 
-            # Prosody embedding information
-            f"model.config.context_type=prominence",
-            f"model.config.context_dim=1",
-            f"model.config.context_embed_dropout=0.1",
-            f"model.config.context_pos_embed=True",
+        #     # Prosody embedding information
+        #     f"model.config.context_type=prominence",
+        #     f"model.config.context_dim=1",
+        #     f"model.config.context_embed_dropout=0.1",
+        #     f"model.config.context_pos_embed=True",
 
-        ],
+        # ],
 
         # # Whisper w/ CLM integration
         # 'visual-careful-whisper_causal-xattn': [
@@ -242,25 +252,29 @@ if __name__ == "__main__":
 
     # Define subset percentages and create model variations
 
-    # Log space 2 - 25% 
-    subset_percentages = np.logspace(0.3, 1.4, 10) / 100 if p.subsets else []
-    
-    # 1-10%
-    # subset_percentages = np.arange(0.01, 0.1, 0.01) if p.subsets else []
-    # print (subset_percentages)
+    # # Log space 2 - 25% 
+    subset_percentages = np.logspace(0.3, 1.4, 10) / 100
 
-    # # 10-100%
-    # subset_percentages = np.arange(0.1, 1, 0.1) if p.subsets else []
+    # # 30% - 100% 
+    # subset_percentages = np.concatenate((
+    #     subset_percentages,
+    #     np.arange(0.3, 0.5, 0.1)
+    # ))
+    subset_percentages = subset_percentages[np.logical_and(subset_percentages > 0.1, subset_percentages < 0.15)]
 
-    # subset_percentages = [0.1, 0.2, 0.7, 0.8, 0.9] if p.subsets else []
+    # Scale to percentages and apply if needed
+    subset_percentages = (100 * np.sort(np.round(subset_percentages, 2))).astype(int) if p.subsets else None
+
     MODEL_CONFIGS = create_model_variations(MODEL_CONFIGS, subset_percentages)
 
     wandb_group = 'full-data' if not p.subsets else 'subsets'
     counter = 0
 
+    # failed_jobs = [5, 6, 7]
+
     for model_name, model_config in MODEL_CONFIGS.items():
 
-        # if counter not in np.arange(10, 20).tolist():
+        # if (counter not in failed_jobs): # and (counter < 9):
         #     counter += 1
         #     continue
 

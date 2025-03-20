@@ -29,7 +29,7 @@ def filter_data(df):
     
     for lang_id in languages:
         # Get videos for this language
-        lang_df = df[df['lang_id'] == lang_id]
+        lang_df = df[df['most_common_lang'] == lang_id]
         
         # Get video IDs that meet high confidence criteria
         valid_videos = lang_df[(lang_df['percent_clips_lang'] > 0.75) & 
@@ -64,7 +64,7 @@ def split_train_val(df, val_ratio=0.1, random_seed=42):
     
     for lang_id in languages:
         # Get data for this language
-        lang_df = df[df['lang_id'] == lang_id]
+        lang_df = df[df['most_common_lang'] == lang_id]
         
         # Get unique video_ids for this language
         video_ids = lang_df['video_id'].unique()
@@ -314,12 +314,13 @@ def main():
     for split in splits:
         split_metadata_fn = os.path.join(args.base_dir, split, f'{split}_metadata.csv')
 
-        if not os.path.exists(split_metadata_fn):
-            split_fns = sorted(glob.glob(os.path.join(args.base_dir, split, f'{split}_metadata-*.csv')))
-            df_metadata = pd.concat([pd.read_csv(fn) for fn in split_fns]).reset_index(drop=True)
-            df_metadata.to_csv(split_metadata_fn, index=False)
-        else:
-            df_metadata = pd.read_csv(split_metadata_fn)
+        # if not os.path.exists(split_metadata_fn):
+        split_fns = sorted(glob.glob(os.path.join(args.base_dir, split, f'{split}_metadata-*.csv')))
+        df_metadata = pd.concat([pd.read_csv(fn) for fn in split_fns]).reset_index(drop=True)
+        # df_metadata['composite_key'] = df_metadata['clip_id']
+        df_metadata.to_csv(split_metadata_fn, index=False)
+        # else:
+        #     df_metadata = pd.read_csv(split_metadata_fn)
 
         split_metadata[split] = df_metadata
     
@@ -345,8 +346,8 @@ def main():
     for split, split_df in zip(splits, filtered_split_dfs):
         fn = os.path.join(args.base_dir, split, f"{split}_metadata-filtered.csv") 
 
-        if not os.path.exists(fn):
-            split_df.to_csv(fn, index=False)
+        # if not os.path.exists(fn):
+        split_df.to_csv(fn, index=False)
 
     # Move files if requested
     if args.move_files:
