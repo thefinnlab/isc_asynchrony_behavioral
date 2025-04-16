@@ -123,7 +123,8 @@ if __name__ == "__main__":
     if p.audiovisual:
         model_combo = 'gpt2-wav2vec2-data2vec'
         dataset_path = os.path.join(dataset_dir, 'features', 'metadata', model_combo)
-        metadata_fn = f"metadata_subset-{str(p.subset_percentage).zfill(3)}.json" if p.subset_percentage else None
+    
+    metadata_fn = f"metadata_subset-{str(p.subset_percentage).zfill(3)}.json" if p.subset_percentage else None
 
     dataset = AudioTextDataset(
         data_dir=dataset_path,

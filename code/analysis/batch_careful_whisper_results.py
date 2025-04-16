@@ -18,7 +18,7 @@ sys.path.append('../modeling/careful-whisper/scripts/')
 
 import utils
 
-PARTITION = 'standard'
+PARTITION = 'preemptable'
 TIME = '12:00:00'
 N_NODES = 1
 N_TASKS_PER_NODE = 1
@@ -89,6 +89,13 @@ DATASET_INFO = {
             'data.dataset_name=avspeech',
             'data.data_dir=\${paths.data_dir}/avspeech',
     ]},
+
+    'av-combined': {
+        'splits': ['test'],
+        'data_config': [
+            'data.dataset_name=av-combined',
+            'data.data_dir=\${paths.data_dir}/av-combined',
+    ]},
 }
 
 def create_model_variations(base_configs, subset_percentages=None):
@@ -116,7 +123,7 @@ if __name__ == '__main__':
     # type of analysis we're running --> linked to the name of the regressors
     parser.add_argument('-train', '--train_dataset', type=str)
     parser.add_argument('-test', '--test_dataset', type=str, default=None)
-    parser.add_argument('-subsets', '--subsets', type=str, default=None)
+    parser.add_argument('-subsets', '--subsets', type=int, default=0)
     parser.add_argument('-o', '--overwrite', type=int, default=0)
     p = parser.parse_args()
 
@@ -177,15 +184,16 @@ if __name__ == '__main__':
     # # Log space 2 - 25% 
     subset_percentages = np.logspace(0.3, 1.4, 10) / 100
 
-    # # 30% - 100% 
-    # subset_percentages = np.concatenate((
-    #     subset_percentages,
-    #     np.arange(0.3, 0.5, 0.1)
-    # ))
-    subset_percentages = subset_percentages[np.logical_and(subset_percentages > 0.1, subset_percentages < 0.15)]
+    # 30% - 100% 
+    subset_percentages = np.concatenate((
+        subset_percentages,
+        np.arange(0.3, 1, 0.1)
+    ))
 
     # Scale to percentages and apply if needed
     subset_percentages = (100 * np.sort(np.round(subset_percentages, 2))).astype(int) if p.subsets else None
+
+    subset_percentages = subset_percentages[subset_percentages == 11]
 
     MODEL_CONFIGS = create_model_variations(MODEL_CONFIGS, subset_percentages)
 
@@ -198,11 +206,24 @@ if __name__ == '__main__':
     job_string = f"{DSQ_MODULES.replace('dark_matter', 'prosody')} srun python {script_fn}"
     job_num = 0
 
+    # failed_jobs = [4]
+
+    counter = 0
+
     for i, (model_name, model_config) in enumerate(MODEL_CONFIGS.items()):
 
         # This becomes the name of the output file
         dataset_model = f'{p.train_dataset}_{model_name}'
         model_config = ' '.join(model_config)
+
+        if 'audiovisual' not in model_name:
+            continue
+
+        # if counter not in failed_jobs:
+        #     counter += 1
+        #     continue
+        
+        # counter += 1
 
         for split in splits:
 
@@ -224,7 +245,7 @@ if __name__ == '__main__':
             if file_exists and not p.overwrite:
                 continue
             
-            ckpt_path = glob.glob(os.path.join(CKPTS_DIR, model_name, 'checkpoints', 'epoch*.ckpt'))[-1]
+            ckpt_path = sorted(glob.glob(os.path.join(CKPTS_DIR, model_name, 'checkpoints', 'epoch*.ckpt')))[-1]
 
             cfg = (
                 f"experiment={EXPERIMENT_NAME}.yaml "

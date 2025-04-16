@@ -16,13 +16,13 @@ CPUS_PER_TASK = 8
 MEM_PER_CPU = '8G'
 GPU_INFO = ''
 
-TIME = '8:00:00'
+TIME = '3-00:00:00'
 EXCLUDE = ''#'p02,p03'
 CPUS_PER_TASK = 16
 MEM_PER_CPU = '8G'
-PARTITION = 'gpuq'
+PARTITION = 'v100_preemptable'
 GPU_INFO = '--gres=gpu:1'
-NODE_LIST = ''#--nodelist=a03,a04'
+NODE_LIST = 'a01'#--nodelist=a03,a04'
 ACCOUNT = 'dbic' #dbic
 
 DATASET_INFO = {
@@ -86,6 +86,7 @@ if __name__ == "__main__":
  
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--dataset', type=str)
+    parser.add_argument('-model_type', '--model_type', type=str)
     parser.add_argument('-subsets', '--subsets', type=int, default=0)
     # parser.add_argument('-o', '--overwrite', type=int, default=0)
     
@@ -95,11 +96,11 @@ if __name__ == "__main__":
     
     MODEL_CONFIGS = {
 
-        # # General GPT2-esque model
-        # 'text-careful-whisper_no-xattn': [
-        #     f"model.config.cross_attention=False",
-        #     f"model.config.use_causal_cross_attention=False",
-        # ],
+        # General GPT2-esque model
+        'text-careful-whisper_no-xattn': [
+            f"model.config.cross_attention=False",
+            f"model.config.use_causal_cross_attention=False",
+        ],
 
         # # Whisper w/ CLM integration
         # 'audio-careful-whisper_causal-xattn': [
@@ -111,34 +112,34 @@ if __name__ == "__main__":
         #     f"model.config.context_pos_embed=True",
         # ],
 
-        # Whisper w/ CLM integration
-        'audiovisual-careful-whisper_causal-xattn_token-fusion-mlp': [
-            f"model.config.cross_attention=True",
-            f"model.config.use_causal_cross_attention=True",
+        # # Whisper w/ CLM integration
+        # 'audiovisual-careful-whisper_causal-xattn_token-fusion-mlp': [
+        #     f"model.config.cross_attention=True",
+        #     f"model.config.use_causal_cross_attention=True",
 
-            # Prosody embedding information
-            f"model.config.context_type=audiovisual_features",
-            f"model.config.context_embed_dropout=0.1",
-            f"model.config.context_pos_embed=True",
-            # f"model.optimizer.lr=5e-5",
+        #     # Prosody embedding information
+        #     f"model.config.context_type=audiovisual_features",
+        #     f"model.config.context_embed_dropout=0.1",
+        #     f"model.config.context_pos_embed=True",
+        #     # f"model.optimizer.lr=5e-5",
 
-            # How to fusion AV tokens
-            f'data.token_fusion_method=mlp',
-            "data.ckpt_path=\${paths.log_dir}train/token-fusion/" + f"{p.dataset}/{utils.DATASET_CONFIG[p.dataset]['ckpt_path']}"
-        ],
+        #     # How to fusion AV tokens
+        #     f'data.token_fusion_method=mlp',
+        #     "data.ckpt_path=\${paths.log_dir}train/token-fusion/" + f"{p.dataset}/{utils.DATASET_CONFIG[p.dataset]['ckpt_path']}"
+        # ],
 
-        # Whisper w/ CLM integration
-        'prosody-careful-whisper_causal-xattn': [
-            f"model.config.cross_attention=True",
-            f"model.config.use_causal_cross_attention=True",
+        # # Whisper w/ CLM integration
+        # 'prosody-careful-whisper_causal-xattn': [
+        #     f"model.config.cross_attention=True",
+        #     f"model.config.use_causal_cross_attention=True",
 
-            # Prosody embedding information
-            f"model.config.context_type=prominence",
-            f"model.config.context_dim=1",
-            f"model.config.context_embed_dropout=0.1",
-            f"model.config.context_pos_embed=True",
+        #     # Prosody embedding information
+        #     f"model.config.context_type=prominence",
+        #     f"model.config.context_dim=1",
+        #     f"model.config.context_embed_dropout=0.1",
+        #     f"model.config.context_pos_embed=True",
 
-        ],
+        # ],
 
         # # Whisper w/ CLM integration
         # 'visual-careful-whisper_causal-xattn': [
@@ -254,12 +255,11 @@ if __name__ == "__main__":
     # # Log space 2 - 25% 
     subset_percentages = np.logspace(0.3, 1.4, 10) / 100
 
-    # # 30% - 100% 
-    # subset_percentages = np.concatenate((
-    #     subset_percentages,
-    #     np.arange(0.3, 0.5, 0.1)
-    # ))
-    subset_percentages = subset_percentages[np.logical_and(subset_percentages > 0.1, subset_percentages < 0.14)]
+    # 30% - 100% 
+    subset_percentages = np.concatenate((
+        subset_percentages,
+        np.arange(0.3, 1, 0.1)
+    ))
 
     # Scale to percentages and apply if needed
     subset_percentages = (100 * np.sort(np.round(subset_percentages, 2))).astype(int) if p.subsets else None
@@ -269,15 +269,16 @@ if __name__ == "__main__":
     wandb_group = 'full-data' if not p.subsets else 'subsets'
     counter = 0
 
-    # failed_jobs = [5, 6, 7]
+    # Rerun text = jobs 1-4
+    failed_jobs = [1,2,3,4]
 
     for model_name, model_config in MODEL_CONFIGS.items():
 
-        # if (counter not in failed_jobs): # and (counter < 9):
-        #     counter += 1
-        #     continue
+        if (counter not in failed_jobs): # and (counter < 9):
+            counter += 1
+            continue
 
-        # counter += 1
+        counter += 1
         print (model_name)
 
         # Model config --> change model configurations
@@ -313,13 +314,13 @@ if __name__ == "__main__":
         print (f'No model needing extraction - overwrite if you want to redo extraction', flush=True)
         sys.exit(0)
 
-    joblist_fn = os.path.join(joblist_dir, f'{p.dataset}_careful_whisper_experiments.txt')
+    joblist_fn = os.path.join(joblist_dir, f'{p.dataset}-{p.model_type}_careful_whisper_experiments.txt')
 
     with open(joblist_fn, 'w') as f:
         for cmd in all_cmds:
             f.write(f"{cmd}\n")
     
-    dsq_base_string = f'dsq_{p.dataset}_careful_whisper_experiments'
+    dsq_base_string = f'dsq_{p.dataset}-{p.model_type}_careful_whisper_experiments'
     dsq_batch_fn = os.path.join(dsq_dir, dsq_base_string)
     dsq_out_dir = os.path.join(logs_dir, dsq_base_string)
     array_fmt_width = len(str(job_num)) 

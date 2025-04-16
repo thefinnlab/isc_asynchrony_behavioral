@@ -6,6 +6,12 @@ from scipy import stats
 from scipy.stats import pearsonr, spearmanr, kendalltau
 from scipy.ndimage import gaussian_filter
 
+import numpy as np
+import statsmodels.api as sm
+from scipy.interpolate import interp1d
+
+from tqdm import tqdm
+
 import seaborn as sns
 from matplotlib import pyplot as plt
 import matplotlib.colors as clr
@@ -517,6 +523,103 @@ def create_joint_density_plot(
 
     return g
 
+def plot_lowess_bootstrap(ax, x, y, color, label=None, frac=0.6, n_boot=1000, 
+                          alpha=0.2, ci_level=95, extend_range=True):
+    """
+    Plot LOWESS regression with bootstrapped confidence intervals.
+    
+    Parameters
+    ----------
+    ax : matplotlib.axes.Axes
+        The axis to plot on
+    x : array-like
+        The x values
+    y : array-like
+        The y values
+    color : color
+        The color for the regression line and confidence interval
+    label : str, optional
+        The label for the regression line
+    frac : float, default=0.6
+        The fraction of the data used when estimating each y-value
+    n_boot : int, default=1000
+        Number of bootstrap iterations
+    alpha : float, default=0.2
+        The alpha/transparency level for the confidence interval
+    ci_level : float, default=95
+        The confidence interval level (in percent)
+    extend_range : bool, default=True
+        Whether to extend the x range slightly for better visualization
+        
+    Returns
+    -------
+    line : matplotlib.lines.Line2D
+        The main regression line
+    fill : matplotlib.collections.PolyCollection
+        The confidence interval polygon
+    """
+    import numpy as np
+    import statsmodels.api as sm
+    from scipy.interpolate import interp1d
+    
+    x = np.asarray(x)
+    y = np.asarray(y)
+    
+    # Create a grid of x values
+    x_min, x_max = x.min(), x.max()
+    if extend_range:
+        padding = 0.05 * (x_max - x_min)  # 5% padding on each side
+        x_grid = np.linspace(x_min - padding, x_max + padding, 100)
+    else:
+        x_grid = np.linspace(x_min, x_max, 100)
+    
+    # Main lowess fit for the original line
+    lowess_result = sm.nonparametric.lowess(y, x, frac=frac, return_sorted=False)
+    lowess_interp = interp1d(x, lowess_result, bounds_error=False, fill_value="extrapolate")
+    main_fit = lowess_interp(x_grid)
+    
+    # Bootstrap for confidence intervals
+    boot_curves = []
+    
+    for _ in tqdm(range(n_boot)):
+        # Sample with replacement
+        boot_idx = np.random.choice(len(x), size=len(x), replace=True)
+        x_boot = x[boot_idx]
+        y_boot = y[boot_idx]
+        
+        # Handle potential duplicate x values in bootstrap sample
+        x_boot_unique, unique_idx = np.unique(x_boot, return_index=True)
+        if len(x_boot_unique) < 3:  # Need at least 3 points for reasonable interpolation
+            continue
+            
+        # Compute lowess on bootstrap sample
+        try:
+            lowess_boot = sm.nonparametric.lowess(y_boot[unique_idx], x_boot_unique, frac=frac, return_sorted=False)
+            # Interpolate to the extended grid
+            interp_func = interp1d(x_boot_unique, lowess_boot, 
+                                  bounds_error=False, fill_value="extrapolate")
+            boot_fit = interp_func(x_grid)
+            boot_curves.append(boot_fit)
+        except Exception:
+            # Skip failed fits
+            continue
+    
+    # Plot main lowess line
+    line = ax.plot(x_grid, main_fit, color=color, label=label)[0]
+    
+    # Compute percentiles across bootstrap samples
+    if boot_curves:
+        boot_curves = np.array(boot_curves)
+        lower_percentile = (100 - ci_level) / 2
+        upper_percentile = 100 - lower_percentile
+        lower = np.percentile(boot_curves, lower_percentile, axis=0)
+        upper = np.percentile(boot_curves, upper_percentile, axis=0)
+        
+        # Plot confidence band
+        fill = ax.fill_between(x_grid, lower, upper, color=color, alpha=alpha)
+        return line, fill
+    
+    return line, None
 
 # def create_joint_density_plot(
 #     df_human_models,

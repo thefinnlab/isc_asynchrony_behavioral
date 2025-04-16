@@ -6,6 +6,7 @@ import numpy as np
 
 from scipy.optimize import curve_fit
 from scipy.interpolate import interp1d
+from scipy import stats
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -18,8 +19,7 @@ from itertools import product
 #########$$ Analysis functions #############
 ############################################
 
-
-def find_all_model_comparisons(df, main_models, comparison_model, kind='cubic', group=False):
+def find_all_model_comparisons(df, main_models, comparison_model, kind='cubic', group=False, stabilization_method=None):
     """
     Find equivalent points between a set of models (main_models) and a target comparison
     model (comparison_model). 
@@ -42,6 +42,8 @@ def find_all_model_comparisons(df, main_models, comparison_model, kind='cubic', 
         # Get data for both models
         main_data = df[df['model_name'] == main].sort_values('subset')
         comparison_data = df[df['model_name'] == comparison].sort_values('subset')
+
+        print (f"Comparing {main} and {comparison}")
         
         # Create interpolation functions for model1
         try:
@@ -60,13 +62,17 @@ def find_all_model_comparisons(df, main_models, comparison_model, kind='cubic', 
                 perplexity_curve = interp1d(grouped['perplexity'], grouped['subset'], 
                             kind=kind, fill_value='extrapolate')
             else:
-                fitted = [fit_curves(grouped[metric], grouped['subset']) for metric in ['accuracy', 'perplexity']]
+                fitted = [fit_curves(grouped[metric], grouped['subset'], verbose=True, stabilization_method=stabilization_method) for metric in ['accuracy', 'perplexity']]
                 accuracy_curve, perplexity_curve = [fit['function'] for fit in fitted]
 
                 curves[main].update({
                     'accuracy_info': fitted[0],
                     'perplexity_info': fitted[1]
                 })
+
+            print (f"\n\nComparison for {main} and {comparison}")
+            print (f"Best curve accuracy: {fitted[0]['type']}, R2 = {fitted[0]['r2']}")
+            print (f"Best curve perplexity: {fitted[1]['type']}, R2 = {fitted[1]['r2']}")
 
             curves[main].update({
                 'accuracy_curve': accuracy_curve,
@@ -88,7 +94,9 @@ def find_all_model_comparisons(df, main_models, comparison_model, kind='cubic', 
 
                 current_data = main_data[current_filter]
 
-                assert (len(current_data) == 1)
+                if len(current_data) != 1:
+                    print (f"No data found: subset {comparison_subset}, batch {batch}", flush=True)
+                    continue
                 
                 main_accuracy, main_perplexity = current_data[['accuracy', 'perplexity']].iloc[0]
                 
@@ -140,68 +148,166 @@ def find_all_model_comparisons(df, main_models, comparison_model, kind='cubic', 
     df_comparisons = pd.concat([df_comparisons, comparison_data]).reset_index(drop=True)
     return df_comparisons, curves
 
-
-
-def fit_curves(x, y):
+def fit_curves(x, y, verbose=False, stabilization_method=None):
     """
-    Fits multiple types of curves to the data and returns the best fit
-    along with parameters and prediction function.
+    Fits multiple types of curves to the data with robust stabilization
     
     Parameters:
     x: array-like, independent variable
     y: array-like, dependent variable
+    stabilization_method: str, method to handle outliers 
+        Options: 'truncate', 'winsorize', 'weighted', 'huber', 'bisquare'
     
     Returns:
     dict with best fitting function type, parameters, R-squared value,
     and a lambda function for predictions
     """
-    # Define potential fitting functions
-    # def exp_growth(x, a, b, c):
-    #     return a * np.exp(b * x) + c
-
     def exp_decay(x, a, b, c):
         return a * np.exp(-b * x) + c
         
     def power_law(x, a, b, c):
         return a * (x + b)**(-c)
 
-    # def log_growth(x, a, b, c):
-    #     return a * np.log(x + b) + c
+    # Robust curve fitting methods
+    def robust_curve_fit(x, y, func, p0, method='huber'):
+        """
+        Robust curve fitting with multiple stabilization methods
+        """
+        def huber_weight(residuals, k=1.9):
+            # Improved Huber weights to reduce impact of outliers
+            scaled_residuals = residuals / (1.4826 * np.median(np.abs(residuals)))
+            weights = np.where(np.abs(scaled_residuals) <= k, 1.0, k / np.abs(scaled_residuals))
+            return weights
         
-    # def linear(x, a, b):
-    #     return a * x + b
+        def bisquare_weight(residuals, k=4.685):
+            # Improved Tukey's bisquare (biweight) weighting
+            scaled_residuals = residuals / (1.4826 * np.median(np.abs(residuals)))
+            
+            # Soft transition to prevent zero weights
+            weights = np.where(
+                np.abs(scaled_residuals) <= k, 
+                (1 - (scaled_residuals / k)**2)**2, 
+                1e-10  # Small non-zero weight instead of zero
+            )
+            return weights
+        
+        if method in ['truncate', 'winsorize', 'weighted']:
+            # Existing methods remain the same as in the previous implementation
+            if method == 'truncate':
+                # Remove extreme outliers using IQR method
+                Q1 = np.percentile(y, 25)
+                Q3 = np.percentile(y, 75)
+                IQR = Q3 - Q1
+                lower_bound = Q1 - 1.5 * IQR
+                upper_bound = Q3 + 1.5 * IQR
+                
+                mask = (y >= lower_bound) & (y <= upper_bound)
+                x_filtered = x[mask]
+                y_filtered = y[mask]
+                
+                # Fit to filtered data
+                params, covariance = curve_fit(func, x_filtered, y_filtered, p0=p0, maxfev=10000)
+                
+            elif method == 'winsorize':
+                # Cap extreme values
+                y_winsorized = stats.mstats.winsorize(y, limits=[0.05, 0.05])
+                params, covariance = curve_fit(func, x, y_winsorized, p0=p0, maxfev=10000)
+            
+            elif method == 'weighted':
+                # Weighted least squares
+                # Initial fit to get initial residuals
+                initial_params, _ = curve_fit(func, x, y, p0=p0, maxfev=10000)
+                initial_pred = func(x, *initial_params)
+                residuals = y - initial_pred
+                
+                # Compute weights based on residuals
+                weights = 1 / (np.abs(residuals) + 1e-10)
+                params, covariance = curve_fit(
+                    func, x, y, 
+                    p0=initial_params, 
+                    sigma=1/weights, 
+                    absolute_sigma=True,
+                    maxfev=10000
+                )
+        
+        elif method in ['huber', 'bisquare']:
+            # Robust iterative weighting methods
+            weight_func = huber_weight if method == 'huber' else bisquare_weight
+            
+            # Initial fit
+            initial_params, _ = curve_fit(func, x, y, p0=p0, maxfev=10000)
+            initial_pred = func(x, *initial_params)
+            residuals = y - initial_pred
+            
+            # Iterative reweighting
+            for _ in range(3):  # Typically 3 iterations are sufficient
+                weights = weight_func(residuals)
+                
+                # Ensure no zero weights to prevent divide by zero
+                weights = np.maximum(weights, 1e-10)
+                
+                params, covariance = curve_fit(
+                    func, x, y, 
+                    p0=initial_params, 
+                    sigma=1/weights, 
+                    absolute_sigma=True,
+                    maxfev=10000
+                )
+                initial_params = params
+                initial_pred = func(x, *params)
+                residuals = y - initial_pred
+        
+        else:
+            print (f"Fitting with no robust method")
+            params, covariance = curve_fit(func, x, y, p0=p0, maxfev=10000)
+        
+        return params, covariance
 
-    # Dictionary to store all fitting functions and their initial parameters
+    # Rest of the function remains the same as in the previous implementation
+    # (function definitions for exp_decay, power_law, and the rest of fit_curves)
+    # ... [previous implementation continues]
+
     functions = {
-        # 'exponential_growth': (exp_growth, [0.5, 0.02, 0.2]),
         'exponential_decay': (exp_decay, [0.5, 0.02, 0.2]),
-        'power_law': (power_law, [0.5, 1, 0.5]),
-        # 'logarithmic': (log_growth, [1, 1, 0]),
-        # 'linear': (linear, [1, 0])
+        'power_law': (power_law, [0.5, 0.01, 0.5]),
     }
     
     results = {}
     
-    # Try fitting each function
+    # Try fitting each function with robust methods
     for name, (func, p0) in functions.items():
         try:
-            # Fit the function
-            params, _ = curve_fit(func, x, y, p0=p0, maxfev=10000)
-            
+            # Robust curve fitting
+            params, covariance = robust_curve_fit(x, y, func, p0, method=stabilization_method)
+                
             # Calculate predictions and R-squared
             pred = func(x, *params)
             r2 = 1 - np.sum((y - pred)**2) / np.sum((y - np.mean(y))**2)
             
+            # Calculate parameter uncertainties
+            param_uncertainties = np.sqrt(np.diag(covariance))
+            
             results[name] = {
                 'type': name,
                 'params': params,
+                'param_uncertainties': param_uncertainties,
                 'r2': r2,
                 'function': lambda x, f=func, p=params: f(x, *p),
-                'rmse': np.sqrt(np.mean((y - pred)**2))
+                'rmse': np.sqrt(np.mean((y - pred)**2)),
+                'stabilization_method': stabilization_method
             }
+
+            # Optional verbose output
+            if verbose:
+                print(f"{name.capitalize()} Robust Fit ({stabilization_method}):")
+                print("  Parameters:")
+                for i, (param, uncertainty) in enumerate(zip(params, param_uncertainties)):
+                    print(f"    p{i}: {param:.4f} ± {uncertainty:.4f}")
+                print(f"  R-squared: {r2:.4f}")
+                print(f"  RMSE: {results[name]['rmse']:.4f}\n")
             
         except (RuntimeError, ValueError) as e:
-            print(f"Could not fit {name}: {str(e)}")
+            print(f"Could not fit {name} with {stabilization_method} method: {str(e)}")
             continue
     
     if not results:
@@ -239,13 +345,13 @@ def plot_fit(x, y, fit_result, extrapolate_to=100):
     plt.legend()
     plt.show()
 
-def plot_all_comparisons(comparison_df, comparison_model, x_axis='true_subset', palette='RdBu_r', plot_types=['accuracy', 'perplexity'], visualize_equivalence=False, remove_outliers=False):
+def plot_all_comparisons(comparison_df, comparison_model, x_axis='true_subset', palette='RdBu_r', metrics=['accuracy', 'perplexity'], visualize_equivalence=False, remove_outliers=False):
     """
     Create a seaborn plot showing all model comparisons, including equivalent points and subset ratios.
     """
     
     # Create figure with two subplots
-    fig, axes = plt.subplots(len(plot_types), 2, figsize=(7, 3*len(plot_types)))
+    fig, axes = plt.subplots(len(metrics), 2, figsize=(7, 3*len(metrics)))
     axes = axes.flatten()
 
     # Plot the first subplot: Accuracy curves with equivalent points
@@ -256,45 +362,44 @@ def plot_all_comparisons(comparison_df, comparison_model, x_axis='true_subset', 
         xticks = np.linspace(0, 100, 5)  # 5 ticks evenly spaced from 0 to 9
     elif x_axis == 'hours':
         max_hours = max(comparison_df[x_axis])
-        print (max_hours)
         xlim = [0, 1.1*max_hours]
-        xticks = np.linspace(0, 1000, 5)  # 5 ticks evenly spaced from 0 to 9
+        xticks = np.linspace(0, 800, 5)  # 5 ticks evenly spaced from 0 to 9
 
     # cm.get_cmap(palette, )
 
     if remove_outliers:
         comparison_df = remove_df_outliers(comparison_df, 'subset_accuracy_ratio')
 
-    for plot_type in plot_types:
-        # Plot equivalent points
-        for _, df in comparison_df.groupby('main_model'):
-            if visualize_equivalence:
-                for i, row in df.iterrows():
-                    axes[counter].plot([row[x_axis], row[f'equivalence_{plot_type}_point']], 
-                            [row[f'comparison_{plot_type}'], row[f'comparison_{plot_type}']], 
-                            '--', color='k', alpha=0.75) #cmap(i)
+    # Go through each metric
+    for metric in metrics:
+        # Plot equivalent points if requested (e.g., drawing lines between curves)
+        if visualize_equivalence:
+            for _, df in comparison_df.groupby('main_model'):
+                    for i, row in df.iterrows():
+                        axes[counter].plot([row[x_axis], row[f'equivalence_{metric}_point']], 
+                                [row[f'comparison_{metric}'], row[f'comparison_{metric}']], 
+                                '--', color='k', alpha=0.75) #cmap(i)
 
         # Plot accuracy
         sns.lineplot(
             comparison_df,
             x=x_axis, 
-            y=f"main_{plot_type}", 
+            y=f"main_{metric}", 
             hue='main_model',
             palette=palette, 
             linewidth=1.5, 
             ax=axes[counter],
             legend=False
         )
-
+        
         axes[counter].set_xlabel('Number of samples')
-        axes[counter].set_ylabel(f'{plot_type.capitalize()}')
-        # axes[counter].legend()
-        axes[counter].set_title(f'Model {plot_type} curves with equivalence points')
+        axes[counter].set_ylabel(f'{metric.capitalize()}')
+        axes[counter].set_title(f'Model {metric} curves with equivalence points')
 
-        if plot_type == 'accuracy':
-            axes[counter].set_ylim([0.1, 0.325])
-        elif plot_type == 'perplexity':
-            axes[counter].set_ylim([0, 550])
+        if metric == 'accuracy':
+            axes[counter].set_ylim([0.15, 0.35])
+        elif metric == 'perplexity':
+            axes[counter].set_ylim([0, 200])
 
         axes[counter].set_xlim(xlim)
         axes[counter].set_xticks(xticks)
@@ -302,7 +407,7 @@ def plot_all_comparisons(comparison_df, comparison_model, x_axis='true_subset', 
         counter += 1
 
         curve_fit_dfs = []
-        columns = [x_axis, f'subset_{plot_type}_ratio']
+        columns = [x_axis, f'subset_{metric}_ratio']
 
         for i, df in comparison_df.groupby('pair'):
 
@@ -321,14 +426,14 @@ def plot_all_comparisons(comparison_df, comparison_model, x_axis='true_subset', 
 
         curve_fit_df = pd.concat(curve_fit_dfs).reset_index(drop=True)
 
-        ratio_df = comparison_df.groupby(['pair', x_axis])[f'subset_{plot_type}_ratio'] \
+        ratio_df = comparison_df.groupby(['pair', x_axis])[f'subset_{metric}_ratio'] \
             .mean() \
             .reset_index() \
 
         sns.scatterplot(
             data=ratio_df,
             x=x_axis,
-            y=f'subset_{plot_type}_ratio',
+            y=f'subset_{metric}_ratio',
             palette=palette,
             hue='pair',
             ax=axes[counter],
@@ -342,7 +447,7 @@ def plot_all_comparisons(comparison_df, comparison_model, x_axis='true_subset', 
         sns.lineplot(
             data=curve_fit_df,
             x=x_axis,
-            y=f'subset_{plot_type}_ratio',
+            y=f'subset_{metric}_ratio',
             palette=palette,
             hue='pair',
             style='pair',
@@ -364,7 +469,7 @@ def plot_all_comparisons(comparison_df, comparison_model, x_axis='true_subset', 
         
         axes[counter].set_xlabel('Samples of text-only data')
         axes[counter].set_ylabel(f'Percent less data')
-        axes[counter].set_title(f'Amount of data required for equivalent {plot_type}')
+        axes[counter].set_title(f'Amount of data required for equivalent {metric}')
         axes[counter].legend(title='Model Pairs', bbox_to_anchor=(1.05, 1), loc='upper left')
 
         counter += 1
@@ -375,7 +480,6 @@ def plot_all_comparisons(comparison_df, comparison_model, x_axis='true_subset', 
     sns.despine()
 
     return plt.gcf()
-
 
 def remove_df_outliers(df, column, std=1.5):
     """

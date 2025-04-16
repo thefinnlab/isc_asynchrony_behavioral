@@ -5,7 +5,7 @@
 ###################################
 
 # Set paths -- Use file.path() to join directories
-BASE_DIR <- '/Volumes/FinnLab/tommy/isc_asynchrony_behavior/derivatives/'
+BASE_DIR <- '/Volumes/FinnLab/tommy/isc_asynchrony_behavior/derivatives'
 
 # Function to set paths globally
 set_paths <- function(analysis_name, plots_name) {

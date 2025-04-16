@@ -96,11 +96,18 @@ MODEL_GROUPS = {
         f'text-careful-whisper_no-xattn': 'GPT2',
     },
     'av-subsets': {
-        # f'careful-whisper_causal-xattn': 'AudioXAttn',
-        # f'prosody-whisper_causal-xattn': 'ProsodyXAttn',
-        # f'careful-whisper_no-xattn': 'GPT2',
+        f'audiovisual-careful-whisper_causal-xattn': 'AudioVisualXAttn',
+        f'audio-careful-whisper_causal-xattn': 'AudioXAttn',
+        f'prosody-careful-whisper_causal-xattn': 'ProsodyXAttn',
+        f'text-careful-whisper_no-xattn': 'GPT2',
     }
 }
+
+DATASET_HOURS = {
+    'voxceleb2': 717,
+    'av-combined': 1065,
+}
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -140,92 +147,99 @@ if __name__ == "__main__":
 
     results_fns = sorted(results_fns)
 
-    # now remove dataset names for dataset model names
-    dataset_model_names = {'_'.join(k.split('_')[1:]): v for k, v in dataset_model_names.items()}
-    df_results = []
+    # # now remove dataset names for dataset model names
+    # dataset_model_names = {'_'.join(k.split('_')[1:]): v for k, v in dataset_model_names.items()}
+    # df_results = []
 
-    # Load the data and note the dataset name
-    for i, fn in tqdm(enumerate(results_fns), desc='Loading results'):
+    # # Load the data and note the dataset name
+    # for i, fn in tqdm(enumerate(results_fns), desc='Loading results'):
 
-        base_name = os.path.splitext(os.path.basename(fn))[0]
-        base_name = base_name.split('_')
+    #     base_name = os.path.splitext(os.path.basename(fn))[0]
+    #     base_name = base_name.split('_')
 
-        dataset_name = base_name[0]
-        model_name = '_'.join(base_name[1:-1])
+    #     dataset_name = base_name[0]
 
-        df = pd.read_csv(fn)
-        df = batch_average(df, batch_size=p.batch_size, columns=['loss', 'accuracy'])
-
-        df['dataset'] = dataset_name
-        df['model_name'] = model_name
-        df['perplexity'] = np.exp(df['loss'])
-
-        if p.group == 'subsets':
-            if 'subset' in base_name[2]:
-                subset = base_name[2].split('-')[-1]
-            else:
-                subset = 1.0
-
-            df['subset'] = int(float(subset) * 100)
-
-        df_results.append(df)
-    
-    df_results = pd.concat(df_results).reset_index(drop=True)
-
-    # Get order of models by binary accuracy
-    ordered_accuracy = df_results.loc[:,['dataset', 'model_name', 'accuracy', 'perplexity']] \
-        .groupby(['dataset', 'model_name']) \
-        .mean() \
-        .reset_index()
-
-    # get max chance of null models
-    null_models = ordered_accuracy['model_name'].str.contains('shuffle')
-    accuracy_chance = ordered_accuracy.loc[null_models, 'accuracy'].max()
-    perplexity_chance = ordered_accuracy.loc[null_models, 'perplexity'].min()
-
-    # Get overall model ordering (averaged across datasets)
-    ordered_models = ordered_accuracy[~null_models] \
-        .groupby('model_name')[['accuracy']] \
-        .mean() \
-        .sort_values(by='accuracy') \
-        .index.tolist()
+    #     if 'subset' in p.group:
+    #         model_name = '_'.join(base_name[1:3])
+    #     else:
+    #         model_name = '_'.join(base_name[1:-1])
         
-    # Filter out null models but keep dataset information for bar labels
-    ordered_accuracy = ordered_accuracy[~null_models]
+    #     df = pd.read_csv(fn)
+    #     df = batch_average(df, batch_size=p.batch_size, columns=['loss', 'accuracy'])
 
-    # Sort by dataset and accuracy to match the bar order
-    ordered_accuracy = ordered_accuracy.sort_values(by=['dataset', 'accuracy']) #.reset_index(drop=True)
+    #     df['dataset'] = dataset_name
+    #     df['model_name'] = model_name
+    #     df['perplexity'] = np.exp(df['loss'])
 
-    dataset_order = ordered_accuracy['dataset'].unique()
-    model_order = ordered_accuracy['model_name'].unique()
+    #     if 'subset' in p.group:
+    #         subset_name = base_name[-2]
 
-    # Create a multi-index DataFrame to ensure values are in the right order
-    ordered_values = []
-    for model in model_order:
-        for dataset in dataset_order:
-            row = ordered_accuracy[
-                (ordered_accuracy['dataset'] == dataset) & 
-                (ordered_accuracy['model_name'] == model)
-            ].iloc[0]
+    #         if 'subset' not in subset_name:
+    #             # continue
+    #             current_subset = 100
+    #         else:
+    #             current_subset = subset_name.split('-')[-1]
+            
+    #         df['subset'] = int(current_subset)
 
-            acc = row['accuracy']
-            ppl = row['perplexity']
-            ordered_values.append((acc, ppl))
+    #     df_results.append(df)
+    
+    # df_results = pd.concat(df_results).reset_index(drop=True)
 
-    ordered_acc_values, ordered_ppl_values = zip(*ordered_values)
+    # # Get order of models by binary accuracy
+    # ordered_accuracy = df_results.loc[:,['dataset', 'model_name', 'accuracy', 'perplexity']] \
+    #     .groupby(['dataset', 'model_name']) \
+    #     .mean() \
+    #     .reset_index()
 
-    # remove the null models
-    df_results = df_results[~df_results['model_name'].str.contains('shuffle')]
-    df_results['model_name'] = df_results['model_name'].apply(lambda x: dataset_model_names[x])
-    ordered_models = [dataset_model_names[model] for model in ordered_models]
+    # # get max chance of null models
+    # null_models = ordered_accuracy['model_name'].str.contains('shuffle')
+    # accuracy_chance = ordered_accuracy.loc[null_models, 'accuracy'].max()
+    # perplexity_chance = ordered_accuracy.loc[null_models, 'perplexity'].min()
 
-    df_results = df_results.sort_values(by=['dataset', 'accuracy'], ascending=[True, False])
+    # # Get overall model ordering (averaged across datasets)
+    # ordered_models = ordered_accuracy[~null_models] \
+    #     .groupby('model_name')[['accuracy']] \
+    #     .mean() \
+    #     .sort_values(by='accuracy') \
+    #     .index.tolist()
+        
+    # # Filter out null models but keep dataset information for bar labels
+    # ordered_accuracy = ordered_accuracy[~null_models]
+
+    # # Sort by dataset and accuracy to match the bar order
+    # ordered_accuracy = ordered_accuracy.sort_values(by=['dataset', 'accuracy']) #.reset_index(drop=True)
+
+    # dataset_order = ordered_accuracy['dataset'].unique()
+    # model_order = ordered_accuracy['model_name'].unique()
+
+    # # Create a multi-index DataFrame to ensure values are in the right order
+    # ordered_values = []
+    # for model in model_order:
+    #     for dataset in dataset_order:
+    #         row = ordered_accuracy[
+    #             (ordered_accuracy['dataset'] == dataset) & 
+    #             (ordered_accuracy['model_name'] == model)
+    #         ].iloc[0]
+
+    #         acc = row['accuracy']
+    #         ppl = row['perplexity']
+    #         ordered_values.append((acc, ppl))
+
+    # ordered_acc_values, ordered_ppl_values = zip(*ordered_values)
+
+    # # remove the null models
+    # df_results = df_results[~df_results['model_name'].str.contains('shuffle')]
+    # df_results['model_name'] = df_results['model_name'].apply(lambda x: dataset_model_names[x])
+    # ordered_models = [dataset_model_names[model] for model in ordered_models]
+
+    # df_results = df_results.sort_values(by=['dataset', 'accuracy'], ascending=[True, False])
 
     if 'main' in p.group:
 
         # Save to a csv file
         if len(p.datasets) > 1:
-            out_fn = os.path.join(results_dir, f'all-dataset-{p.group}-{p.group}_careful-whisper_all-results_batch-size-{p.batch_size}.csv')
+            out_fn = os.path.join(results_dir, f'all-dataset-{p.group}_careful-whisper_all-results_batch-size-{p.batch_size}.csv')
         else:
             out_fn = os.path.join(results_dir, f'{p.datasets[0]}-{p.group}_careful-whisper_all-results_batch-size-{p.batch_size}.csv')
 
@@ -339,34 +353,22 @@ if __name__ == "__main__":
 
     elif 'subsets' in p.group:
 
-        # if p.datasets[0] == 'gigaspeech-m':
-        #     hours = 950
+        # total_hours = DATASET_HOURS[p.datasets[0]]
 
-        # Find equivalent points and ratios
-        df_comparisons, curves = utils.find_all_model_comparisons(
-            df_results, 
-            main_models=['AudioXAttn', 'ProsodyXAttn'],
-            comparison_model=['GPT2'], 
-            kind='power',
-            group=True
-        )
+        # # Find equivalent points and ratios
+        # df_comparisons, curves = utils.find_all_model_comparisons(
+        #     df_results, 
+        #     main_models=['AudioVisualXAttn', 'AudioXAttn', 'ProsodyXAttn'],
+        #     comparison_model=['GPT2'], 
+        #     kind='power',
+        #     group=True,
+        #     stabilization_method='huber',
+        # )
 
-        print ('\n\nAccuracy\n\n')
-
-        print (curves['AudioXAttn']['accuracy_info'])
-        print (curves['ProsodyXAttn']['accuracy_info'])
-
-        print ('\n\PPL\n\n')
-
-        print (curves['AudioXAttn']['perplexity_info'])
-        print (curves['ProsodyXAttn']['perplexity_info'])
-
-        sys.exit(0)
         # dfs = []
 
         # for i, df in df_comparisons.groupby('true_subset'):
-        #     df['hours'] = (i / 100) * hours
-
+        #     df['hours'] = (i / 100) * total_hours
         #     dfs.append(df)
             
         # df_comparisons = pd.concat(dfs).reset_index(drop=True)
@@ -375,7 +377,6 @@ if __name__ == "__main__":
         # df_comparisons.to_csv(out_fn, index=False)
 
         df_comparisons = pd.read_csv(out_fn)
-
 
         df_visual = df_comparisons[df_comparisons['true_subset'] >= 5]
         ax = utils.plot_all_comparisons(df_visual, 'GPT2', x_axis='hours', palette='rocket', remove_outliers=False)
