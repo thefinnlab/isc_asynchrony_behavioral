@@ -8,6 +8,9 @@ experiments/next-word-prediction/experiment_orders/
 experiments/next-word-prediction/cleaned-results/
 experiments/next-word-prediction/archive/
 
+
+**/archive/
+
 derivatives/
 stimuli/
 
