@@ -7,17 +7,12 @@ login(token=HF_TOKEN)
 ## primary directories
 BASE_DIR = '/dartfs/rc/lab/F/FinnLab/tommy/isc_asynchrony_behavior/'
 CACHE_DIR = '/dartfs/rc/lab/F/FinnLab/tommy/models/'
-ATLAS_DIR = '/dartfs/rc/lab/F/FinnLab/tommy/atlases/'
 DATASETS_DIR = '/dartfs/rc/lab/F/FinnLab/datasets/'
 SCRATCH_DIR = '/dartfs-hpc/scratch/f003rjw/'
 
 ## secondary directories
 SUBMIT_DIR = os.path.join(BASE_DIR, 'code', 'submit_scripts')
 LOGS_DIR = os.path.join(BASE_DIR, 'derivatives', 'logs')
-
-## SET ATLAS DIRECTORIES
-os.environ['NILEARN_DATA'] = os.path.join(ATLAS_DIR, 'nilearn_data')
-os.environ['NEUROMAPS_DATA'] =  os.path.join(ATLAS_DIR, 'neuromaps_data')
 
 # SET MODELS DIRECTORIES
 os.environ['GENSIM_DATA_DIR'] = CACHE_DIR
@@ -30,8 +25,7 @@ DSQ_MODULES	 = [
     'module load openmpi',
     'module load workbench/1.50',
     'source /optnfs/common/miniconda3/etc/profile.d/conda.sh',
-    'conda activate dark_matter'
-    # 'conda activate asynchrony'
+    'conda activate asynchrony'
 ]
 
 DSQ_MODULES = ''.join([f'{module}; ' for module in DSQ_MODULES])

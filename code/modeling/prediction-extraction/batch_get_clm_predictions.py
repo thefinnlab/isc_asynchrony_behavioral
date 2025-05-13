@@ -10,7 +10,8 @@ sys.path.append('../../utils/')
 
 from config import *
 import dataset_utils as utils
-from tommy_utils import nlp
+# from tommy_utils import nlp
+import nlp_utils as nlp
 
 PARTITION = 'standard'
 TIME = '2-00:00:00'
