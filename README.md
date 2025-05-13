@@ -6,6 +6,7 @@ This repository contains the scripts for the paper ["Sensory context as a univer
 
 The following directory structure is used to organize the repository and interact with the code.
 
+```
 **code**
 ├── **analysis**: scripts used to analyze behavioral & LLM training data
 ├── **modeling**
@@ -22,7 +23,7 @@ The following directory structure is used to organize the repository and interac
 **derivatives**
 ├── **analysis**: scripts used to analyze behavioral & LLM training data
 ├── **modeling**
-
+```
 
 ## Setup
 
