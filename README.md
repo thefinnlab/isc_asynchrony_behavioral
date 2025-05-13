@@ -1,4 +1,30 @@
-# isc_asynchrony_behavioral
+# Human-LLM behavioral comparison
+
+This repository contains the scripts for the paper ["Sensory context as a universal principle of language in humans and LLMs"](https://osf.io/preprints/psyarxiv/nz5eg_v1?view_only=). Within this repository, one can find the scripts to run a next-word prediction behavioral experiment, train multimodal LLMs, and analyze and plot the resulting data.
+
+## Directory structure
+
+The following directory structure is used to organize the repository and interact with the code.
+
+**code**
+├── **analysis**: scripts used to analyze behavioral & LLM training data
+├── **modeling**
+│   ├── **careful-whisper**: training multimodal LLMs
+│   ├── **prediction-extraction**: extracting predictions from MLMs and CLMs (behavioral comparison)
+│   ├── **preproc-datasets**: preprocessing audiovisual datasets for LLM training
+├── **plot**: generating plots from analyzed data 
+├── **preprocess**: preparing data for behavioral experiment
+│   ├── **01_word-selection**: training multimodal LLMs
+│   ├── **02_jspsych-creation**: extracting predictions from MLMs and CLMs (behavioral comparison)
+├── **stats**: generating plots from analyzed data 
+└── **submit_scripts**: dynamically generated scripts for slurm with dSQ
+└── **utils**: functions shared across scripts
+**derivatives**
+├── **analysis**: scripts used to analyze behavioral & LLM training data
+├── **modeling**
+
+
+## Setup
 
 Scripts for running language prediction experiments.
 

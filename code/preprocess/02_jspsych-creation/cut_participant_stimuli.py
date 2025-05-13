@@ -136,10 +136,4 @@ if __name__ == '__main__':
 			df_participant.to_json(f'{out_fn}.json', orient='records')
 
 			# Copy the cut files to the current output directory
-			shutil.copytree(stim_out_dir, out_subject_dir, dirs_exist_ok=True)
-
-
-
-			
-
-	
+			shutil.copytree(stim_out_dir, out_subject_dir, dirs_exist_ok=True)	
