@@ -5,7 +5,7 @@ HF_TOKEN = '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'
 login(token=HF_TOKEN)
 
 ## primary directories
-BASE_DIR = '/dartfs/rc/lab/F/FinnLab/tommy/isc_asynchrony_behavior/'
+BASE_DIR = '/dartfs/rc/lab/F/FinnLab/tommy/pfka/'
 CACHE_DIR = '/dartfs/rc/lab/F/FinnLab/tommy/models/'
 DATASETS_DIR = '/dartfs/rc/lab/F/FinnLab/datasets/'
 SCRATCH_DIR = '/dartfs-hpc/scratch/f003rjw/'
