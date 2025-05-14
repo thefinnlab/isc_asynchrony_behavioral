@@ -1,7 +1,7 @@
 import os, sys
 from huggingface_hub import login
 
-HF_TOKEN = 'TOKENHERE'
+HF_TOKEN = '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'
 login(token=HF_TOKEN)
 
 ## primary directories
